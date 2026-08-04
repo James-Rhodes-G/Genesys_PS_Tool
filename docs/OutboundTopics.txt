@@ -1,0 +1,68 @@
+Topic
+Description
+v2.detail.events.conversation.{id}.outbound
+Topic for analytics detail event type: OutboundInitEvent
+v2.outbound.attemptlimits.{id}
+Subscribe to receive notifications when the configuration of an attempt limits object changes
+v2.outbound.callabletimesets.{id}
+Subscribe to receive notifications when the configuration of a callable time set changes.
+v2.outbound.campaignrules.{id}
+Subscribe to receive notifications when the configuration of a campaign rule changes
+v2.outbound.campaigns.{id}
+Subscribe to receive notifications when the configuration of a campaign changes.
+v2.outbound.campaigns.{id}.progress
+Subscribe to receive notifications about the number and percent of contacts called by a campaign.
+v2.outbound.campaigns.{id}.skillstats
+Subscribe to receive notifications about skill combination statistics for a campaign.
+v2.outbound.campaigns.{id}.stats
+Subscribe to receive notifications about the statistics of a running campaign.
+v2.outbound.contactlistfilters.{id}
+Subscribe to receive notifications when the configuration of a contact list filter changes.
+v2.outbound.contactlists.{id}
+Subscribe to receive notifications when the configuration of a contact list changes.
+v2.outbound.contactlists.{id}.importstatus
+Subscribe to receive notifications about the status of an importing contact list.
+v2.outbound.dnclists.{id}
+Subscribe to receive notifications when the configuration of a DNC list changes.
+v2.outbound.dnclists.{id}.importstatus
+Subscribe to receive notifications about the status of an importing internal DNC list.
+v2.outbound.emailcampaigns.{id}
+Subscribe to receive notifications when the configuration of an email campaign changes
+v2.outbound.emailcampaigns.{id}.progress
+Subscribe to receive notifications about the number and percent of contacts contacted by an email campaign.
+v2.outbound.importtemplates.{id}.importstatus
+Subscribe to receive notifications about the import status of an Import Template.
+v2.outbound.messagingcampaigns.{id}
+Subscribe to receive notifications when the configuration of a messaging campaign changes
+v2.outbound.messagingcampaigns.{id}.progress
+Subscribe to receive notifications about the number and percent of contacts contacted by a messaging campaign.
+v2.outbound.responsesets.{id}
+Subscribe to receive notifications when the configuration of a call analysis response set changes.
+v2.outbound.rulesets.{id}
+Subscribe to receive notifications when the configuration of a rule set changes.
+v2.outbound.schedules.campaigns.{id}
+Subscribe to receive notifications when the configuration of a campaign schedule changes.
+v2.outbound.schedules.emailcampaigns.{id}
+Subscribe to receive notifications when the configuration of an email campaign schedule changes.
+v2.outbound.schedules.messagingcampaigns.{id}
+Subscribe to receive notifications when the configuration of a messaging campaign schedule changes.
+v2.outbound.schedules.sequences.{id}
+Subscribe to receive notifications when the configuration of a sequence schedule changes.
+v2.outbound.schedules.whatsappcampaigns.{id}
+Subscribe to receive notifications when the configuration of a WhatsApp campaign schedule changes.
+v2.outbound.sequences.{id}
+Subscribe to receive notifications when the configuration of a campaign sequence changes.
+v2.outbound.settings
+Subscribe to receive notifications when the configuration of the outbound settings changes
+v2.outbound.whatsappcampaigns.{id}
+Subscribe to receive notifications when the configuration of a WhatsApp campaign changes
+v2.outbound.whatsappcampaigns.{id}.progress
+Subscribe to receive notifications about the number and percent of contacts contacted by a WhatsApp campaign.
+v2.outbound.wrapupcodemappings.{id}
+Subscribe to receive notifications when the configuration of a wrapup code mapping changes.
+v2.users.{id}.outbound.contactlists.{id}.export
+Subscribe to receive notifications when an exported contact list is ready to download.
+v2.users.{id}.outbound.dnclists.{id}.export
+Subscribe to receive notifications when an exported internal DNC list is ready to download.
+v2.webmessaging.deployments.{id}.undelivered.messages
+Subscribing to this topic will result in getting notifications for when an outbound Web Messaging message has failed to deliver.

@@ -1,0 +1,625 @@
+{
+	"STD":{
+		"Open_Hours":{
+			"name": "Open Hours Weekdays", 
+			"description": "Standard Schedule M-F 8AM-5PM",
+			"start": "2021-11-04T08:00:00.000", 
+			"end": "2021-11-04T16:25:00.000", 
+			"rrule": "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TU,WE,TH,FR"
+		},
+		"UAT_TEST":{
+			"name":"UAT Testing",
+			"description":"Schedule used during UAT testing for creating a specific Open/Closed/Holiday condition",
+			"start": "2021-11-15T18:00:00.000", 
+			"end": "2021-11-15T18:30:00.000"
+		},
+		"Meeting":{
+			"name":"Meeting",
+			"description":"Schedule used during meetings for temporary short closures",
+			"start": "2021-11-15T18:00:00.000", 
+			"end": "2021-11-15T18:30:00.000"
+		}
+	},
+    "USA": {
+        "new_years_day": {
+            "name": "New Year's Day",
+            "description": "US Federal Holiday - New Year's Day",
+            "start": "2024-01-01T00:00:00.000",
+            "end": "2024-01-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "martin_luther_king_day": {
+            "name": "Martin Luther King Jr. Day",
+            "description": "US Federal Holiday - Martin Luther King Jr. Day",
+            "start": "2024-01-15T00:00:00.000",
+            "end": "2024-01-15T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=3MO;BYMONTH=1"
+        },
+        "presidents_day": {
+            "name": "Presidents' Day",
+            "description": "US Federal Holiday - Presidents' Day",
+            "start": "2024-02-19T00:00:00.000",
+            "end": "2024-02-19T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=3MO;BYMONTH=2"
+        },
+        "memorial_day": {
+            "name": "Memorial Day",
+            "description": "US Federal Holiday - Memorial Day",
+            "start": "2024-05-27T00:00:00.000",
+            "end": "2024-05-27T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=-1MO;BYMONTH=5"
+        },
+        "juneteenth": {
+            "name": "Juneteenth National Independence Day",
+            "description": "US Federal Holiday - Juneteenth",
+            "start": "2024-06-19T00:00:00.000",
+            "end": "2024-06-19T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "independence_day": {
+            "name": "Independence Day",
+            "description": "US Federal Holiday - Independence Day",
+            "start": "2024-07-04T00:00:00.000",
+            "end": "2024-07-04T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "labor_day": {
+            "name": "Labor Day",
+            "description": "US Federal Holiday - Labor Day",
+            "start": "2024-09-02T00:00:00.000",
+            "end": "2024-09-02T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=1MO;BYMONTH=9"
+        },
+        "columbus_day": {
+            "name": "Columbus Day",
+            "description": "US Federal Holiday - Columbus Day",
+            "start": "2024-10-14T00:00:00.000",
+            "end": "2024-10-14T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=2MO;BYMONTH=10"
+        },
+        "veterans_day": {
+            "name": "Veterans Day",
+            "description": "US Federal Holiday - Veterans Day",
+            "start": "2024-11-11T00:00:00.000",
+            "end": "2024-11-11T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "thanksgiving_day": {
+            "name": "Thanksgiving Day",
+            "description": "US Federal Holiday - Thanksgiving Day",
+            "start": "2024-11-28T00:00:00.000",
+            "end": "2024-11-28T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=4TH;BYMONTH=11"
+        },
+        "christmas_day": {
+            "name": "Christmas Day",
+            "description": "US Federal Holiday - Christmas Day",
+            "start": "2024-12-25T00:00:00.000",
+            "end": "2024-12-25T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        }
+    },
+    "CAN": {
+        "new_years_day": {
+            "name": "New Year's Day",
+            "description": "Canadian Statutory Holiday - New Year's Day",
+            "start": "2024-01-01T00:00:00.000",
+            "end": "2024-01-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "family_day": {
+            "name": "Family Day",
+            "description": "Canadian Statutory Holiday - Family Day",
+            "start": "2024-02-19T00:00:00.000",
+            "end": "2024-02-19T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=3MO;BYMONTH=2"
+        },
+        "good_friday": {
+            "name": "Good Friday",
+            "description": "Canadian Statutory Holiday - Good Friday",
+            "start": "2024-03-29T00:00:00.000",
+            "end": "2024-03-29T23:59:59.999"
+        },
+        "victoria_day": {
+            "name": "Victoria Day",
+            "description": "Canadian Statutory Holiday - Victoria Day",
+            "start": "2024-05-20T00:00:00.000",
+            "end": "2024-05-20T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=-1MO;BYMONTH=5"
+        },
+        "canada_day": {
+            "name": "Canada Day",
+            "description": "Canadian Statutory Holiday - Canada Day",
+            "start": "2024-07-01T00:00:00.000",
+            "end": "2024-07-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "civic_holiday": {
+            "name": "Civic Holiday",
+            "description": "Canadian Statutory Holiday - Civic Holiday",
+            "start": "2024-08-05T00:00:00.000",
+            "end": "2024-08-05T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=1MO;BYMONTH=8"
+        },
+        "labour_day": {
+            "name": "Labour Day",
+            "description": "Canadian Statutory Holiday - Labour Day",
+            "start": "2024-09-02T00:00:00.000",
+            "end": "2024-09-02T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=1MO;BYMONTH=9"
+        },
+        "thanksgiving_day": {
+            "name": "Thanksgiving Day",
+            "description": "Canadian Statutory Holiday - Thanksgiving Day",
+            "start": "2024-10-14T00:00:00.000",
+            "end": "2024-10-14T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=2MO;BYMONTH=10"
+        },
+        "remembrance_day": {
+            "name": "Remembrance Day",
+            "description": "Canadian Statutory Holiday - Remembrance Day",
+            "start": "2024-11-11T00:00:00.000",
+            "end": "2024-11-11T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "christmas_day": {
+            "name": "Christmas Day",
+            "description": "Canadian Statutory Holiday - Christmas Day",
+            "start": "2024-12-25T00:00:00.000",
+            "end": "2024-12-25T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "boxing_day": {
+            "name": "Boxing Day",
+            "description": "Canadian Statutory Holiday - Boxing Day",
+            "start": "2024-12-26T00:00:00.000",
+            "end": "2024-12-26T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        }
+    },
+    "MEX": {
+        "new_years_day": {
+            "name": "Año Nuevo",
+            "description": "Mexican Statutory Holiday - New Year's Day",
+            "start": "2024-01-01T00:00:00.000",
+            "end": "2024-01-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "constitution_day": {
+            "name": "Día de la Constitución",
+            "description": "Mexican Statutory Holiday - Constitution Day",
+            "start": "2024-02-05T00:00:00.000",
+            "end": "2024-02-05T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=1MO;BYMONTH=2"
+        },
+        "benito_juarez_birthday": {
+            "name": "Natalicio de Benito Juárez",
+            "description": "Mexican Statutory Holiday - Benito Juárez's Birthday",
+            "start": "2024-03-18T00:00:00.000",
+            "end": "2024-03-18T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=3MO;BYMONTH=3"
+        },
+        "labor_day": {
+            "name": "Día del Trabajo",
+            "description": "Mexican Statutory Holiday - Labor Day",
+            "start": "2024-05-01T00:00:00.000",
+            "end": "2024-05-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "independence_day": {
+            "name": "Día de la Independencia",
+            "description": "Mexican Statutory Holiday - Independence Day",
+            "start": "2024-09-16T00:00:00.000",
+            "end": "2024-09-16T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "revolution_day": {
+            "name": "Día de la Revolución",
+            "description": "Mexican Statutory Holiday - Revolution Day",
+            "start": "2024-11-18T00:00:00.000",
+            "end": "2024-11-18T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=3MO;BYMONTH=11"
+        },
+        "christmas_day": {
+            "name": "Navidad",
+            "description": "Mexican Statutory Holiday - Christmas Day",
+            "start": "2024-12-25T00:00:00.000",
+            "end": "2024-12-25T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        }
+    },
+    "GBR": {
+        "new_years_day": {
+            "name": "New Year's Day",
+            "description": "UK Bank Holiday - New Year's Day",
+            "start": "2024-01-01T00:00:00.000",
+            "end": "2024-01-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "good_friday": {
+            "name": "Good Friday",
+            "description": "UK Bank Holiday - Good Friday",
+            "start": "2024-03-29T00:00:00.000",
+            "end": "2024-03-29T23:59:59.999"
+        },
+        "easter_monday": {
+            "name": "Easter Monday",
+            "description": "UK Bank Holiday - Easter Monday",
+            "start": "2024-04-01T00:00:00.000",
+            "end": "2024-04-01T23:59:59.999"
+        },
+        "early_may_bank_holiday": {
+            "name": "Early May Bank Holiday",
+            "description": "UK Bank Holiday - Early May Bank Holiday",
+            "start": "2024-05-06T00:00:00.000",
+            "end": "2024-05-06T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=1MO;BYMONTH=5"
+        },
+        "spring_bank_holiday": {
+            "name": "Spring Bank Holiday",
+            "description": "UK Bank Holiday - Spring Bank Holiday",
+            "start": "2024-05-27T00:00:00.000",
+            "end": "2024-05-27T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=-1MO;BYMONTH=5"
+        },
+        "summer_bank_holiday": {
+            "name": "Summer Bank Holiday",
+            "description": "UK Bank Holiday - Summer Bank Holiday",
+            "start": "2024-08-26T00:00:00.000",
+            "end": "2024-08-26T23:59:59.999",
+            "rrule": "FREQ=YEARLY;BYDAY=-1MO;BYMONTH=8"
+        },
+        "christmas_day": {
+            "name": "Christmas Day",
+            "description": "UK Bank Holiday - Christmas Day",
+            "start": "2024-12-25T00:00:00.000",
+            "end": "2024-12-25T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "boxing_day": {
+            "name": "Boxing Day",
+            "description": "UK Bank Holiday - Boxing Day",
+            "start": "2024-12-26T00:00:00.000",
+            "end": "2024-12-26T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        }
+    },
+    "FRA": {
+        "new_years_day": {
+            "name": "Jour de l'An",
+            "description": "French Public Holiday - New Year's Day",
+            "start": "2024-01-01T00:00:00.000",
+            "end": "2024-01-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "easter_monday": {
+            "name": "Lundi de Pâques",
+            "description": "French Public Holiday - Easter Monday",
+            "start": "2024-04-01T00:00:00.000",
+            "end": "2024-04-01T23:59:59.999"
+        },
+        "labor_day": {
+            "name": "Fête du Travail",
+            "description": "French Public Holiday - Labor Day",
+            "start": "2024-05-01T00:00:00.000",
+            "end": "2024-05-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "victory_day": {
+            "name": "Victoire 1945",
+            "description": "French Public Holiday - Victory in Europe Day",
+            "start": "2024-05-08T00:00:00.000",
+            "end": "2024-05-08T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "ascension_day": {
+            "name": "Ascension",
+            "description": "French Public Holiday - Ascension Day",
+            "start": "2024-05-09T00:00:00.000",
+            "end": "2024-05-09T23:59:59.999"
+        },
+        "whit_monday": {
+            "name": "Lundi de Pentecôte",
+            "description": "French Public Holiday - Whit Monday",
+            "start": "2024-05-20T00:00:00.000",
+            "end": "2024-05-20T23:59:59.999"
+        },
+        "bastille_day": {
+            "name": "Fête Nationale",
+            "description": "French Public Holiday - Bastille Day",
+            "start": "2024-07-14T00:00:00.000",
+            "end": "2024-07-14T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "assumption_day": {
+            "name": "Assomption",
+            "description": "French Public Holiday - Assumption of Mary",
+            "start": "2024-08-15T00:00:00.000",
+            "end": "2024-08-15T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "all_saints_day": {
+            "name": "Toussaint",
+            "description": "French Public Holiday - All Saints' Day",
+            "start": "2024-11-01T00:00:00.000",
+            "end": "2024-11-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "armistice_day": {
+            "name": "Armistice 1918",
+            "description": "French Public Holiday - Armistice Day",
+            "start": "2024-11-11T00:00:00.000",
+            "end": "2024-11-11T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "christmas_day": {
+            "name": "Noël",
+            "description": "French Public Holiday - Christmas Day",
+            "start": "2024-12-25T00:00:00.000",
+            "end": "2024-12-25T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        }
+    },
+    "DEU": {
+        "new_years_day": {
+            "name": "Neujahr",
+            "description": "German Public Holiday - New Year's Day",
+            "start": "2024-01-01T00:00:00.000",
+            "end": "2024-01-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "epiphany": {
+            "name": "Heilige Drei Könige",
+            "description": "German Public Holiday - Epiphany (select states)",
+            "start": "2024-01-06T00:00:00.000",
+            "end": "2024-01-06T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "good_friday": {
+            "name": "Karfreitag",
+            "description": "German Public Holiday - Good Friday",
+            "start": "2024-03-29T00:00:00.000",
+            "end": "2024-03-29T23:59:59.999"
+        },
+        "easter_monday": {
+            "name": "Ostermontag",
+            "description": "German Public Holiday - Easter Monday",
+            "start": "2024-04-01T00:00:00.000",
+            "end": "2024-04-01T23:59:59.999"
+        },
+        "labor_day": {
+            "name": "Tag der Arbeit",
+            "description": "German Public Holiday - Labor Day",
+            "start": "2024-05-01T00:00:00.000",
+            "end": "2024-05-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "ascension_day": {
+            "name": "Christi Himmelfahrt",
+            "description": "German Public Holiday - Ascension Day",
+            "start": "2024-05-09T00:00:00.000",
+            "end": "2024-05-09T23:59:59.999"
+        },
+        "whit_monday": {
+            "name": "Pfingstmontag",
+            "description": "German Public Holiday - Whit Monday",
+            "start": "2024-05-20T00:00:00.000",
+            "end": "2024-05-20T23:59:59.999"
+        },
+        "corpus_christi": {
+            "name": "Fronleichnam",
+            "description": "German Public Holiday - Corpus Christi (select states)",
+            "start": "2024-05-30T00:00:00.000",
+            "end": "2024-05-30T23:59:59.999"
+        },
+        "assumption_day": {
+            "name": "Mariä Himmelfahrt",
+            "description": "German Public Holiday - Assumption Day (select states)",
+            "start": "2024-08-15T00:00:00.000",
+            "end": "2024-08-15T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "german_unity_day": {
+            "name": "Tag der Deutschen Einheit",
+            "description": "German Public Holiday - German Unity Day",
+            "start": "2024-10-03T00:00:00.000",
+            "end": "2024-10-03T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "reformation_day": {
+            "name": "Reformationstag",
+            "description": "German Public Holiday - Reformation Day (select states)",
+            "start": "2024-10-31T00:00:00.000",
+            "end": "2024-10-31T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "all_saints_day": {
+            "name": "Allerheiligen",
+            "description": "German Public Holiday - All Saints' Day (select states)",
+            "start": "2024-11-01T00:00:00.000",
+            "end": "2024-11-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "repentance_day": {
+            "name": "Buß- und Bettag",
+            "description": "German Public Holiday - Day of Repentance (Saxony)",
+            "start": "2024-11-20T00:00:00.000",
+            "end": "2024-11-20T23:59:59.999"
+        },
+        "christmas_day": {
+            "name": "Erster Weihnachtstag",
+            "description": "German Public Holiday - Christmas Day",
+            "start": "2024-12-25T00:00:00.000",
+            "end": "2024-12-25T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "second_christmas_day": {
+            "name": "Zweiter Weihnachtstag",
+            "description": "German Public Holiday - Second Day of Christmas",
+            "start": "2024-12-26T00:00:00.000",
+            "end": "2024-12-26T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        }
+    },
+    "IND": {
+        "republic_day": {
+            "name": "Republic Day",
+            "description": "Indian National Holiday - Republic Day",
+            "start": "2024-01-26T00:00:00.000",
+            "end": "2024-01-26T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "holi": {
+            "name": "Holi",
+            "description": "Indian Festival Holiday - Festival of Colors",
+            "start": "2024-03-25T00:00:00.000",
+            "end": "2024-03-25T23:59:59.999"
+        },
+        "ram_navami": {
+            "name": "Ram Navami",
+            "description": "Indian Festival Holiday - Birth of Lord Rama",
+            "start": "2024-04-17T00:00:00.000",
+            "end": "2024-04-17T23:59:59.999"
+        },
+        "buddha_purnima": {
+            "name": "Buddha Purnima",
+            "description": "Indian Holiday - Buddha's Birthday",
+            "start": "2024-05-23T00:00:00.000",
+            "end": "2024-05-23T23:59:59.999"
+        },
+        "eid_al_fitr": {
+            "name": "Eid al-Fitr",
+            "description": "Indian Holiday - End of Ramadan",
+            "start": "2024-04-11T00:00:00.000",
+            "end": "2024-04-11T23:59:59.999"
+        },
+        "independence_day": {
+            "name": "Independence Day",
+            "description": "Indian National Holiday - Independence Day",
+            "start": "2024-08-15T00:00:00.000",
+            "end": "2024-08-15T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "janmashtami": {
+            "name": "Janmashtami",
+            "description": "Indian Festival Holiday - Birth of Lord Krishna",
+            "start": "2024-08-26T00:00:00.000",
+            "end": "2024-08-26T23:59:59.999"
+        },
+        "ganesh_chaturthi": {
+            "name": "Ganesh Chaturthi",
+            "description": "Indian Festival Holiday - Ganesh Festival",
+            "start": "2024-09-07T00:00:00.000",
+            "end": "2024-09-07T23:59:59.999"
+        },
+        "mahatma_gandhi_jayanti": {
+            "name": "Gandhi Jayanti",
+            "description": "Indian National Holiday - Mahatma Gandhi's Birthday",
+            "start": "2024-10-02T00:00:00.000",
+            "end": "2024-10-02T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "dussehra": {
+            "name": "Dussehra",
+            "description": "Indian Festival Holiday - Victory of Good over Evil",
+            "start": "2024-10-12T00:00:00.000",
+            "end": "2024-10-12T23:59:59.999"
+        },
+        "diwali": {
+            "name": "Diwali",
+            "description": "Indian Festival Holiday - Festival of Lights",
+            "start": "2024-10-31T00:00:00.000",
+            "end": "2024-10-31T23:59:59.999"
+        },
+        "guru_nanak_jayanti": {
+            "name": "Guru Nanak Jayanti",
+            "description": "Indian Festival Holiday - Birth of Guru Nanak",
+            "start": "2024-11-15T00:00:00.000",
+            "end": "2024-11-15T23:59:59.999"
+        },
+        "christmas_day": {
+            "name": "Christmas Day",
+            "description": "Indian Holiday - Christmas Day",
+            "start": "2024-12-25T00:00:00.000",
+            "end": "2024-12-25T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        }
+    },
+    "UKR": {
+        "new_years_day": {
+            "name": "Новий рік",
+            "description": "Ukrainian Public Holiday - New Year's Day",
+            "start": "2024-01-01T00:00:00.000",
+            "end": "2024-01-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "christmas_day": {
+            "name": "Різдво Христове",
+            "description": "Ukrainian Public Holiday - Christmas Day",
+            "start": "2024-12-25T00:00:00.000",
+            "end": "2024-12-25T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "womens_day": {
+            "name": "Міжнародний жіночий день",
+            "description": "Ukrainian Public Holiday - International Women's Day",
+            "start": "2024-03-08T00:00:00.000",
+            "end": "2024-03-08T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "orthodox_easter_monday": {
+            "name": "Великодній понеділок",
+            "description": "Ukrainian Public Holiday - Orthodox Easter Monday",
+            "start": "2024-05-06T00:00:00.000",
+            "end": "2024-05-06T23:59:59.999"
+        },
+        "labor_day": {
+            "name": "День праці",
+            "description": "Ukrainian Public Holiday - Labor Day",
+            "start": "2024-05-01T00:00:00.000",
+            "end": "2024-05-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "victory_day": {
+            "name": "День перемоги над нацизмом",
+            "description": "Ukrainian Public Holiday - Day of Victory over Nazism in World War II",
+            "start": "2024-05-09T00:00:00.000",
+            "end": "2024-05-09T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "trinity_day": {
+            "name": "Трійця",
+            "description": "Ukrainian Public Holiday - Trinity Sunday",
+            "start": "2024-06-23T00:00:00.000",
+            "end": "2024-06-23T23:59:59.999"
+        },
+        "constitution_day": {
+            "name": "День Конституції",
+            "description": "Ukrainian Public Holiday - Constitution Day",
+            "start": "2024-06-28T00:00:00.000",
+            "end": "2024-06-28T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "independence_day": {
+            "name": "День Незалежності",
+            "description": "Ukrainian Public Holiday - Independence Day",
+            "start": "2024-08-24T00:00:00.000",
+            "end": "2024-08-24T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "defenders_day": {
+            "name": "День захисників і захисниць України",
+            "description": "Ukrainian Public Holiday - Defenders Day",
+            "start": "2024-10-01T00:00:00.000",
+            "end": "2024-10-01T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        },
+        "dignity_and_freedom_day": {
+            "name": "День Гідності та Свободи",
+            "description": "Ukrainian Public Holiday - Dignity and Freedom Day",
+            "start": "2024-11-21T00:00:00.000",
+            "end": "2024-11-21T23:59:59.999",
+            "rrule": "FREQ=YEARLY"
+        }
+    }
+}

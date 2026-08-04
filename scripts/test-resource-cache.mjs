@@ -1,0 +1,40 @@
+import assert from "node:assert/strict";
+import {
+  clearResourceCaches,
+  getCachedPhones,
+  loadCachedResource,
+} from "../public/js/resource-cache.js";
+import { parseDelimitedIds, isWebRtcPhone, filterPhones } from "../public/js/bulk-phone-utils.js";
+
+const calls = [];
+
+const mockLoader = async (credentials) => {
+  calls.push(credentials);
+  return [{ id: "phone-1", name: "Phone 1" }];
+};
+
+clearResourceCaches();
+const first = await getCachedPhones({ region: "us-east-1", token: "token" }, mockLoader);
+const second = await getCachedPhones({ region: "us-east-1", token: "token" }, mockLoader);
+
+assert.equal(first.length, 1);
+assert.equal(second.length, 1);
+assert.equal(calls.length, 1, "second request should reuse session cache");
+
+clearResourceCaches();
+await getCachedPhones({ region: "us-east-1", token: "token" }, mockLoader);
+assert.equal(calls.length, 2, "cache clear should force reload");
+
+assert.deepEqual(parseDelimitedIds("a\nb, c; d"), ["a", "b", "c", "d"]);
+assert.deepEqual(parseDelimitedIds("a, a, b"), ["a", "b"]);
+
+assert.equal(isWebRtcPhone({ webRtcUser: { id: "user-1" } }), true);
+assert.equal(isWebRtcPhone({ name: "desk phone" }), false);
+
+const phones = [
+  { id: "1", name: "Alpha", siteName: "Site A" },
+  { id: "2", name: "Beta", siteName: "Site B" },
+];
+assert.equal(filterPhones(phones, "beta").length, 1);
+
+console.log("resource-cache and bulk-phone-utils tests passed");

@@ -1,0 +1,32 @@
+Topic
+Description
+v2.analytics.queues.{id}.activity
+Queue observation notifications
+v2.analytics.queues.{id}.observations
+Queue statistic observations
+v2.routing.queues.{id}.conversations
+Subscribing to this topic will result in receiving notifications for all active conversation types in the given queue.
+v2.routing.queues.{id}.conversations.callbacks
+Subscribing to this topic will result in receiving notifications for active callback conversations in the given queue.
+v2.routing.queues.{id}.conversations.calls
+Subscribing to this topic will result in receiving notifications for active call conversations in the given queue.
+v2.routing.queues.{id}.conversations.chats
+Subscribing to this topic will result in receiving notifications for active chat conversations in the given queue.
+v2.routing.queues.{id}.conversations.cobrowseSessions
+Subscribing to this topic will result in receiving notifications for active cobrowse conversations in the given queue.
+v2.routing.queues.{id}.conversations.emails
+Subscribing to this topic will result in receiving notifications for active email conversations in the given queue.
+v2.routing.queues.{id}.conversations.messages
+Subscribing to this topic will result in receiving notifications for active message conversations in the given queue.
+v2.routing.queues.{id}.conversations.screenshares
+Subscribing to this topic will result in receiving notifications for active screen share conversations in the given queue.
+v2.routing.queues.{id}.conversations.socialexpressions
+Subscribing to this topic will result in receiving notifications for active social expression conversations in the given queue.
+v2.routing.queues.{id}.conversations.videos
+Subscribing to this topic will result in receiving notifications for active video conversations in the given queue.
+v2.routing.queues.{id}.users
+Raised when the membership of a queue is changed
+v2.taskmanagement.workitems.queues.{id}
+Notifications relating to workitems in a queue.
+v2.users.{id}.activity
+Notification for changes to routing, presence, out of office, and active queues for a queue member

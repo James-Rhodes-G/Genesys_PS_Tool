@@ -1,0 +1,25 @@
+{
+  "name": "genesys-ps-tool",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Genesys Cloud PS Tool — web app for exports, bulk admin workflows, and diagnostics",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "seed:logs": "node scripts/seed_logs.js",
+    "sw:build": "node scripts/build_sw.js",
+    "clean": "node scripts/clean.js",
+    "test": "node scripts/test-resource-cache.mjs && node scripts/test-notification-topics.mjs && node scripts/test-notification-message-store.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2",
+    "genesys-spark": "^4.207.2",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}

@@ -1,0 +1,133 @@
+
+Description
+v2.analytics.users.details.jobs.availability
+Datalake availability for user details
+v2.analytics.users.{id}.aggregates
+User aggregate statistics
+v2.detail.events.conversation.{id}.user.start
+Topic for analytics detail event type: UserStartEvent
+v2.gamification.scorecards.users.{id}
+Gamification Performance points and value updates
+v2.routing.queues.{id}.users
+Raised when the membership of a queue is changed
+v2.taskmanagement.workitems.users.{id}
+Notifications relating to workitems assigned to a user.
+v2.users.{id}.activity
+Notification for changes to routing, presence, out of office, and active queues for a queue member
+v2.users.{id}.alerting.alerts
+Subscribing to this topic will result in getting notifications for any changes to a user defined alert.
+v2.users.{id}.alerting.rules
+Subscribing to this topic will result in getting notifications for any changes to a user defined rule.
+v2.users.{id}.analytics.reporting.exports
+Subscribing to this topic will result in getting notifications for any changes to an export requests.
+v2.users.{id}.badges.chats
+Notification for changes to unread chat badge counts for the current user
+v2.users.{id}.callforwarding
+Raised when the user's CallForwarding value is changed
+v2.users.{id}.conversations
+Subscribing to this topic will result in getting notifications for the user's active conversations.
+v2.users.{id}.conversations.callbacks
+Subscribing to this topic will result in getting notifications for the user's active call backs.
+v2.users.{id}.conversations.calls
+Subscribing to this topic will result in getting notifications for the user's active calls.
+v2.users.{id}.conversations.chats
+Subscribing to this topic will result in getting notifications for the user's active chats.
+v2.users.{id}.conversations.cobrowseSessions
+Subscribing to this topic will result in getting notifications for the user's active cobrowse sessions.
+v2.users.{id}.conversations.emails
+Subscribing to this topic will result in getting notifications for the user's active emails.
+v2.users.{id}.conversations.inbound.typing.event
+(PREVIEW) Subscribing to this topic will result in getting notifications for the user's inbound message typing events.
+v2.users.{id}.conversations.messages
+Subscribing to this topic will result in getting notifications for the user's active messages.
+v2.users.{id}.conversations.screenshares
+Subscribing to this topic will result in getting notifications for the user's active screen shares.
+v2.users.{id}.conversations.socialexpressions
+Subscribing to this topic will result in getting notifications for the user's active social media expressions.
+v2.users.{id}.conversations.summaries
+Notification containing conversation summary and headline with their confidences
+v2.users.{id}.conversations.summaries.settings.preview
+(PREVIEW) Raised when summary is generated as a result of a summary settings preview.
+v2.users.{id}.conversations.videos
+Subscribing to this topic will result in getting notifications for the user's active video conversations.
+v2.users.{id}.conversations.{id}.recordings
+Subscribe to receive notifications related to recording events.
+v2.users.{id}.conversations.{id}.recordings.{id}
+Subscribe to receive notifications when the transcode of a recording has completed.
+v2.users.{id}.conversationsummary
+Raised when a user's conversation summary is changed
+v2.users.{id}.employeeengagement.celebrations
+Employee Engagement celebration updates
+v2.users.{id}.fax.documents
+Raised when a user's fax is created, updated, or deleted.
+v2.users.{id}.geolocation
+Raised when the user's geolocation value is changed.
+v2.users.{id}.greetings
+Raised when a greeting associated with the user is changed.
+v2.users.{id}.integrationpresence
+Notifications for unified communications.
+v2.users.{id}.outbound.contactlists.{id}.export
+Subscribe to receive notifications when an exported contact list is ready to download.
+v2.users.{id}.outbound.dnclists.{id}.export
+Subscribe to receive notifications when an exported internal DNC list is ready to download.
+v2.users.{id}.outofoffice
+Raised when the user's OutOfOffice value is changed.
+v2.users.{id}.persistentconnection
+Notifications for changes in a user's persistent connection state.
+v2.users.{id}.presence
+Raised when the presence of the user is changed.
+v2.users.{id}.recordings
+Subscribe to receive notifications when a recording archive is restored.
+v2.users.{id}.routingStatus
+Raised when the routing status of a user is changed
+v2.users.{id}.station
+Subscribing to this topic will result in getting notifications for changes to a user's associated station
+v2.users.{id}.tokens
+Subscribing to this topic will result in getting notifications for any token events for the user.
+v2.users.{id}.userrecordings
+Raised when a user's ad-hoc recording is created, updated, or deleted.
+v2.users.{id}.voicemail.messages
+Notifies when a voicemail is received and marked read/unread. Use the `action` field in metadata to determine what changed.
+v2.users.{id}.wem.coaching.notification
+Notification of a change to a user's coaching notification message
+v2.users.{id}.wem.learning.assignment
+Notification of learning assignment when assigned to agent and on state change to InProgress and Completed
+v2.users.{id}.workforcemanagement.adherence
+Notification that an agent's schedule adherence has changed
+v2.users.{id}.workforcemanagement.adherence.explanations.jobs
+Notification that an adherence job is complete
+v2.users.{id}.workforcemanagement.adherence.historical.agent
+Notification that historical adherence agent calculations are complete and the results are ready for download
+v2.users.{id}.workforcemanagement.adherence.historical.bulk
+Notification that historical adherence bulk calculations are complete and the results are ready for download
+v2.users.{id}.workforcemanagement.agentschedules.managementunit.search.complete
+Notification that a user's search for the schedule details for their management unit is complete
+v2.users.{id}.workforcemanagement.alternative.shift.jobs
+Notification that an alternative shift job is complete
+v2.users.{id}.workforcemanagement.decisionmetrics.jobs
+Notification when Decision metrics update job completes
+v2.users.{id}.workforcemanagement.historicaladherencequery
+Notification that historical adherence calculations are complete and the results are ready for download
+v2.users.{id}.workforcemanagement.integrations.hris.timeofftypes.jobs
+Notification that a WFM integration HRIS time off types job has been updated
+v2.users.{id}.workforcemanagement.notifications
+Notification that a user's wfm inbox has a new message
+v2.users.{id}.workforcemanagement.performanceprediction.schedules.recalculations
+User request Performance prediction recalculation complete
+v2.users.{id}.workforcemanagement.schedules
+Notification that the schedule has been updated for a user. Only up to 1000 users will be notified of a single update
+v2.users.{id}.workforcemanagement.shift.trading.jobs
+Notification that a shift trading job is complete. A replacement for this topic with improved notification schemas is planned. New subscribers are advised to wait for the updated topic
+v2.users.{id}.workforcemanagement.shrinkage.jobs
+Notification that historical shrinkage calculations are complete and the results are ready for download
+v2.users.{id}.workforcemanagement.timeoffbalance.jobs
+Notification that time off balance job has been updated
+v2.users.{id}.workforcemanagement.timeoffrequests
+Notification that a time off request has been updated
+v2.workforcemanagement.users.{id}.schedules.query
+Notifications that agent schedules queried by the user are ready for download
+v2.workforcemanagement.users.{id}.schedules.search
+Notifications that published agent schedules searched for by the user are ready for download
+Was this page helpful?
+
+

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notification Message Parser</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/css/notification-message-parser.css">
+</head>
+<body>
+  <main class="page parser-page">
+    <section class="hero">
+      <p class="eyebrow">Genesys Cloud Notifications</p>
+      <h1>Notification Message Parser</h1>
+      <p class="lede">
+        Review parsed notification messages from User Notifications. Messages sync live while a subscription is active in another tab.
+        Expand each card to inspect the payload with a collapsible JSON tree.
+      </p>
+    </section>
+
+    <section class="panel">
+      <div id="parserPanelRoot"></div>
+    </section>
+  </main>
+
+  <script type="module" src="/js/notification-message-parser-page.js"></script>
+</body>
+</html>

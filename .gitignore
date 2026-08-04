@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Environment and secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Local SQLite databases (may contain org/user export cache)
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# OS and editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.code-workspace
+
+# Logs and temp files
+*.log
+npm-debug.log*
+.npp-md-preview.html
+
+# Optional local overrides
+*.local
