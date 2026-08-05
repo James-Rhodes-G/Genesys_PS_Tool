@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   clearResourceCaches,
   getCachedPhones,
+  getCachedRoles,
   loadCachedResource,
 } from "../public/js/resource-cache.js";
 import { parseDelimitedIds, isWebRtcPhone, filterPhones } from "../public/js/bulk-phone-utils.js";
@@ -24,6 +25,17 @@ assert.equal(calls.length, 1, "second request should reuse session cache");
 clearResourceCaches();
 await getCachedPhones({ region: "us-east-1", token: "token" }, mockLoader);
 assert.equal(calls.length, 2, "cache clear should force reload");
+
+const roleCalls = [];
+const mockRoleLoader = async (credentials) => {
+  roleCalls.push(credentials);
+  return [{ id: "role-1", name: "Admin" }];
+};
+
+clearResourceCaches();
+await getCachedRoles({ region: "us-east-1", token: "token" }, mockRoleLoader);
+await getCachedRoles({ region: "us-east-1", token: "token" }, mockRoleLoader);
+assert.equal(roleCalls.length, 1, "roles cache should reuse session data");
 
 assert.deepEqual(parseDelimitedIds("a\nb, c; d"), ["a", "b", "c", "d"]);
 assert.deepEqual(parseDelimitedIds("a, a, b"), ["a", "b"]);

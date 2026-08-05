@@ -61,6 +61,13 @@ const navGroupDefinition = ({ id, label, icon, bodyHtml }) => ({
 const renderAppSidebar = () => {
   const groups = [
     navGroupDefinition({
+      id: "dashboard",
+      label: "Dashboard",
+      icon: "dashboard",
+      bodyHtml: `${navSubmenuItem("genesys-dashboard", "Overview")}
+<li class="menu-item-container"><p id="dashboard-status" class="command-nav__status">Connect to an organization to view the dashboard.</p></li>`,
+    }),
+    navGroupDefinition({
       id: "exports",
       label: "Exports",
       icon: "export",
@@ -80,10 +87,11 @@ ${navSubmenuItem("genesys-datatable-export", "Data Table Export")}
     }),
     navGroupDefinition({
       id: "inbound-call-spoof",
-      label: "Inbound Call Spoof",
+      label: "Call Spoof",
       icon: "phone",
       bodyHtml: `${navSubmenuItem("genesys-inbound-call-spoof", "Inbound Call Spoof")}
-<li class="menu-item-container"><p id="inbound-call-spoof-status" class="command-nav__status">Connect to an organization to run inbound call spoof tests.</p></li>`,
+      ${navSubmenuItem("genesys-report-call-spoof", "Outbound Call Spoof")}
+<li class="menu-item-container"><p id="inbound-call-spoof-status" class="command-nav__status">Connect to an organization to run call spoof tests.</p></li>`,
     }),
     navGroupDefinition({
       id: "interaction-data",
@@ -99,7 +107,7 @@ ${navSubmenuItem("genesys-report-conversation", "Conversation Data")}
 ${navSubmenuItem("genesys-report-attributes", "Attributes")}
 ${navSubmenuItem("genesys-report-flow", "Flow Execution")}
 ${navSubmenuItem("genesys-report-interaction", "Interaction Details")}
-${navSubmenuItem("genesys-report-call-spoof", "Outbound Call Spoof")}
+
 ${navSubmenuItem("genesys-report-intent-health", "Intent Health")}
 ${navSubmenuItem("genesys-report-utterances", "Utterances")}
 <li class="menu-item-container"><p id="reports-status" class="command-nav__status">Connect to an organization to run reports.</p></li>`,
@@ -120,7 +128,6 @@ ${navSubmenuItem("genesys-bulk-phone-move", "Phone Mover")}
 ${navSubmenuItem("genesys-bulk-phone-remove", "Phone Remover")}
 ${navSubmenuItem("genesys-bulk-phone-site-migrate", "Phone Site Migrator")}
 ${navSubmenuItem("genesys-load-schedules", "Load Schedules")}
-${navSubmenuItem("genesys-create-master-admin", "Create Master Admin")}
 <li class="menu-item-container"><p id="bulk-actions-status" class="command-nav__status">Connect to an organization to run bulk changes.</p></li>`,
     }),
     navGroupDefinition({
@@ -138,7 +145,7 @@ ${navSubmenuItem("genesys-create-master-admin", "Create Master Admin")}
 ${navSubmenuItem("genesys-queue-notifications", "Queue Notifications")}
 ${navSubmenuItem("genesys-outbound-notifications", "Outbound Notifications")}
 ${navSubmenuItem("genesys-notification-message-parser", "Parsed Messages")}
-${navSubmenuItem("genesys-quick-action-4", "quickAction#4")}
+${navSubmenuItem("genesys-create-master-admin", "Create Master Admin")}
 ${navSubmenuItem("genesys-quick-action-5", "quickAction#5")}
 ${navSubmenuItem("genesys-quick-action-6", "quickAction#6")}
 ${navSubmenuItem("genesys-quick-action-7", "quickAction#7")}
@@ -202,6 +209,7 @@ const layout = ({ title, body, updatedAt, regions = [] }) => {
   <link rel="stylesheet" href="/css/app-global-nav.css" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/css/notification-message-parser.css" />
+  <link rel="stylesheet" href="/css/dashboard.css" />
 </head>
 <body>
   <div id="genesys-org-banner" class="command-banner" hidden>

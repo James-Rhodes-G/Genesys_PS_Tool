@@ -1,4 +1,5 @@
 import {
+  getConnectedAt,
   getOrganizationId,
   getOrganizationName,
   getPreferredTargetOrg,
@@ -64,6 +65,7 @@ import {
   getGroups,
   getDivisions,
   getIntentHealth,
+  getOrganizationLimits,
   getPasswordPolicy,
   getPhones,
   getPrompts,
@@ -73,6 +75,7 @@ import {
   getScheduleTemplates,
   getSites,
   getSkills,
+  getTelephonyCallMetrics,
   getUser,
   loadGenesysRegions,
   loadSchedules,
@@ -101,9 +104,21 @@ import { createDataTableExportFeature } from "./datatable-export.js";
 import {
   clearResourceCaches,
   getCachedDataTables,
+  getCachedGroups,
   getCachedPhones,
+  getCachedQueues,
+  getCachedRoles,
   getCachedSites,
+  getCachedSkills,
+  peekCachedPhones,
 } from "./resource-cache.js";
+import { createDashboardFeature } from "./dashboard/dashboard-feature.js";
+import { clearInventoryStore } from "./dashboard/inventory-store.js";
+import {
+  ACTIVITY_EXPORT_TYPES,
+  clearSessionActivities,
+  recordSessionActivityFromResults,
+} from "./dashboard/session-activity.js";
 import { createMasterAdminFeature } from "./create-master-admin.js";
 import { createLoadSchedulesFeature } from "./load-schedules.js";
 import { createInboundCallSpoofFeature } from "./inbound-call-spoof.js";
@@ -144,9 +159,13 @@ import {
   bindSession,
   clearSession,
   fetchAllExportRows,
+  fetchCachedUsers,
   fetchExportRows,
+  fetchSessionStatus,
+  fetchUserSyncStatus,
   loadSessionUsers,
   saveExportToSession,
+  syncSessionUsers,
 } from "./session-store.js";
 import { formatPipeSeparatedDisplay, joinPipeSeparatedCsv } from "./export-format.js";
 import { wireExportTableResize } from "./export-table-layout.js";
@@ -1168,6 +1187,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const connectBtn = document.getElementById("genesys-connect");
     const oauthLoginBtn = document.getElementById("genesys-oauth-login");
     const usersBtn = document.getElementById("genesys-users");
+    const dashboardBtn = document.getElementById("genesys-dashboard");
     const userRolesBtn = document.getElementById("genesys-user-roles");
     const userSkillsBtn = document.getElementById("genesys-user-skills");
     const phonesBtn = document.getElementById("genesys-phones");
@@ -1231,6 +1251,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const regionSelect = document.getElementById("genesys-region-select");
     const resultsListEl = document.getElementById("genesys-results-list");
 
+    let dashboardFeatureRef = null;
+
     const showStatus = (message) => {
       if (statusEl) {
         statusEl.textContent = message;
@@ -1240,6 +1262,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       const setExportsEnabled = (enabled) => {
         state.hasConnection = enabled;
         [
+          dashboardBtn,
           usersBtn,
           userRolesBtn,
           userSkillsBtn,
@@ -1291,6 +1314,13 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         exportsStatusEl.textContent = enabled
           ? "Exports enabled for the connected organization."
           : "Connect to an organization to enable exports.";
+      }
+
+      const dashboardStatusEl = document.getElementById("dashboard-status");
+      if (dashboardStatusEl) {
+        dashboardStatusEl.textContent = enabled
+          ? "Dashboard available for the connected organization."
+          : "Connect to an organization to view the dashboard.";
       }
 
       if (reportsStatusEl) {
@@ -1355,6 +1385,9 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       }
 
       clearResourceCaches();
+      clearInventoryStore();
+      clearSessionActivities();
+      dashboardFeatureRef?.disposeDashboard();
       Object.values(state.activeExports).forEach((controller) => controller?.abort());
       state.activeExports = {};
       state.exportRefreshConfigs = {};
@@ -1425,6 +1458,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         showStatus(organization?.name ? `Connected: ${organization.name}` : "Connected");
         syncConnectionUi();
         clearResourceCaches();
+        clearInventoryStore();
+        clearSessionActivities();
         clearExportResults();
 
         if (organization?.id) {
@@ -1565,9 +1600,15 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         await persistExportToSession(resultId, exportMeta);
         if (exportMeta.sessionStored) {
           rerenderExportSection(resultId);
-          return;
+        } else {
+          afterExportTableRender(resultId);
         }
-        afterExportTableRender(resultId);
+      }
+
+      const activityLabel = exportMeta?.exportType ? ACTIVITY_EXPORT_TYPES[exportMeta.exportType] : null;
+      if (activityLabel && Array.isArray(exportMeta?.rows) && exportMeta.rows.length > 0) {
+        recordSessionActivityFromResults(activityLabel, exportMeta.rows);
+        dashboardFeatureRef?.refreshSessionActivity();
       }
     };
 
@@ -2069,7 +2110,9 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       setPreferredTargetOrg(organization.id);
 
       if (token && organization.id === currentOrganizationId) {
-        await connectOrganization({ token, region, expectedOrganizationId: organization.id });
+        await openDashboardAfterConnect(
+          await connectOrganization({ token, region, expectedOrganizationId: organization.id })
+        );
         return;
       }
 
@@ -2226,9 +2269,22 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       }
     };
 
+    const loadCachedPhonesForSession = (credentials, options) =>
+      getCachedPhones(credentials, getPhones, options);
+    const loadCachedRolesForSession = (credentials, options) =>
+      getCachedRoles(credentials, getRoles, options);
+    const loadCachedQueuesForSession = (credentials, options) =>
+      getCachedQueues(credentials, getQueues, options);
+    const loadCachedSkillsForSession = (credentials, options) =>
+      getCachedSkills(credentials, getSkills, options);
+    const loadCachedGroupsForSession = (credentials, options) =>
+      getCachedGroups(credentials, getGroups, options);
+    const loadCachedSitesForSession = (credentials) => getCachedSites(credentials, getSites);
+    const loadCachedDataTablesForSession = (credentials) => getCachedDataTables(credentials, getDataTables);
+
     const bulkSkillAssignFeature = createBulkSkillAssignFeature({
       state,
-      getSkills,
+      getSkills: loadCachedSkillsForSession,
       loadSessionUsers,
       assignRoutingSkillsToUsers,
       requireCredentials,
@@ -2243,7 +2299,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
     const bulkRoleAssignFeature = createBulkRoleAssignFeature({
       state,
-      getRoles,
+      getRoles: loadCachedRolesForSession,
       getDivisions,
       loadSessionUsers,
       assignUsersToRoleDivision,
@@ -2310,7 +2366,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
     const bulkDisconnectFeature = createBulkDisconnectFeature({
       state,
-      getQueues,
+      getQueues: loadCachedQueuesForSession,
       queryOpenQueueInteractions,
       disconnectConversations,
       requireCredentials,
@@ -2339,10 +2395,6 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       renderJsonBlock,
       confirmModal,
     });
-
-    const loadCachedPhonesForSession = (credentials) => getCachedPhones(credentials, getPhones);
-    const loadCachedSitesForSession = (credentials) => getCachedSites(credentials, getSites);
-    const loadCachedDataTablesForSession = (credentials) => getCachedDataTables(credentials, getDataTables);
 
     const dataTableExportFeature = createDataTableExportFeature({
       state,
@@ -2404,7 +2456,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
     const bulkPriorityUpdateFeature = createBulkPriorityUpdateFeature({
       state,
-      getQueues,
+      getQueues: loadCachedQueuesForSession,
       queryOpenQueueInteractions,
       updateConversationPriorities,
       requireCredentials,
@@ -2418,6 +2470,41 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       confirmModal,
       getCurrentAppDomain,
     });
+
+    dashboardFeatureRef = createDashboardFeature({
+      state,
+      requireCredentials,
+      startExportResult,
+      finishExportResult,
+      clearExportResults,
+      renderLoadingState,
+      getOrganizationName,
+      getOrganizationId,
+      getRegion,
+      getConnectedAt,
+      fetchUserSyncStatus,
+      fetchCachedUsers,
+      fetchSessionStatus,
+      getCurrentUser,
+      getOrganizationLimits,
+      getTelephonyCallMetrics,
+      loadCachedRoles: loadCachedRolesForSession,
+      loadCachedQueues: loadCachedQueuesForSession,
+      loadCachedSkills: loadCachedSkillsForSession,
+      loadCachedGroups: loadCachedGroupsForSession,
+      getPrompts,
+      getQueueMembers,
+      loadCachedPhones: loadCachedPhonesForSession,
+      loadCachedDataTables: loadCachedDataTablesForSession,
+      peekCachedPhones,
+      syncSessionUsers,
+    });
+
+    const openDashboardAfterConnect = async (connected) => {
+      if (connected) {
+        await dashboardFeatureRef?.openDashboard();
+      }
+    };
 
     const loadSchedulesFeature = createLoadSchedulesFeature({
       state,
@@ -2989,7 +3076,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
         const token = tokenInput ? tokenInput.value.trim() : "";
         const region = getRegionControlValue(regionSelect);
-        await connectOrganization({ token, region });
+        await openDashboardAfterConnect(await connectOrganization({ token, region }));
       });
     }
 
@@ -3078,7 +3165,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       loadingMessage: 'Fetching "/api/v2/authorization/roles"...',
       countLabel: "roles",
       failureMessage: "Roles export failed",
-      loader: getRoles,
+      loader: loadCachedRolesForSession,
       createExportMeta: (resultId, rows, title, status) =>
         createSimpleExportMeta(resultId, rows, title, status, "roles", ["name", "id", "description"]),
     });
@@ -3089,7 +3176,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       loadingMessage: 'Fetching "/api/v2/routing/queues"...',
       countLabel: "queues",
       failureMessage: "Queues export failed",
-      loader: getQueues,
+      loader: loadCachedQueuesForSession,
       createExportMeta: (resultId, rows, title, status) =>
         createSimpleExportMeta(resultId, rows, title, status, "queues", ["name", "id", "division.id"]),
     });
@@ -3100,7 +3187,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       loadingMessage: 'Fetching "/api/v2/routing/skills"...',
       countLabel: "skills",
       failureMessage: "Skills export failed",
-      loader: getSkills,
+      loader: loadCachedSkillsForSession,
       createExportMeta: (resultId, rows, title, status) =>
         createSimpleExportMeta(resultId, rows, title, status, "skills", ["name", "id", "state"]),
     });
@@ -3111,7 +3198,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       loadingMessage: 'Fetching "/api/v2/groups"...',
       countLabel: "groups",
       failureMessage: "Groups export failed",
-      loader: getGroups,
+      loader: loadCachedGroupsForSession,
       createExportMeta: (resultId, rows, title, status) =>
         createSimpleExportMeta(
           resultId,
@@ -3143,7 +3230,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       selectorFailureMessage: "Queue selector failed",
       exportTitle: "Export: Queue Members",
       exportLoadingStatus: "Loading queue members...",
-      listLoader: getQueues,
+      listLoader: loadCachedQueuesForSession,
       mapItems: (queues) =>
         queues
           .slice()
@@ -3161,7 +3248,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       selectorFailureMessage: "Group selector failed",
       exportTitle: "Export: Group Members",
       exportLoadingStatus: "Loading group members...",
-      listLoader: getGroups,
+      listLoader: loadCachedGroupsForSession,
       mapItems: (groups) =>
         groups
           .slice()
@@ -3194,6 +3281,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     });
 
     bulkPriorityUpdateFeature.wireButton(bulkPriorityUpdateBtn, {
+      hasConnection: () => state.hasConnection,
+    });
+
+    dashboardFeatureRef.wireButton(dashboardBtn, {
       hasConnection: () => state.hasConnection,
     });
 
@@ -3451,14 +3542,16 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
               tokenInput.value = token;
             }
 
-            const connected = await connectOrganization({
-              token,
-              region,
-              expectedOrganizationId: intendedOrganization.id,
-              expectedOrganizationName: intendedOrganization.name,
-            });
+            await openDashboardAfterConnect(
+              await connectOrganization({
+                token,
+                region,
+                expectedOrganizationId: intendedOrganization.id,
+                expectedOrganizationName: intendedOrganization.name,
+              })
+            );
 
-            if (!connected && intendedOrganization.id) {
+            if (!isConnected() && intendedOrganization.id) {
               const intendedLabel = intendedOrganization.name || intendedOrganization.id;
               try {
                 await presentOrganizationPickerFlow({
@@ -3474,6 +3567,12 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           }
         }
       });
+
+    if (isConnected() && getToken()) {
+      queueMicrotask(() => {
+        dashboardFeatureRef?.openDashboard().catch(() => {});
+      });
+    }
   };
 
   return { initializeGenesysApp };

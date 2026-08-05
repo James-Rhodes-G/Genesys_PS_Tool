@@ -9,7 +9,7 @@ For extension-to-web migration status, see [`docs/migration-matrix.md`](docs/mig
 ## Quick start
 
 ```bash
-git clone https://github.com/YOUR_ORG/Genesys_PS_Tool.git
+git clone https://github.com/James-Rhodes-G/Genesys_PS_Tool.git
 cd Genesys_PS_Tool
 npm install
 cp .env.example .env
@@ -66,7 +66,31 @@ Copy `.env.example` to `.env` and configure:
 | **Phone Remover** | Delete phones (manual IDs or cached phone picker) |
 | **Phone Site Migrator** | Migrate all WebRTC phones from one site to another |
 | Load Schedules | Import schedule templates with naming rules |
-| Create Master Admin | Guarded master admin role creation |
+
+### Call Spoof
+
+| Tool | Description |
+| --- | --- |
+| Inbound Call Spoof | Allows the user to specify information for the Genesys Call Spoof |
+| Outbound Call Spoof | Allows the user to specify information |
+
+### Interaction Data
+
+| Tool | Description |
+| --- | --- |
+| Conversation Data | Returns the JSON of the conversationId|
+| Attributes | Returns the attributes of a participants in the conversationId|
+| Flow Execution | Returns links to all flow execution historys of the conversationId|
+| Interaction Details | Takes you to the Genesys UI interaction details page |
+| Intent Health | selector driven intent health for selected flow |
+| Utterances | selector driven utterances for selected flow |
+
+### Audit Log
+
+| Tool | Description |
+| --- | --- |
+| Audit Log Viewer | Selector Driven Viewer for Audit Logs longer than 14 days |
+
 
 ### Quick Actions (Notifications)
 
@@ -76,6 +100,22 @@ Copy `.env.example` to `.env` and configure:
 | Queue Notifications | Subscribe to queue-scoped topics |
 | Outbound Notifications | Subscribe to outbound/settings topics |
 | Parsed Messages | In-app panel for parsed WSS notification payloads |
+| Create Master Admin | Guarded master admin role creation |
+
+### Organization Dashboard
+
+Read-only landing page after connect. Modular widgets load independently and show cache age / live status.
+
+| Widget | Description |
+| --- | --- |
+| **Organization Snapshot** | Org name, ID, region, connected user, connection time, and cache ages |
+| **Inventory** | Counts for users, roles, queues, skills, groups, prompts, phones, and data tables with Load / Open Export actions |
+| **Health Checks** | Users without roles/skills/phones, WebRTC phones without users, empty queues |
+| **Organization Limits** | Genesys org limit definitions by namespace; filter by friendly name; shows key, description, default value, and configured value when present |
+| **Telephony Metrics** | Live call metrics from `/api/v2/telephony/calls/metrics` |
+| **Session Activity** | Bulk workflows and exports run during the current session |
+
+The dashboard opens automatically after a successful connection. Use **Refresh** on individual widgets to reload that widget only.
 
 ### Interaction Data & Diagnostics
 
@@ -101,11 +141,12 @@ public/js/
   genesys-app.js         Main UI, export tables, workflow wiring
   genesys-client.js      Browser-side Genesys API client
   session-store.js       Session bind/clear, user sync, export offload
-  resource-cache.js      Session-scoped cache (phones, sites, divisions, data tables)
+  resource-cache.js      Session-scoped cache (phones, sites, divisions, data tables, roles, queues, skills, groups)
   export-format.js       Shared pipe-separated cell formatting
   export-table-layout.js Resizable export columns
   export-progress.js     Progressive export progress + cache timestamp UI
   bulk-*.js              Bulk workflow modules
+  dashboard/             Organization Dashboard widgets and inventory helpers
   datatable-export.js    Data table multi-select export
   notification-*.js      Notification subscription and parsing
 ```
@@ -137,9 +178,23 @@ Many exports and bulk workflows need the full user list. A **lazy, session-scope
 
 ### Resource cache (in-memory)
 
-Phones, sites, divisions, and data table metadata are cached in the browser for the session (`public/js/resource-cache.js`). First request hits Genesys; subsequent requests reuse cached data. Cleared on disconnect or org change.
+Session-scoped in-memory cache in `public/js/resource-cache.js`. First request hits Genesys; subsequent requests in the same session reuse cached data. Cleared on disconnect or org change.
 
-**Not cached:** interactions, conversations, routing state, presence, queue activity — always live.
+| Resource | Used by |
+| --- | --- |
+| Users | SQLite session cache (separate from resource cache) |
+| Roles | Role export, bulk role assign, dashboard inventory |
+| Queues | Queue export, queue members export, bulk disconnect, priority updater, dashboard inventory/health checks |
+| Skills | Skill export, bulk skill assign, dashboard inventory |
+| Groups | Group export, group members export, dashboard inventory |
+| Phones | Phone export, phone mover/remover/site migrator, dashboard inventory |
+| Sites | Phone mover/remover/site migrator |
+| Divisions | Bulk role assign, load schedules |
+| Data tables | Data table export, dashboard inventory |
+
+**Shared cache:** Loading roles, queues, skills, or groups from the dashboard **Load** button, an export screen, or a bulk workflow all use the same cached copy. A second feature that needs the same list will not refetch from Genesys until you disconnect or switch orgs.
+
+**Not cached:** interactions, conversations, routing state, presence, queue activity, telephony metrics, organization limits docs — always live.
 
 ## Export tables
 
@@ -167,6 +222,16 @@ Both use the same interaction selection workflow:
 3. Select rows, confirm, execute
 
 Priority Updater decrements priority by 1 for each selected interaction starting from a user-specified value.
+
+## Recent changes
+
+| Date | Change |
+| --- | --- |
+| 2026-08-05 | **Organization Dashboard** — landing page with six modular widgets; auto-opens after connect |
+| 2026-08-05 | **Organization Limits widget** — displays namespace limit docs with friendly-name filter; columns: key, description, default value, configured value |
+| 2026-08-05 | **Unified resource caching** — roles, queues, skills, and groups cached once per session and shared across dashboard, exports, and bulk workflows |
+| 2026-08-05 | **TamperMonkey admin tools** — data table export, phone mover, phone remover, phone site migrator, interaction priority updater ported natively |
+| 2026-08-05 | **GitHub prep** — `.gitignore`, `.env.example`, cleanup script for local DB/logs before push |
 
 ## Scripts
 

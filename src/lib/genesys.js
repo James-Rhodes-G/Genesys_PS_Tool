@@ -171,6 +171,20 @@ const getOrganizationMe = ({ region, token }) =>
     path: "/api/v2/organizations/me",
   });
 
+const getOrganizationLimits = ({ region, token }) =>
+  genesysRequest({
+    region,
+    token,
+    path: "/api/v2/organizations/limits/docs",
+  });
+
+const getTelephonyCallMetrics = ({ region, token }) =>
+  genesysRequest({
+    region,
+    token,
+    path: "/api/v2/telephony/calls/metrics",
+  });
+
 const getOrgauthorizationTrustors = ({ region, token }) =>
   genesysPaginatedRequest({
     region,
@@ -1653,6 +1667,7 @@ export {
   getGroupMembers,
   getIntentHealth,
   getOrganizationMe,
+  getOrganizationLimits,
   getOrgauthorizationTrustor,
   getOrgauthorizationTrustors,
   getAuthorizationSubject,
@@ -1699,4 +1714,5 @@ export {
   spoofInboundCall,
   spoofOutboundCall,
   subscribeNotificationTopics,
+  getTelephonyCallMetrics,
 };

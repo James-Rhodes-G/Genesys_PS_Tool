@@ -31,6 +31,7 @@ import {
   addUserRoutingSkill,
   getIntentHealth,
   getOrganizationMe,
+  getOrganizationLimits,
   getOrgauthorizationTrustor,
   getOrgauthorizationTrustors,
   getPrompts,
@@ -53,6 +54,7 @@ import {
   logoffUsers,
   resetUsersPasswords,
   setUsersAutoAnswer,
+  getTelephonyCallMetrics,
   spoofInboundCall,
   spoofOutboundCall,
   subscribeNotificationTopics,
@@ -153,6 +155,40 @@ const createGenesysRouter = () => {
         message: error.message,
         details: error.details || null,
       });
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.get("/api/genesys/organizations/limits", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    try {
+      const limits = await getOrganizationLimits(credentials);
+      res.status(200).json({ limits });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.get("/api/genesys/telephony/calls/metrics", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    try {
+      const metrics = await getTelephonyCallMetrics(credentials);
+      res.status(200).json({ metrics });
+    } catch (error) {
       res.status(error.status || 502).json({
         error: error.message,
         details: error.details || null,
