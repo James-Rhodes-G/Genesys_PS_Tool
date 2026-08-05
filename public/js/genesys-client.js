@@ -947,6 +947,36 @@ const updateConversationPriorities = async ({ region, token, updates }) => {
   return payload.results || [];
 };
 
+const getOrganizationLimits = async ({ region, token }) => {
+  const payload = await requestGenesysJson(
+    "/api/genesys/organizations/limits",
+    {
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys organization limits request failed"
+  );
+
+  return payload.limits || payload;
+};
+
+const getTelephonyCallMetrics = async ({ region, token }) => {
+  const payload = await requestGenesysJson(
+    "/api/genesys/telephony/calls/metrics",
+    {
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys telephony metrics request failed"
+  );
+
+  return payload.metrics || {};
+};
+
 const loadGenesysRegions = async () => {
   const response = await fetch("/data/genesys_regions.json", { cache: "no-cache" });
 
@@ -988,6 +1018,7 @@ export {
   getIntentHealth,
   getPasswordPolicy,
   getPhones,
+  getOrganizationLimits,
   getPrompts,
   getQueueMembers,
   getQueues,
@@ -1001,6 +1032,7 @@ export {
   getUserSkillMappings,
   getScheduleTemplates,
   getSites,
+  getTelephonyCallMetrics,
   loadGenesysRegions,
   loadSchedules,
   logoffUsers,

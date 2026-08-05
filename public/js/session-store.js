@@ -95,6 +95,15 @@ const fetchAllExportRows = async ({ exportId }) =>
     "Failed to load export rows."
   );
 
+const fetchSessionStatus = async () =>
+  parseJsonResponse(
+    await fetch("/api/session/status", {
+      method: "GET",
+      credentials: "same-origin",
+    }),
+    "Failed to read session status."
+  );
+
 const fetchUserSyncStatus = async () =>
   parseJsonResponse(
     await fetch("/api/session/users/status", {
@@ -273,6 +282,7 @@ export {
   fetchAllExportRows,
   fetchCachedUsers,
   fetchExportRows,
+  fetchSessionStatus,
   fetchUserSyncStatus,
   formatUserCacheTimestamp,
   loadSessionUsers,

@@ -5,6 +5,8 @@ const ORG_NAME_KEY = "ps_tool_org_name";
 const ORG_ID_KEY = "ps_tool_org_id";
 const PREFERRED_TARGET_ORG_KEY = "ps_tool_preferred_target_org";
 
+const CONNECTED_AT_KEY = "ps_tool_connected_at";
+
 const getToken = () => localStorage.getItem(TOKEN_KEY) || "";
 
 const setToken = (token) => {
@@ -32,10 +34,17 @@ const isConnected = () => localStorage.getItem(CONNECTED_KEY) === "true";
 const setConnected = (connected) => {
   if (connected) {
     localStorage.setItem(CONNECTED_KEY, "true");
+    localStorage.setItem(CONNECTED_AT_KEY, String(Date.now()));
     return;
   }
 
   localStorage.removeItem(CONNECTED_KEY);
+  localStorage.removeItem(CONNECTED_AT_KEY);
+};
+
+const getConnectedAt = () => {
+  const value = Number(localStorage.getItem(CONNECTED_AT_KEY));
+  return Number.isFinite(value) ? value : null;
 };
 
 const getOrganizationName = () => localStorage.getItem(ORG_NAME_KEY) || "";
@@ -72,6 +81,7 @@ const setPreferredTargetOrg = (organizationId) => {
 };
 
 export {
+  getConnectedAt,
   getOrganizationId,
   getOrganizationName,
   getPreferredTargetOrg,

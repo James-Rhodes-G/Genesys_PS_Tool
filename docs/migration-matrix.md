@@ -61,9 +61,12 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 
 | Capability | Web App Target | Status | Notes |
 | --- | --- | --- | --- |
-| Divisions lookup | `/api/genesys/divisions` | done | used by bulk role assign; session-cached |
+| Divisions lookup | `/api/genesys/divisions` | done | used by bulk role assign, load schedules |
 | Sites lookup | `/api/genesys/sites` | done | used by phone mover/remover/site migrator; session-cached |
+| Roles / Queues / Skills / Groups | catalog list endpoints | done | session-cached; shared by exports, bulk workflows, and dashboard |
 | Data tables lookup | `/api/genesys/datatables` | done | used by data table export; session-cached |
+| Organization limits docs | `/api/genesys/organizations/limits` | done | dashboard Organization Limits widget |
+| Telephony call metrics | `/api/genesys/telephony/calls/metrics` | done | dashboard Telephony Metrics widget (live) |
 | Password policy lookup | `/api/genesys/password-policy` | done | used by bulk password reset |
 | Conversation lookup | `/api/genesys/conversations/:conversationId` | done | conversation data + attributes reports |
 | Flow execution lookup | `/api/genesys/flow-executions` | done | flow execution report |
@@ -83,7 +86,7 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 - Express routes stay thin in `src/routes/genesys.js`.
 - Browser behavior in `public/js/*`.
 - Chrome/TamperMonkey framework code is **not** ported — only functional behavior.
-- Session-scoped caches for infrequently changing data (users in SQLite; phones/sites/divisions/data tables in memory).
+- Session-scoped caches for infrequently changing data (users in SQLite; phones/sites/divisions/data tables/roles/queues/skills/groups in memory).
 - Live queries for interactions and routing state.
 
 ## Current App Status
@@ -93,6 +96,7 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 - Connection: region picker, OAuth PKCE, manual token, org binding.
 - Exports: users, user roles, user skills, phones, roles, queues, queue members, skills, groups, group users, prompts, **data tables**.
 - Bulk actions: skill assign, role assign, auto answer, password reset, user logoff, bulk disconnect, **priority updater**, phone build, **phone mover**, **phone remover**, **phone site migrator**, load schedules, create master admin.
+- **Organization Dashboard**: snapshot, inventory, health checks, organization limits, telephony metrics, session activity.
 - Quick actions: user/queue/outbound notification subscriptions, parsed messages panel.
 - Interaction data: conversation JSON, attributes, flow execution, interaction details, call spoof, intent health, bot utterances, audit log viewer.
 - Shared UX: confirmation modal, in-place bulk selection, CSV export, progress reporting, session resource caching.
