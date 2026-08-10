@@ -1,0 +1,247 @@
+.mock-api-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.mock-api-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.mock-api-header h2 {
+  margin: 0 0 0.35rem;
+}
+
+.mock-api-subtitle,
+.mock-api-owner {
+  margin: 0.25rem 0 0;
+  color: var(--gux-grey-60, #667085);
+}
+
+.mock-api-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mock-api-tab {
+  border: 1px solid var(--gux-grey-30, #d0d5dd);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+}
+
+.mock-api-tab.is-active {
+  background: var(--gux-blue-60, #175cd3);
+  border-color: var(--gux-blue-60, #175cd3);
+  color: #fff;
+}
+
+.mock-api-table table {
+  width: 100%;
+}
+
+.mock-api-url {
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.mock-api-status {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: capitalize;
+  background: var(--gux-grey-20, #eaecf0);
+}
+
+.mock-api-status--active {
+  background: #dcfae6;
+  color: #067647;
+}
+
+.mock-api-status--draft {
+  background: #eff8ff;
+  color: #175cd3;
+}
+
+.mock-api-status--expired,
+.mock-api-status--archived {
+  background: #fef0c7;
+  color: #b54708;
+}
+
+.mock-api-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.mock-api-action {
+  border: 1px solid var(--gux-grey-30, #d0d5dd);
+  background: #fff;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.mock-api-action--primary {
+  background: var(--gux-blue-60, #175cd3);
+  border-color: var(--gux-blue-60, #175cd3);
+  color: #fff;
+}
+
+.mock-api-action--danger {
+  color: #b42318;
+  border-color: #fda29b;
+}
+
+.mock-api-link {
+  border: 0;
+  background: transparent;
+  color: var(--gux-blue-60, #175cd3);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+
+.mock-api-field--error .field-container gux-form-field-text-like,
+.mock-api-field--error .field-container gux-form-field-textarea,
+.mock-api-field--error .field-container gux-form-field-dropdown {
+  --mock-api-error-color: #b42318;
+}
+
+.mock-api-field--error .field-container {
+  border: 1px solid #fda29b;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  background: #fffafa;
+}
+
+.mock-api-field-error {
+  margin: 0.35rem 0 0;
+  color: #b42318;
+  font-size: 0.85rem;
+}
+
+.mock-api-form-banner {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #fda29b;
+  border-radius: 0.5rem;
+  background: #fffafa;
+  color: #b42318;
+}
+
+.mock-api-help {
+  margin: 0;
+  color: var(--gux-grey-60, #667085);
+  font-size: 0.85rem;
+}
+
+.mock-api-form {
+  border: 1px solid var(--gux-grey-20, #eaecf0);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: #fff;
+}
+
+.mock-api-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.mock-api-form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.mock-api-form-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.mock-api-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mock-api-history-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.mock-api-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.mock-api-log-item {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.15rem;
+  text-align: left;
+  border: 1px solid var(--gux-grey-20, #eaecf0);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.mock-api-log-item.is-selected {
+  border-color: var(--gux-blue-60, #175cd3);
+  box-shadow: inset 0 0 0 1px var(--gux-blue-60, #175cd3);
+}
+
+.mock-api-log-item__method,
+.mock-api-log-item__code {
+  font-weight: 600;
+}
+
+.mock-api-log-detail {
+  border: 1px solid var(--gux-grey-20, #eaecf0);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: #fff;
+}
+
+.mock-api-log-detail h4 {
+  margin: 1rem 0 0.35rem;
+}
+
+.mock-api-json-block,
+.mock-api-feature .export-json-block {
+  margin: 0;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: #101828;
+  color: #f2f4f7;
+  overflow: auto;
+  max-height: 240px;
+  font-size: 0.82rem;
+}
+
+.mock-api-empty {
+  color: var(--gux-grey-60, #667085);
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .mock-api-history-layout {
+    grid-template-columns: 1fr;
+  }
+}
