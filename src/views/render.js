@@ -131,6 +131,13 @@ ${navSubmenuItem("genesys-load-schedules", "Load Schedules")}
 <li class="menu-item-container"><p id="bulk-actions-status" class="command-nav__status">Connect to an organization to run bulk changes.</p></li>`,
     }),
     navGroupDefinition({
+      id: "ps-tool-admin",
+      label: "PS Tool Admin",
+      icon: "settings",
+      bodyHtml: `${navSubmenuItem("genesys-mock-api", "Mock API")}
+<li class="menu-item-container"><p id="mock-api-status" class="command-nav__status">Connect to an organization to manage mock endpoints.</p></li>`,
+    }),
+    navGroupDefinition({
       id: "audit-log",
       label: "Audit Log",
       icon: "clipboard",
@@ -210,6 +217,7 @@ const layout = ({ title, body, updatedAt, regions = [] }) => {
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/css/notification-message-parser.css" />
   <link rel="stylesheet" href="/css/dashboard.css" />
+  <link rel="stylesheet" href="/css/mock-api.css" />
 </head>
 <body>
   <div id="genesys-org-banner" class="command-banner" hidden>

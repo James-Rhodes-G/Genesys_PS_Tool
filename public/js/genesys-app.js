@@ -149,6 +149,7 @@ import {
 import { createIntentHealthFeature } from "./intent-health.js";
 import { createUtterancesFeature } from "./utterances.js";
 import { createAuditLogViewerFeature } from "./audit-log-viewer.js";
+import { createMockApiFeature } from "./mock-api-feature.js";
 import { createUserNotificationsFeature } from "./user-notifications.js";
 import { createQueueNotificationsFeature } from "./queue-notifications.js";
 import { createOutboundNotificationsFeature } from "./outbound-notifications.js";
@@ -1228,6 +1229,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const outboundNotificationsBtn = document.getElementById("genesys-outbound-notifications");
     const notificationMessageParserBtn = document.getElementById("genesys-notification-message-parser");
     const auditLogViewerBtn = document.getElementById("genesys-audit-log-viewer");
+    const mockApiBtn = document.getElementById("genesys-mock-api");
     const confirmModalEl = document.getElementById("genesys-confirm-modal");
     const confirmModalTitleEl = document.getElementById("genesys-confirm-modal-title");
     const confirmModalBodyEl = document.getElementById("genesys-confirm-modal-body");
@@ -1248,6 +1250,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const reportsStatusEl = document.getElementById("reports-status");
     const inboundCallSpoofStatusEl = document.getElementById("inbound-call-spoof-status");
     const auditLogStatusEl = document.getElementById("audit-log-status");
+    const mockApiStatusEl = document.getElementById("mock-api-status");
     const regionSelect = document.getElementById("genesys-region-select");
     const resultsListEl = document.getElementById("genesys-results-list");
 
@@ -1299,6 +1302,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           queueNotificationsBtn,
           outboundNotificationsBtn,
           auditLogViewerBtn,
+          mockApiBtn,
           inboundCallSpoofBtn,
         ].forEach((button) => {
           if (button) {
@@ -1346,6 +1350,12 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         auditLogStatusEl.textContent = enabled
           ? "Audit log queries enabled for the connected organization."
           : "Connect to an organization to query audit logs.";
+      }
+
+      if (mockApiStatusEl) {
+        mockApiStatusEl.textContent = enabled
+          ? "Mock API management enabled for the connected organization."
+          : "Connect to an organization to manage mock endpoints.";
       }
 
       const quickActionsStatusEl = document.getElementById("quick-actions-status");
@@ -2623,6 +2633,16 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       renderJsonBlock,
     });
 
+    const mockApiFeature = createMockApiFeature({
+      state,
+      requireCredentials,
+      startExportResult,
+      finishExportResult,
+      renderLoadingState,
+      renderJsonBlock,
+      confirmModal,
+    });
+
     const notificationMessageParserFeature = createNotificationMessageParserFeature({
       state,
       startExportResult,
@@ -2729,6 +2749,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         }
 
         if (await auditLogViewerFeature.handleClick(event)) {
+          return;
+        }
+
+        if (await mockApiFeature.handleClick(event)) {
           return;
         }
 
@@ -3319,6 +3343,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     outboundNotificationsFeature.wireButton(outboundNotificationsBtn);
     notificationMessageParserFeature.wireButton(notificationMessageParserBtn);
     auditLogViewerFeature.wireButton(auditLogViewerBtn);
+    mockApiFeature.wireButton(mockApiBtn);
 
     const getConversationIdForReport = (title) => {
       const credentials = requireCredentials(title);

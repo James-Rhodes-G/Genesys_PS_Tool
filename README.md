@@ -33,6 +33,17 @@ Copy `.env.example` to `.env` and configure:
 | `GENESYS_PRIMARY_ORG_ID` | Primary org ID used during org-picker OAuth flow |
 | `GENESYS_AUTHORIZED_ORGS` | Comma-separated org IDs when trustor lookup is unavailable |
 | `GENESYS_AUTHORIZED_ORG_NAMES` | Optional comma-separated display names aligned with `GENESYS_AUTHORIZED_ORGS` |
+| `MOCK_API_MAX_RESPONSE_BODY_BYTES` | Max mock response body size (default `262144`) |
+| `MOCK_API_MAX_REQUEST_BODY_BYTES` | Max logged/incoming request body size (default `262144`) |
+| `MOCK_API_MAX_HEADERS` | Max configurable response headers (default `20`) |
+| `MOCK_API_MAX_HEADER_VALUE_BYTES` | Max response header value size (default `2048`) |
+| `MOCK_API_MAX_ENDPOINTS_PER_USER` | Max endpoints per owner (default `25`) |
+| `MOCK_API_MAX_REQUEST_LOGS_PER_ENDPOINT` | Rolling request log retention per endpoint (default `1000`) |
+| `MOCK_API_INACTIVITY_MS` | Inactivity expiry (default `7200000` — 2 hours) |
+| `MOCK_API_MAX_LIFETIME_MS` | Maximum active lifetime (default `86400000` — 24 hours) |
+| `MOCK_API_RETENTION_EXPIRED_MS` | Retention before purging deleted/archived endpoints (default `604800000` — 7 days) |
+| `MOCK_API_PURGE_INTERVAL_MS` | Background lifecycle purge interval (default `3600000`) |
+| `MOCK_API_MAX_DELAY_MS` | Maximum artificial response delay (default `30000`) |
 
 **Security:** Tokens are held in the browser session (not stored server-side). The server proxies Genesys API calls using credentials sent per request. Never commit `.env`, access tokens, or SQLite database files.
 
@@ -91,6 +102,39 @@ Copy `.env.example` to `.env` and configure:
 | --- | --- |
 | Audit Log Viewer | Selector Driven Viewer for Audit Logs longer than 14 days |
 
+### PS Tool Admin
+
+| Tool | Description |
+| --- | --- |
+| **Mock API** | Create personal mock HTTP endpoints for Data Actions, Architect, and external integrations; inspect request history |
+
+Mock endpoints are reachable at `/mockAPI/{userpart}/{endpointSlug}` (no PS Tool auth required for invocation). Management requires a connected session and Genesys credentials.
+
+**Ownership:** Endpoints are scoped to the authenticated user (`userpart` from email), not to the connected organization. The org active at creation time is stored as metadata only. Switching orgs does not hide or change access to your endpoints.
+
+**Lifecycle:** draft → active → expired (2h inactivity or 24h max lifetime) → archived/deleted. Expired endpoints can be restored. Deleted/archived records are purged after the configured retention period.
+
+**Request logging:** Every invocation is logged (rolling 1000 requests per endpoint). Authorization, cookie, and token headers are redacted before storage.
+
+**Management routes** (authenticated):
+
+| Route | Method | Purpose |
+| --- | --- | --- |
+| `/api/mock-api/config` | GET | Presets, limits, allowed methods/content types/delays |
+| `/api/mock-api/context` | GET | Owner userpart and public URL prefix |
+| `/api/mock-api/endpoints` | GET | List endpoints (`?group=active\|expired\|archived`) |
+| `/api/mock-api/endpoints` | POST | Create endpoint |
+| `/api/mock-api/endpoints/:id` | GET | Get endpoint |
+| `/api/mock-api/endpoints/:id` | PUT | Update endpoint |
+| `/api/mock-api/endpoints/:id/activate` | POST | Activate or reactivate |
+| `/api/mock-api/endpoints/:id/archive` | POST | Archive endpoint |
+| `/api/mock-api/endpoints/:id/restore` | POST | Restore expired/archived endpoint |
+| `/api/mock-api/endpoints/:id/clone` | POST | Clone endpoint |
+| `/api/mock-api/endpoints/:id` | DELETE | Soft-delete endpoint |
+| `/api/mock-api/endpoints/:id/logs` | GET | Request history for endpoint |
+| `/api/mock-api/logs/:logId` | GET | Single request log entry |
+
+**Public invocation route** (no auth): `ALL /mockAPI/:userpart/:endpointSlug`
 
 ### Quick Actions (Notifications)
 
@@ -129,17 +173,23 @@ src/
   routes/
     genesys.js           Thin Genesys API routes
     session.js           Session binding, user cache, export persistence
+    mock-api.js          Mock API management + public invocation routes
     logs.js              App shell + legacy log pages
   lib/
     genesys.js           Genesys API helpers and pagination
+    mock-api.js          Mock endpoint business logic and invocation
+    mock-api-config.js   Mock API limits and lifecycle defaults
     genesys-bulk.js      Shared bulk mutation executor
     user-cache.js        Session-scoped user sync orchestration
   data/
     db.js                App logs SQLite
     session-db.js        Session SQLite (connections, exports, user cache)
+    mock-api-db.js       Mock endpoints and request logs SQLite
 public/js/
   genesys-app.js         Main UI, export tables, workflow wiring
   genesys-client.js      Browser-side Genesys API client
+  mock-api-feature.js    Mock API management UI
+  mock-api-client.js     Browser client for mock API routes
   session-store.js       Session bind/clear, user sync, export offload
   resource-cache.js      Session-scoped cache (phones, sites, divisions, data tables, roles, queues, skills, groups)
   export-format.js       Shared pipe-separated cell formatting
@@ -227,6 +277,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 
 | Date | Change |
 | --- | --- |
+| 2026-08-06 | **Mock API framework** — personal mock endpoints, request logging, lifecycle expiry, PS Tool Admin UI |
 | 2026-08-05 | **Organization Dashboard** — landing page with six modular widgets; auto-opens after connect |
 | 2026-08-05 | **Organization Limits widget** — displays namespace limit docs with friendly-name filter; columns: key, description, default value, configured value |
 | 2026-08-05 | **Unified resource caching** — roles, queues, skills, and groups cached once per session and shared across dashboard, exports, and bulk workflows |
@@ -251,6 +302,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 | `scripts/test-resource-cache.mjs` | Resource cache reuse, phone ID parsing |
 | `scripts/test-notification-topics.mjs` | Notification topic grouping/filtering |
 | `scripts/test-notification-message-store.mjs` | Parsed message store behavior |
+| `scripts/test-mock-api.mjs` | Mock API slug normalization, redaction, lifecycle, validation |
 
 ## Preparing for GitHub
 
