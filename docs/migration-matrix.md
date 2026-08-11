@@ -69,7 +69,8 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | Telephony call metrics | `/api/genesys/telephony/calls/metrics` | done | dashboard Telephony Metrics widget (live) |
 | Password policy lookup | `/api/genesys/password-policy` | done | used by bulk password reset |
 | Conversation lookup | `/api/genesys/conversations/:conversationId` | done | conversation data + attributes reports |
-| Flow execution lookup | `/api/genesys/flow-executions` | done | flow execution report |
+| Flow execution lookup | `/api/genesys/flow-executions` | done | flow selection + Genesys link |
+| Flow execution timeline | `/api/genesys/flow-executions/:instanceId/download` | done | PS Tool Architect Execution Timeline Viewer |
 | Outbound call spoof | `/api/genesys/call-spoof` | done | outbound call with spoofed CLID/CNAM |
 | Inbound call spoof | `/api/genesys/call-spoof/inbound` | done | inbound DNIS spoof call |
 | Bot flow diagnostics | bot flows, utterances, intent health routes | done | intent health + utterances panels |

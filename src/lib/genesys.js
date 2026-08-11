@@ -2,6 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { executeBulkMutation, executeChunkedBulkMutation, normalizeIds } from "./genesys-bulk.js";
+import { downloadFlowExecutionJson } from "./flow-execution-download.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1424,6 +1425,8 @@ const getFlowExecutions = ({ region, token, conversationId }) =>
     },
   }).then((data) => data?.entities || []);
 
+const downloadFlowExecution = (options) => downloadFlowExecutionJson(options);
+
 const spoofOutboundCall = async ({ region, token, phoneNumber, callerId, callerIdName }) => {
   const normalizedPhoneNumber = String(phoneNumber || "").trim();
   if (!normalizedPhoneNumber) {
@@ -1662,6 +1665,7 @@ export {
   getBotUtterances,
   getConversation,
   getCurrentUser,
+  downloadFlowExecution,
   getFlowExecutions,
   getGroups,
   getGroupMembers,

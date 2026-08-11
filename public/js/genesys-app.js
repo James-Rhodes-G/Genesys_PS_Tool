@@ -60,7 +60,6 @@ import {
   getConversation,
   getCurrentUser,
   getDataTables,
-  getFlowExecutions,
   getGroupMembers,
   getGroups,
   getDivisions,
@@ -150,6 +149,7 @@ import { createIntentHealthFeature } from "./intent-health.js";
 import { createUtterancesFeature } from "./utterances.js";
 import { createAuditLogViewerFeature } from "./audit-log-viewer.js";
 import { createMockApiFeature } from "./mock-api-feature.js";
+import { createFlowExecutionFeature } from "./flow-execution-feature.js";
 import { createUserNotificationsFeature } from "./user-notifications.js";
 import { createQueueNotificationsFeature } from "./queue-notifications.js";
 import { createOutboundNotificationsFeature } from "./outbound-notifications.js";
@@ -184,6 +184,7 @@ import {
 } from "./password-policy.js";
 import { createConfirmModal } from "./confirm-modal.js";
 import { createOrgPickerModal } from "./org-picker-modal.js";
+import { renderLoadingState } from "./loading-message.js";
 import {
   captureBulkUserListScroll,
   restoreBulkUserListScroll,
@@ -341,9 +342,6 @@ const buildExportFilename = (exportType) => {
 
 const renderJsonBlock = (value) =>
   `<div class="log-output__json"><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></div>`;
-
-const renderLoadingState = (message) =>
-  `<gux-loading-message>${escapeHtml(message)}</gux-loading-message>`;
 
 const renderExportSectionWithActions = (title, status, contentHtml) =>
   `<details class="log-output export-results" open><summary class="export-results__summary"><span class="export-results__title">${escapeHtml(title)}</span><span class="export-results__status muted">${escapeHtml(status)}</span></summary><div class="export-results__body">${contentHtml}</div></details>`;
@@ -655,55 +653,6 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       ],
       selectedColumnKeys: ["scope", "participantName", "participantPurpose", "key", "value"],
       emptyHtml: `<p class="muted">No conversation or participant attributes found for ${escapeHtml(conversationId)}.</p>`,
-    };
-  };
-
-  const createFlowExecutionsExportMeta = (resultId, rows, title, status) => {
-    const baseColumns = [
-      {
-        key: "flowName",
-        header: "Flow Name",
-        renderCell: (row) => {
-          const flowInstanceId = row?.id;
-          const flowName = row?.flowName || row?.id || "";
-          const appDomain = getCurrentAppDomain();
-
-          if (!flowInstanceId || !appDomain) {
-            return escapeHtml(flowName);
-          }
-
-          return `<a href="https://apps.${escapeHtml(appDomain)}/architect/#/flowInstance/${escapeHtml(flowInstanceId)}" target="_blank" rel="noreferrer noopener">${escapeHtml(flowName)}</a>`;
-        },
-        toCsv: (row) => row?.flowName || row?.id || "",
-      },
-      { key: "flowVersion", header: "Flow Version" },
-      { key: "flowType", header: "Flow Type" },
-      { key: "startDateTime", header: "Start Date Time" },
-      { key: "endDateTime", header: "End Date Time" },
-      { key: "flowErrorReason", header: "Error Reason" },
-    ];
-
-    const dynamicColumns = createDynamicColumns(
-      rows,
-      new Set([
-        "flowName",
-        "flowVersion",
-        "flowType",
-        "startDateTime",
-        "endDateTime",
-        "flowErrorReason",
-      ])
-    );
-
-    return {
-      resultId,
-      title,
-      status,
-      exportType: "flow_execution",
-      rows,
-      editMode: false,
-      availableColumns: baseColumns.concat(dynamicColumns),
-      selectedColumnKeys: baseColumns.map((column) => column.key),
     };
   };
 
@@ -2643,6 +2592,17 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       confirmModal,
     });
 
+    const flowExecutionFeature = createFlowExecutionFeature({
+      state,
+      requireCredentials,
+      getCurrentAppDomain,
+      startExportResult,
+      finishExportResult,
+      renderLoadingState,
+      renderJsonBlock,
+      confirmModal,
+    });
+
     const notificationMessageParserFeature = createNotificationMessageParserFeature({
       state,
       startExportResult,
@@ -2753,6 +2713,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         }
 
         if (await mockApiFeature.handleClick(event)) {
+          return;
+        }
+
+        if (await flowExecutionFeature.handleClick(event)) {
           return;
         }
 
@@ -3042,6 +3006,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         }
 
         if (auditLogViewerFeature.handleChange(event)) {
+          return;
+        }
+
+        if (flowExecutionFeature.handleChange(event)) {
           return;
         }
 
@@ -3364,6 +3332,11 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       return { ...credentials, conversationId };
     };
 
+    flowExecutionFeature.wireButton(reportFlowBtn, () => {
+      const request = getConversationIdForReport("Flow Execution");
+      return request?.conversationId || "";
+    });
+
     if (reportConversationBtn) {
       reportConversationBtn.addEventListener("click", async () => {
         const request = getConversationIdForReport("Report: Conversation Data");
@@ -3429,40 +3402,6 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
             "Report: Attributes",
             error.message || "Attributes report failed",
             renderJsonBlock(error.payload || { error: error.message || "Attributes report failed" })
-          );
-        }
-      });
-    }
-
-    if (reportFlowBtn) {
-      reportFlowBtn.addEventListener("click", async () => {
-        const request = getConversationIdForReport("Report: Flow Execution");
-        if (!request) {
-          return;
-        }
-
-        const loadingResultId = startExportResult(
-          "Report: Flow Execution",
-          "Loading flow executions...",
-          renderLoadingState(`Fetching flow executions for "${request.conversationId}"...`)
-        );
-
-        try {
-          const executions = await getFlowExecutions(request);
-          const status = `Loaded ${executions.length} executions`;
-          finishExportResult(
-            loadingResultId,
-            "Report: Flow Execution",
-            status,
-            "",
-            createFlowExecutionsExportMeta(loadingResultId, executions, "Report: Flow Execution", status)
-          );
-        } catch (error) {
-          finishExportResult(
-            loadingResultId,
-            "Report: Flow Execution",
-            error.message || "Flow execution report failed",
-            renderJsonBlock(error.payload || { error: error.message || "Flow execution report failed" })
           );
         }
       });

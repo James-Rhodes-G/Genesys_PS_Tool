@@ -218,6 +218,7 @@ const layout = ({ title, body, updatedAt, regions = [] }) => {
   <link rel="stylesheet" href="/css/notification-message-parser.css" />
   <link rel="stylesheet" href="/css/dashboard.css" />
   <link rel="stylesheet" href="/css/mock-api.css" />
+  <link rel="stylesheet" href="/css/flow-execution-timeline.css" />
 </head>
 <body>
   <div id="genesys-org-banner" class="command-banner" hidden>

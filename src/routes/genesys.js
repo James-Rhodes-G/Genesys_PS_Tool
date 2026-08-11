@@ -26,6 +26,7 @@ import {
   getConversation,
   getCurrentUser,
   getFlowExecutions,
+  downloadFlowExecution,
   getGroups,
   getGroupMembers,
   addUserRoutingSkill,
@@ -59,6 +60,7 @@ import {
   spoofOutboundCall,
   subscribeNotificationTopics,
 } from "../lib/genesys.js";
+import { parseExecutionJson } from "../lib/flow-execution-parser.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1015,6 +1017,49 @@ const createGenesysRouter = () => {
       res.status(error.status || 502).json({
         error: error.message,
         details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/genesys/flow-executions/:instanceId/download", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const instanceId = String(req.params.instanceId || "").trim();
+    if (!instanceId) {
+      res.status(400).json({ error: "instanceId is required." });
+      return;
+    }
+
+    try {
+      const { document, downloadMeta } = await downloadFlowExecution({
+        ...credentials,
+        instanceId,
+      });
+      const model = parseExecutionJson(document, {
+        conversationId: String(req.body?.conversationId || "").trim(),
+        instanceId,
+        flowName: String(req.body?.flowName || "").trim(),
+        flowType: String(req.body?.flowType || "").trim(),
+        flowVersion: String(req.body?.flowVersion || "").trim(),
+      });
+
+      if (!model.summary.actionsExecuted) {
+        console.warn("[flow-execution] parsed zero actions", {
+          instanceId,
+          downloadMeta,
+          parseMeta: model.meta,
+        });
+      }
+
+      res.status(200).json({ model, instanceId, downloadMeta, parseMeta: model.meta });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+        source: error.details ? "genesys" : "internal",
       });
     }
   });

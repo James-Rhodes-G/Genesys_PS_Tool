@@ -1,5 +1,7 @@
 import { appendUserCacheStatus, formatUserCacheTimestamp } from "./session-store.js";
 
+import { renderLoadingState } from "./loading-message.js";
+
 const escapeHtml = (value) =>
   String(value == null ? "" : value)
     .replace(/&/g, "&amp;")
@@ -12,6 +14,11 @@ const renderExportProgressState = ({ message, current, total, resultId, cancella
   const safeTotal = Math.max(0, Number(total) || 0);
   const safeCurrent = Math.max(0, Math.min(Number(current) || 0, safeTotal || Number(current) || 0));
   const percent = safeTotal > 0 ? Math.round((safeCurrent / safeTotal) * 100) : 0;
+  const detail =
+    safeTotal > 0
+      ? `${safeCurrent} / ${safeTotal} users (${percent}%)`
+      : "Preparing user data...";
+
   const cancelButtonHtml =
     cancellable && resultId
       ? `<div class="export-progress__actions">
@@ -25,22 +32,12 @@ const renderExportProgressState = ({ message, current, total, resultId, cancella
       : "";
 
   return `<div class="export-progress">
-    <p class="export-progress__message">${escapeHtml(message || "Loading...")}</p>
-    <div
-      class="export-progress__track"
-      role="progressbar"
-      aria-valuemin="0"
-      aria-valuemax="100"
-      aria-valuenow="${percent}"
-      aria-label="Export progress"
-    >
-      <div class="export-progress__bar" style="width: ${percent}%"></div>
-    </div>
-    <p class="muted export-progress__detail">${
-      safeTotal > 0
-        ? `${escapeHtml(safeCurrent)} / ${escapeHtml(safeTotal)} users (${escapeHtml(percent)}%)`
-        : "Preparing..."
-    }</p>
+    ${renderLoadingState({
+      primaryMessage: message || "Loading...",
+      additionalGuidance: detail,
+      value: safeTotal > 0 ? safeCurrent : undefined,
+      max: safeTotal > 0 ? safeTotal : undefined,
+    })}
     ${cancelButtonHtml}
   </div>`;
 };

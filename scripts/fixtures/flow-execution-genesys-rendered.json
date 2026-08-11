@@ -1,0 +1,33 @@
+{
+  "flowInstanceId": "5a6b3e67-b0ad-4e86-85e0-fc3fac9f11c9",
+  "conversationId": "conversation-123",
+  "flowName": "Customer Lookup",
+  "flowType": "INBOUNDCALL",
+  "flowVersion": "2.0",
+  "renderedExecutionData": {
+    "executionHistory": [
+      {
+        "trackingId": 1,
+        "type": "actionFlowStart",
+        "displayName": "Flow Start",
+        "timestamp": "2026-08-10T14:50:30.100Z",
+        "durationMs": 2,
+        "outputPath": "Next",
+        "variables": {
+          "Flow.customerId": { "value": null }
+        }
+      },
+      {
+        "trackingId": 2,
+        "type": "actionDecision",
+        "displayName": "Customer Found?",
+        "timestamp": "2026-08-10T14:50:35.341Z",
+        "durationMs": 4,
+        "outputPath": "TRUE",
+        "variables": {
+          "Flow.found": { "value": true }
+        }
+      }
+    ]
+  }
+}
