@@ -227,6 +227,35 @@ main {
   padding-top: 0.25rem;
 }
 
+.export-loading-panel {
+  display: flex;
+  justify-content: center;
+  padding: 1.25rem 0.75rem;
+}
+
+.export-loading-panel--compact {
+  padding: 0.85rem 0.5rem;
+}
+
+.export-loading-panel__message {
+  inline-size: min(100%, 320px);
+}
+
+.export-results__body .export-loading-panel__message {
+  inline-size: min(100%, 280px);
+}
+
+.export-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.export-progress__actions {
+  text-align: center;
+}
+
 .column-editor {
   margin-bottom: 1rem;
   padding: 0.9rem 1rem;

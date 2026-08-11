@@ -1,0 +1,122 @@
+{
+  "flowInstance": {
+    "id": "flow-instance-1",
+    "conversationId": "conversation-123",
+    "flowName": "Customer Lookup",
+    "flowType": "INBOUNDCALL",
+    "flowVersion": "2.0",
+    "startDateTime": "2026-08-10T14:50:30.000Z",
+    "endDateTime": "2026-08-10T14:50:36.000Z",
+    "flowExitReason": "SUCCESS",
+    "flowErrorReason": null
+  },
+  "execution": {
+    "actions": [
+      {
+        "trackingId": 1,
+        "actionType": "actionFlowStart",
+        "actionName": "Flow Start",
+        "actionId": "a-start",
+        "executionId": "exec-1",
+        "timestamp": "2026-08-10T14:50:30.100Z",
+        "durationMs": 2,
+        "outputPath": "Next",
+        "variables": {
+          "Flow.customerId": { "value": null },
+          "Flow.found": { "value": false }
+        },
+        "metadata": { "flowId": "flow-abc" }
+      },
+      {
+        "trackingId": 2,
+        "actionType": "actionCommonModule",
+        "actionName": "Schedule Check",
+        "actionId": "cm-1",
+        "executionId": "exec-1",
+        "timestamp": "2026-08-10T14:50:30.200Z",
+        "durationMs": 143,
+        "commonModuleName": "Schedule Check",
+        "actions": [
+          {
+            "trackingId": 3,
+            "actionType": "actionDecision",
+            "actionName": "Open Now?",
+            "actionId": "d-1",
+            "executionId": "exec-1",
+            "timestamp": "2026-08-10T14:50:30.250Z",
+            "durationMs": 5,
+            "outputPath": "TRUE",
+            "variables": {
+              "Flow.openNow": { "value": true }
+            }
+          },
+          {
+            "trackingId": 4,
+            "actionType": "actionSetVariable",
+            "actionName": "Set Customer ID",
+            "actionId": "sv-1",
+            "executionId": "exec-1",
+            "timestamp": "2026-08-10T14:50:30.300Z",
+            "durationMs": 3,
+            "outputPath": "Next",
+            "variables": {
+              "Flow.customerId": { "value": "cust-001" }
+            }
+          }
+        ]
+      },
+      {
+        "trackingId": 5,
+        "actionType": "actionDecision",
+        "actionName": "Customer Found?",
+        "actionId": "d-2",
+        "executionId": "exec-1",
+        "timestamp": "2026-08-10T14:50:35.341Z",
+        "durationMs": 4,
+        "outputPath": "TRUE",
+        "variables": {
+          "Flow.found": { "value": true }
+        }
+      },
+      {
+        "trackingId": 6,
+        "actionType": "actionDataAction",
+        "actionName": "Lookup Customer",
+        "actionId": "da-1",
+        "executionId": "exec-1",
+        "timestamp": "2026-08-10T14:50:35.500Z",
+        "durationMs": 120,
+        "outputPath": "Success",
+        "inputData": { "customerId": "cust-001" },
+        "outputData": { "status": "ok" },
+        "variables": {
+          "Flow.customerName": { "value": "Jane Doe" },
+          "Flow.secretToken": { "valueIsTooLarge": true },
+          "Flow.redactedField": { "redacted": true }
+        }
+      },
+      {
+        "trackingId": 7,
+        "actionType": "actionTransferToAcd",
+        "actionName": "Transfer to Support",
+        "actionId": "t-1",
+        "executionId": "exec-1",
+        "timestamp": "2026-08-10T14:50:35.900Z",
+        "durationMs": 8,
+        "outputPath": "Queued",
+        "errors": [{ "message": "Queue timeout", "code": "QUEUE_TIMEOUT" }],
+        "warnings": [{ "message": "Fallback queue used", "code": "FALLBACK" }]
+      },
+      {
+        "trackingId": 8,
+        "actionType": "actionFlowEnd",
+        "actionName": "Flow End",
+        "actionId": "a-end",
+        "executionId": "exec-1",
+        "timestamp": "2026-08-10T14:50:36.000Z",
+        "durationMs": 1,
+        "outputPath": "Disconnect"
+      }
+    ]
+  }
+}

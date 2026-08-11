@@ -91,7 +91,7 @@ Copy `.env.example` to `.env` and configure:
 | --- | --- |
 | Conversation Data | Returns the JSON of the conversationId|
 | Attributes | Returns the attributes of a participants in the conversationId|
-| Flow Execution | Returns links to all flow execution historys of the conversationId|
+| Flow Execution | Query flow instances by conversation ID, then open in Genesys or the PS Tool Architect Execution Timeline Viewer |
 | Interaction Details | Takes you to the Genesys UI interaction details page |
 | Intent Health | selector driven intent health for selected flow |
 | Utterances | selector driven utterances for selected flow |
@@ -136,6 +136,53 @@ Mock endpoints are reachable at `/mockAPI/{userpart}/{endpointSlug}` (no PS Tool
 
 **Public invocation route** (no auth): `ALL /mockAPI/:userpart/:endpointSlug`
 
+### Architect Execution Timeline Viewer
+
+Adds a card-based execution timeline on top of the existing Flow Execution lookup. The original Genesys Architect link remains available on the Flow Selection page.
+
+**Workflow**
+
+1. Enter a Conversation ID in Interaction Data.
+2. Click **Flow Execution** to query `/api/v2/flows/instances/query`.
+3. Review the Flow Selection page (always shown, even for a single result).
+4. Choose **Open in Genesys** or **Open in PS Tool**.
+
+**PS Tool viewer behavior**
+
+- Downloads rendered execution JSON once via the async Genesys job workflow:
+  - `GET /api/v2/flows/instances/{instanceId}` — start download job
+  - `GET /api/v2/flows/instances/jobs/{jobId}` — poll job status
+  - `GET /api/v2/downloads/{downloadId}?issueRedirect=false` — resolve signed URL
+- Parses JSON into an internal execution model on the server; the UI never consumes raw Genesys JSON.
+- Genesys rendered execution documents (`{ flow: { execution: [...] } }`) are converted automatically before timeline rendering.
+- Caches the parsed model in browser session memory while the viewer is open.
+- Supports chronological cards, task/common module grouping, search highlighting, variable tracking, and error navigation without re-downloading or re-parsing.
+
+**Routes**
+
+| Route | Method | Purpose |
+| --- | --- | --- |
+| `/api/genesys/flow-executions` | POST | Query flow instances by `conversationId` |
+| `/api/genesys/flow-executions/:instanceId/download` | POST | Download execution JSON, parse, return internal model |
+
+**Parser modules (`src/lib/`)**
+
+| Module | Purpose |
+| --- | --- |
+| `flow-execution-download.js` | Async Genesys download job polling and signed URL fetch |
+| `flow-execution-genesys-parser.js` | Genesys rendered `{ flow.execution }` document → internal action tree |
+| `flow-execution-parser.js` | Raw execution JSON → internal execution model |
+| `flow-execution-action-registry.js` | Action type → display metadata |
+| `flow-execution-analysis.js` | Search, error navigation, variable tracking helpers |
+
+**UI modules (`public/js/`)**
+
+| Module | Purpose |
+| --- | --- |
+| `flow-execution-feature.js` | Flow Selection page + timeline viewer |
+| `flow-execution-client.js` | Browser API client |
+| `flow-execution-analysis.js` | Browser-side search/navigation helpers |
+
 ### Quick Actions (Notifications)
 
 | Tool | Description |
@@ -179,6 +226,10 @@ src/
     genesys.js           Genesys API helpers and pagination
     mock-api.js          Mock endpoint business logic and invocation
     mock-api-config.js   Mock API limits and lifecycle defaults
+    flow-execution-download.js Async flow execution download workflow
+    flow-execution-parser.js Execution JSON parser and internal model builder
+    flow-execution-action-registry.js Action type display registry
+    flow-execution-analysis.js Search, error, and variable tracking helpers
     genesys-bulk.js      Shared bulk mutation executor
     user-cache.js        Session-scoped user sync orchestration
   data/
@@ -190,6 +241,8 @@ public/js/
   genesys-client.js      Browser-side Genesys API client
   mock-api-feature.js    Mock API management UI
   mock-api-client.js     Browser client for mock API routes
+  flow-execution-feature.js Architect Execution Timeline Viewer
+  flow-execution-client.js Browser client for flow execution routes
   session-store.js       Session bind/clear, user sync, export offload
   resource-cache.js      Session-scoped cache (phones, sites, divisions, data tables, roles, queues, skills, groups)
   export-format.js       Shared pipe-separated cell formatting
@@ -277,7 +330,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 
 | Date | Change |
 | --- | --- |
-| 2026-08-06 | **Mock API framework** — personal mock endpoints, request logging, lifecycle expiry, PS Tool Admin UI |
+| 2026-08-10 | **Architect Execution Timeline Viewer** — flow selection page, async download, parser, card timeline, search, variable tracking, error navigation |
 | 2026-08-05 | **Organization Dashboard** — landing page with six modular widgets; auto-opens after connect |
 | 2026-08-05 | **Organization Limits widget** — displays namespace limit docs with friendly-name filter; columns: key, description, default value, configured value |
 | 2026-08-05 | **Unified resource caching** — roles, queues, skills, and groups cached once per session and shared across dashboard, exports, and bulk workflows |
@@ -303,6 +356,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 | `scripts/test-notification-topics.mjs` | Notification topic grouping/filtering |
 | `scripts/test-notification-message-store.mjs` | Parsed message store behavior |
 | `scripts/test-mock-api.mjs` | Mock API slug normalization, redaction, lifecycle, validation |
+| `scripts/test-flow-execution-parser.mjs` | Execution parser timeline, variables, search, and error navigation |
 
 ## Preparing for GitHub
 
