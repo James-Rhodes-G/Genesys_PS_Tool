@@ -42,6 +42,9 @@ const jsonBodyLimit = process.env.JSON_BODY_LIMIT || "50mb";
 const mockRequestBodyLimit = String(MOCK_API_CONFIG.maxRequestBodyBytes);
 
 app.use(express.static(path.join(projectRoot, "public")));
+app.get("/js/shared/flow-execution-analysis.js", (_req, res) => {
+  res.sendFile(path.join(projectRoot, "src", "lib", "flow-execution-analysis.js"));
+});
 app.get("/favicon.ico", (_req, res) => {
   res.redirect(302, "/favicon.svg");
 });

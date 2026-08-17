@@ -44,6 +44,10 @@ const lookupCustomer = model.flatNodes.find((node) => node.actionName === "Looku
 assert.equal(lookupCustomer.variables["Flow.secretToken"].state, "tooLarge");
 assert.equal(lookupCustomer.variables["Flow.redactedField"].state, "redacted");
 
+const valueIsRedactedEntry = normalizeVariableEntry({ valueIsRedacted: true, value: "secret-audio" });
+assert.equal(valueIsRedactedEntry.state, "redacted");
+assert.equal(valueIsRedactedEntry.displayValue, "[Redacted]");
+
 const changedNode = model.flatNodes.find((node) => node.actionName === "Set Customer ID");
 assert.ok(changedNode.changedVariables["Flow.customerId"]);
 

@@ -85,24 +85,39 @@ const parseJsonDocument = (text) => {
   }
 };
 
-const summarizeDocument = (document) => {
+const summarizeDocument = (document, byteLength = null) => {
   if (document == null) {
-    return { topLevelKeys: [], byteLength: 0, type: typeof document };
+    return { topLevelKeys: [], byteLength: byteLength ?? 0, type: typeof document };
   }
 
+  const resolvedByteLength =
+    byteLength ??
+    (() => {
+      try {
+        return JSON.stringify(document).length;
+      } catch {
+        return 0;
+      }
+    })();
+
   if (Array.isArray(document)) {
-    return { topLevelKeys: ["[]"], byteLength: JSON.stringify(document).length, type: "array", length: document.length };
+    return {
+      topLevelKeys: ["[]"],
+      byteLength: resolvedByteLength,
+      type: "array",
+      length: document.length,
+    };
   }
 
   if (typeof document === "object") {
     return {
       topLevelKeys: Object.keys(document),
-      byteLength: JSON.stringify(document).length,
+      byteLength: resolvedByteLength,
       type: "object",
     };
   }
 
-  return { topLevelKeys: [], byteLength: JSON.stringify(document).length, type: typeof document };
+  return { topLevelKeys: [], byteLength: resolvedByteLength, type: typeof document };
 };
 
 const fetchExecutionDocument = async ({ region, token, downloadUri }) => {
@@ -149,7 +164,7 @@ const fetchExecutionDocument = async ({ region, token, downloadUri }) => {
   }
 
   const document = parseJsonDocument(text);
-  const meta = summarizeDocument(document);
+  const meta = summarizeDocument(document, text.length);
   console.log("[flow-execution] rendered execution document parsed", meta);
 
   return { document, meta };

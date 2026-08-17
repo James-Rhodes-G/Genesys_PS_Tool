@@ -1406,24 +1406,41 @@ const getConversation = ({ region, token, conversationId }) =>
     path: `/api/v2/conversations/${encodeURIComponent(conversationId)}`,
   });
 
-const getFlowExecutions = ({ region, token, conversationId }) =>
-  genesysRequest({
-    region,
-    token,
-    method: "POST",
-    path: "/api/v2/flows/instances/query?pageSize=200",
-    body: {
-      query: [
-        {
-          criteria: {
-            key: "ConversationId",
-            operator: "eq",
-            value: conversationId,
+const getFlowExecutions = async ({ region, token, conversationId }) => {
+  const pageSize = 100;
+  let pageNumber = 1;
+  let pageCount = 1;
+  const entities = [];
+
+  while (pageNumber <= pageCount) {
+    const data = await genesysRequest({
+      region,
+      token,
+      method: "POST",
+      path: buildPaginatedPath("/api/v2/flows/instances/query", pageNumber, pageSize),
+      body: {
+        query: [
+          {
+            criteria: {
+              key: "ConversationId",
+              operator: "eq",
+              value: conversationId,
+            },
           },
-        },
-      ],
-    },
-  }).then((data) => data?.entities || []);
+        ],
+      },
+    });
+
+    if (Array.isArray(data?.entities)) {
+      entities.push(...data.entities);
+    }
+
+    pageCount = Number(data?.pageCount || 1);
+    pageNumber += 1;
+  }
+
+  return entities;
+};
 
 const downloadFlowExecution = (options) => downloadFlowExecutionJson(options);
 

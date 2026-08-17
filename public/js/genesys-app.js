@@ -150,6 +150,7 @@ import { createUtterancesFeature } from "./utterances.js";
 import { createAuditLogViewerFeature } from "./audit-log-viewer.js";
 import { createMockApiFeature } from "./mock-api-feature.js";
 import { createFlowExecutionFeature } from "./flow-execution-feature.js";
+import { clearFlowExecutionModelCache } from "./flow-execution-client.js";
 import { createUserNotificationsFeature } from "./user-notifications.js";
 import { createQueueNotificationsFeature } from "./queue-notifications.js";
 import { createOutboundNotificationsFeature } from "./outbound-notifications.js";
@@ -1344,6 +1345,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       }
 
       clearResourceCaches();
+      clearFlowExecutionModelCache();
       clearInventoryStore();
       clearSessionActivities();
       dashboardFeatureRef?.disposeDashboard();
@@ -1417,6 +1419,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         showStatus(organization?.name ? `Connected: ${organization.name}` : "Connected");
         syncConnectionUi();
         clearResourceCaches();
+        clearFlowExecutionModelCache();
         clearInventoryStore();
         clearSessionActivities();
         clearExportResults();

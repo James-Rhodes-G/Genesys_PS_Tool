@@ -47,6 +47,16 @@ const ACTION_ROOT_PATHS = [
 
 const asArray = (value) => (Array.isArray(value) ? value : value == null ? [] : [value]);
 
+const variableEntrySnapshot = (entry) => {
+  if (!entry) {
+    return "unset";
+  }
+
+  return `${entry.state}\0${entry.displayValue}`;
+};
+
+const variableEntriesEqual = (left, right) => variableEntrySnapshot(left) === variableEntrySnapshot(right);
+
 const pickFirst = (source, keys) => {
   for (const key of keys) {
     if (source?.[key] != null && source[key] !== "") {
@@ -88,7 +98,7 @@ const normalizeVariableEntry = (entry) => {
     if (entry.valueIsTooLarge) {
       return { displayValue: "[Value too large]", rawValue: null, state: "tooLarge" };
     }
-    if (entry.redacted) {
+    if (entry.redacted || entry.valueIsRedacted) {
       return { displayValue: "[Redacted]", rawValue: null, state: "redacted" };
     }
     if ("value" in entry) {
@@ -200,9 +210,21 @@ const isActionLike = (value) => {
   return Boolean(actionName && (looksLikeActionType(actionType) || hasChildren));
 };
 
-const findBestActionArray = (value, depth = 0, best = { score: 0, items: [], path: "" }) => {
+const findBestActionArray = (
+  value,
+  depth = 0,
+  best = { score: 0, items: [], path: "" },
+  visited = new WeakSet()
+) => {
   if (depth > 10 || value == null) {
     return best;
+  }
+
+  if (typeof value === "object") {
+    if (visited.has(value)) {
+      return best;
+    }
+    visited.add(value);
   }
 
   if (Array.isArray(value)) {
@@ -212,14 +234,25 @@ const findBestActionArray = (value, depth = 0, best = { score: 0, items: [], pat
     }
 
     value.forEach((entry) => {
-      best = findBestActionArray(entry, depth + 1, best);
+      if (entry && typeof entry === "object") {
+        best = findBestActionArray(entry, depth + 1, best, visited);
+      }
     });
     return best;
   }
 
   if (typeof value === "object") {
-    Object.values(value).forEach((entry) => {
-      best = findBestActionArray(entry, depth + 1, best);
+    CHILD_COLLECTION_KEYS.forEach((key) => {
+      if (key in value) {
+        best = findBestActionArray(value[key], depth + 1, best, visited);
+      }
+    });
+
+    Object.entries(value).forEach(([key, entry]) => {
+      if (CHILD_COLLECTION_KEYS.includes(key) || !entry || typeof entry !== "object") {
+        return;
+      }
+      best = findBestActionArray(entry, depth + 1, best, visited);
     });
   }
 
@@ -351,10 +384,8 @@ const computeVariableChanges = (flatNodes) => {
     const changedVariables = {};
     Object.entries(node.variables).forEach(([name, entry]) => {
       const previous = previousValues.get(name);
-      const serialized = JSON.stringify(entry.rawValue);
-      const previousSerialized = previous ? JSON.stringify(previous.rawValue) : null;
 
-      if (previousSerialized !== serialized) {
+      if (!variableEntriesEqual(previous, entry)) {
         changedVariables[name] = {
           previous: previous || { displayValue: "—", rawValue: null, state: "unset" },
           current: entry,
@@ -382,11 +413,9 @@ const buildVariableHistory = (flatNodes) => {
 
   flatNodes.forEach((node) => {
     Object.entries(node.variables || {}).forEach(([name, entry]) => {
-      const serialized = JSON.stringify(entry.rawValue);
       const previous = previousValues.get(name);
-      const previousSerialized = previous ? JSON.stringify(previous.rawValue) : null;
 
-      if (previousSerialized !== serialized) {
+      if (!variableEntriesEqual(previous, entry)) {
         if (!history[name]) {
           history[name] = [];
         }
