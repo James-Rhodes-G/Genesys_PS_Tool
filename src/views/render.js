@@ -128,6 +128,7 @@ ${navSubmenuItem("genesys-bulk-phone-move", "Phone Mover")}
 ${navSubmenuItem("genesys-bulk-phone-remove", "Phone Remover")}
 ${navSubmenuItem("genesys-bulk-phone-site-migrate", "Phone Site Migrator")}
 ${navSubmenuItem("genesys-load-schedules", "Load Schedules")}
+${navSubmenuItem("genesys-flow-dependencies", "Flow Dependencies")}
 <li class="menu-item-container"><p id="bulk-actions-status" class="command-nav__status">Connect to an organization to run bulk changes.</p></li>`,
     }),
     navGroupDefinition({
@@ -219,6 +220,7 @@ const layout = ({ title, body, updatedAt, regions = [] }) => {
   <link rel="stylesheet" href="/css/dashboard.css" />
   <link rel="stylesheet" href="/css/mock-api.css" />
   <link rel="stylesheet" href="/css/flow-execution-timeline.css" />
+  <link rel="stylesheet" href="/css/flow-dependency.css" />
 </head>
 <body>
   <div id="genesys-org-banner" class="command-banner" hidden>

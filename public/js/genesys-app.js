@@ -150,6 +150,7 @@ import { createUtterancesFeature } from "./utterances.js";
 import { createAuditLogViewerFeature } from "./audit-log-viewer.js";
 import { createMockApiFeature } from "./mock-api-feature.js";
 import { createFlowExecutionFeature } from "./flow-execution-feature.js";
+import { createFlowDependencyFeature } from "./flow-dependency-feature.js";
 import { clearFlowExecutionModelCache } from "./flow-execution-client.js";
 import { createUserNotificationsFeature } from "./user-notifications.js";
 import { createQueueNotificationsFeature } from "./queue-notifications.js";
@@ -1164,6 +1165,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const bulkPhoneRemoveBtn = document.getElementById("genesys-bulk-phone-remove");
     const bulkPhoneSiteMigrateBtn = document.getElementById("genesys-bulk-phone-site-migrate");
     const loadSchedulesBtn = document.getElementById("genesys-load-schedules");
+    const flowDependenciesBtn = document.getElementById("genesys-flow-dependencies");
     const createMasterAdminBtn = document.getElementById("genesys-create-master-admin");
     const reportConversationIdInput = document.getElementById("genesys-report-conversation-id");
     const reportConversationBtn = document.getElementById("genesys-report-conversation");
@@ -1240,6 +1242,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           bulkPhoneRemoveBtn,
           bulkPhoneSiteMigrateBtn,
           loadSchedulesBtn,
+          flowDependenciesBtn,
           createMasterAdminBtn,
           reportConversationBtn,
           reportAttributesBtn,
@@ -2485,6 +2488,18 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       confirmModal,
     });
 
+    const flowDependencyFeature = createFlowDependencyFeature({
+      state,
+      requireCredentials,
+      getCurrentAppDomain,
+      startExportResult,
+      finishExportResult,
+      renderLoadingState,
+      renderJsonBlock,
+      confirmModal,
+      summarizeBulkStatuses,
+    });
+
     const masterAdminFeature = createMasterAdminFeature({
       state,
       createMasterAdminRole,
@@ -2688,6 +2703,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         }
 
         if (await loadSchedulesFeature.handleClick(event)) {
+          return;
+        }
+
+        if (await flowDependencyFeature.handleClick(event)) {
           return;
         }
 
@@ -2985,6 +3004,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         }
 
         if (loadSchedulesFeature.handleChange(event)) {
+          return;
+        }
+
+        if (flowDependencyFeature.handleChange(event)) {
           return;
         }
 
@@ -3304,6 +3327,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     });
 
     loadSchedulesFeature.wireButton(loadSchedulesBtn);
+    flowDependencyFeature.wireButton(flowDependenciesBtn);
     masterAdminFeature.wireButton(createMasterAdminBtn);
     outboundCallSpoofFeature.wireButton(reportCallSpoofBtn);
     inboundCallSpoofFeature.wireButton(inboundCallSpoofBtn);

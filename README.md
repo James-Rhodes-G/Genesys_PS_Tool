@@ -77,6 +77,79 @@ Copy `.env.example` to `.env` and configure:
 | **Phone Remover** | Delete phones (manual IDs or cached phone picker) |
 | **Phone Site Migrator** | Migrate all WebRTC phones from one site to another |
 | Load Schedules | Import schedule templates with naming rules |
+| **Flow Dependencies** | Discover Architect flow dependencies and republish eligible consuming flows after Common Module changes |
+
+### Common Module Dependency Discovery & Republish
+
+Find flows that depend on a selected Architect flow (primarily Common Modules), distinguish active vs historical dependencies, and republish eligible flows using the Genesys checkout → validate → publish workflow.
+
+**Workflow**
+
+1. Open **Bulk Actions → Flow Dependencies**.
+2. Select a **Flow Type** (Bot, Common Module, Inbound, or In-Queue).
+3. Select a **Flow** from the dependent list (loaded via `/api/v2/flows`).
+4. Click **Search** to run dependency discovery (does not run until Search is clicked).
+5. Review active dependencies first, then historical/inactive dependencies.
+6. Republish individual eligible flows or use **Republish All**.
+
+**Dependency discovery**
+
+- Uses `GET /api/v2/architect/dependencytracking/consumingresources` with pagination.
+- Filters consuming resources to Architect flow categories (Bot, Common Module, Inbound, In-Queue).
+- Groups `consumingresources` rows by flow ID (each row is one dependent version)
+- Fetches each dependent flow once via `GET /api/v2/flows/{flowId}` to read the published version and republish eligibility
+- Treats HTTP **206** responses as **partial results** and shows a warning banner (results are not presented as complete).
+- Orders results with active dependencies first (A→Z), then historical-only dependencies (A→Z).
+
+**Republish eligibility**
+
+A flow is eligible only when:
+
+1. The **current published version** depends on the selected flow/module.
+2. No **newer unpublished version** exists after the published version.
+
+Historical-only dependencies and flows with newer unpublished work are excluded from individual republish and **Republish All**.
+
+**Republish workflow (per flow)**
+
+1. `POST /api/v2/flows/actions/checkout?flow={flowId}`
+2. `POST /api/v2/flows/actions/validate?flow={flowId}&flowType={flowType}`
+3. Poll `GET /api/v2/flows/{flowId}/validate/{validationJobId}` until `complete == true` and `actionStatus == SUCCESS`
+4. `POST /api/v2/flows/actions/publish?flow={flowId}` (no version parameter — Genesys publishes the checked-out working copy)
+5. Poll `GET /api/v2/flows/jobs/{jobId}?expand=messages` until success
+
+Validation failures do not publish. Checked-out versions are preserved after failure.
+
+**Routes**
+
+| Route | Method | Purpose |
+| --- | --- | --- |
+| `/api/genesys/architect/flows-by-type` | GET | List flows for a flow type key (`bot`, `commonmodule`, `inbound`, `inqueue`) |
+| `/api/genesys/architect/dependency-search` | POST | Discover consuming flows and build normalized dependency results |
+| `/api/genesys/architect/flow-republish` | POST | Checkout → validate → publish one eligible flow |
+| `/api/genesys/architect/flow-republish/bulk` | POST | Bulk republish for server-side batch execution |
+
+**Lib modules (`src/lib/`)**
+
+| Module | Purpose |
+| --- | --- |
+| `flow-dependency-types.js` | Flow type catalog, eligibility constants |
+| `flow-dependency-request.js` | Genesys request helper with HTTP status / 206 detection |
+| `flow-dependency.js` | Dependency discovery, version analysis, normalized result model |
+| `flow-republish.js` | Checkout, validation polling, publish polling |
+
+**UI modules (`public/js/`)**
+
+| Module | Purpose |
+| --- | --- |
+| `flow-dependency-feature.js` | Selection toolbar, results cards, republish progress, bulk confirm |
+| `flow-dependency-client.js` | Browser API client for dependency/republish routes |
+
+**Styles**
+
+| File | Purpose |
+| --- | --- |
+| `public/css/flow-dependency.css` | Horizontal toolbar, summary bar, flow cards, progress steps |
 
 ### Call Spoof
 
@@ -230,6 +303,10 @@ src/
     flow-execution-parser.js Execution JSON parser and internal model builder
     flow-execution-action-registry.js Action type display registry
     flow-execution-analysis.js Search, error, and variable tracking helpers
+    flow-dependency-types.js Flow type catalog and eligibility constants
+    flow-dependency-request.js Genesys request helper with HTTP 206 detection
+    flow-dependency.js Dependency discovery and version analysis
+    flow-republish.js Checkout, validation polling, and publish polling
     genesys-bulk.js      Shared bulk mutation executor
     user-cache.js        Session-scoped user sync orchestration
   data/
@@ -243,6 +320,8 @@ public/js/
   mock-api-client.js     Browser client for mock API routes
   flow-execution-feature.js Architect Execution Timeline Viewer
   flow-execution-client.js Browser client for flow execution routes
+  flow-dependency-feature.js Common Module dependency discovery and republish UI
+  flow-dependency-client.js Browser client for dependency/republish routes
   session-store.js       Session bind/clear, user sync, export offload
   resource-cache.js      Session-scoped cache (phones, sites, divisions, data tables, roles, queues, skills, groups)
   export-format.js       Shared pipe-separated cell formatting
@@ -330,6 +409,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 
 | Date | Change |
 | --- | --- |
+| 2026-08-17 | **Common Module Dependency Discovery & Republish** — dependency search, active/historical grouping, checkout/validate/publish, bulk republish |
 | 2026-08-10 | **Architect Execution Timeline Viewer** — flow selection page, async download, parser, card timeline, search, variable tracking, error navigation |
 | 2026-08-05 | **Organization Dashboard** — landing page with six modular widgets; auto-opens after connect |
 | 2026-08-05 | **Organization Limits widget** — displays namespace limit docs with friendly-name filter; columns: key, description, default value, configured value |
@@ -357,6 +437,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 | `scripts/test-notification-message-store.mjs` | Parsed message store behavior |
 | `scripts/test-mock-api.mjs` | Mock API slug normalization, redaction, lifecycle, validation |
 | `scripts/test-flow-execution-parser.mjs` | Execution parser timeline, variables, search, and error navigation |
+| `scripts/test-flow-dependency.mjs` | Dependency type mapping, version helpers, republish stage detection |
 
 ## Preparing for GitHub
 

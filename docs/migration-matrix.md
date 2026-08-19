@@ -71,6 +71,8 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | Conversation lookup | `/api/genesys/conversations/:conversationId` | done | conversation data + attributes reports |
 | Flow execution lookup | `/api/genesys/flow-executions` | done | flow selection + Genesys link |
 | Flow execution timeline | `/api/genesys/flow-executions/:instanceId/download` | done | PS Tool Architect Execution Timeline Viewer |
+| Common module dependency discovery | `/api/genesys/architect/dependency-search` | done | Bulk Actions → Flow Dependencies |
+| Flow republish workflow | `/api/genesys/architect/flow-republish` | done | checkout → validate → publish for eligible consuming flows |
 | Outbound call spoof | `/api/genesys/call-spoof` | done | outbound call with spoofed CLID/CNAM |
 | Inbound call spoof | `/api/genesys/call-spoof/inbound` | done | inbound DNIS spoof call |
 | Bot flow diagnostics | bot flows, utterances, intent health routes | done | intent health + utterances panels |

@@ -61,6 +61,19 @@ import {
   subscribeNotificationTopics,
 } from "../lib/genesys.js";
 import { parseExecutionJson } from "../lib/flow-execution-parser.js";
+import {
+  discoverFlowDependencies,
+  listArchitectFlowsByType,
+} from "../lib/flow-dependency.js";
+import {
+  checkoutFlow,
+  pollFlowValidation,
+  publishFlowVersionLabel,
+  republishFlow,
+  republishFlowsBulk,
+  resolveSourceModule,
+  startFlowValidation,
+} from "../lib/flow-republish.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1060,6 +1073,235 @@ const createGenesysRouter = () => {
         error: error.message,
         details: error.details || null,
         source: error.details ? "genesys" : "internal",
+      });
+    }
+  });
+
+  router.get("/api/genesys/architect/flows-by-type", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const flowTypeKey = String(req.query?.flowTypeKey || "").trim();
+    if (!flowTypeKey) {
+      res.status(400).json({ error: "flowTypeKey is required." });
+      return;
+    }
+
+    try {
+      const flows = await listArchitectFlowsByType({ ...credentials, flowTypeKey });
+      res.status(200).json({ flows, flowTypeKey });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/genesys/architect/dependency-search", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const selectedFlowId = String(req.body?.selectedFlowId || "").trim();
+    const sourceFlowTypeKey = String(req.body?.sourceFlowTypeKey || "").trim();
+    const appDomain = String(req.body?.appDomain || "").trim();
+
+    if (!selectedFlowId || !sourceFlowTypeKey) {
+      res.status(400).json({ error: "selectedFlowId and sourceFlowTypeKey are required." });
+      return;
+    }
+
+    try {
+      const payload = await discoverFlowDependencies({
+        ...credentials,
+        selectedFlowId,
+        sourceFlowTypeKey,
+        appDomain,
+      });
+      res.status(200).json(payload);
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/genesys/architect/flow-republish/checkout", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const flowId = String(req.body?.flowId || "").trim();
+    if (!flowId) {
+      res.status(400).json({ error: "flowId is required." });
+      return;
+    }
+
+    try {
+      const result = await checkoutFlow({ ...credentials, flowId });
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/genesys/architect/flow-republish/validate", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const flowId = String(req.body?.flowId || "").trim();
+    const flowTypeKey = String(req.body?.flowTypeKey || "").trim();
+    const sourceModule = resolveSourceModule(req.body);
+    if (!flowId || !flowTypeKey) {
+      res.status(400).json({ error: "flowId and flowTypeKey are required." });
+      return;
+    }
+    if (!sourceModule) {
+      res.status(400).json({ error: "sourceModule is required for republish validation." });
+      return;
+    }
+
+    try {
+      const validationStart = await startFlowValidation({
+        ...credentials,
+        flowId,
+        flowTypeKey,
+        sourceModule,
+      });
+      const validation = await pollFlowValidation({
+        ...credentials,
+        flowId,
+        validationJobId: validationStart.validationJobId,
+      });
+
+      if (validation.status !== "success") {
+        res.status(502).json({
+          status: "failed",
+          error: validation.error,
+          validationResults: validation.payload,
+        });
+        return;
+      }
+
+      res.status(200).json({
+        status: "success",
+        validationResults: validation.payload,
+      });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/genesys/architect/flow-republish/publish", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const flowId = String(req.body?.flowId || "").trim();
+    const publishedVersionBeforeRepublish = String(req.body?.publishedVersionBeforeRepublish || "").trim();
+
+    if (!flowId || !publishedVersionBeforeRepublish) {
+      res.status(400).json({ error: "flowId and publishedVersionBeforeRepublish are required." });
+      return;
+    }
+
+    try {
+      const result = await publishFlowVersionLabel({
+        ...credentials,
+        flowId,
+        publishedVersionBeforeRepublish,
+      });
+
+      if (result.status !== "success") {
+        res.status(502).json(result);
+        return;
+      }
+
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/genesys/architect/flow-republish", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const flowId = String(req.body?.flowId || "").trim();
+    const flowTypeKey = String(req.body?.flowTypeKey || "").trim();
+    const sourceModule = resolveSourceModule(req.body);
+    if (!flowId || !flowTypeKey) {
+      res.status(400).json({ error: "flowId and flowTypeKey are required." });
+      return;
+    }
+    if (!sourceModule) {
+      res.status(400).json({ error: "sourceModule is required for republish validation." });
+      return;
+    }
+
+    try {
+      const result = await republishFlow({ ...credentials, flowId, flowTypeKey, sourceModule });
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/genesys/architect/flow-republish/bulk", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const flows = Array.isArray(req.body?.flows) ? req.body.flows : [];
+    const sourceModule = resolveSourceModule(req.body);
+    if (!flows.length) {
+      res.status(400).json({ error: "flows is required." });
+      return;
+    }
+    if (!sourceModule) {
+      res.status(400).json({ error: "sourceModule is required for republish validation." });
+      return;
+    }
+
+    try {
+      const results = await republishFlowsBulk({
+        ...credentials,
+        sourceModule,
+        flows: flows.map((flow) => ({
+          flowId: String(flow?.flowId || "").trim(),
+          flowName: String(flow?.flowName || "").trim(),
+          flowTypeKey: String(flow?.flowTypeKey || "").trim(),
+        })),
+      });
+      res.status(200).json({ results });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
       });
     }
   });

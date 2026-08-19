@@ -1,0 +1,148 @@
+.flow-dep-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.flow-dep-toolbar {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(280px, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.flow-dep-toolbar__search {
+  padding-bottom: 0.35rem;
+}
+
+.flow-dep-loading,
+.flow-dep-warning {
+  margin: 0;
+}
+
+.flow-dep-warning {
+  color: #b54708;
+}
+
+.flow-dep-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.flow-dep-summary__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.flow-dep-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.flow-dep-card {
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.flow-dep-card--inactive {
+  opacity: 0.72;
+  background: #f2f4f7;
+}
+
+.flow-dep-card__header {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) 120px 36px 36px auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+}
+
+.flow-dep-card__toggle {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.flow-dep-card__title a {
+  font-weight: 600;
+}
+
+.flow-dep-card__meta,
+.flow-dep-card__status {
+  white-space: nowrap;
+}
+
+.flow-dep-card__body {
+  padding: 0 0.85rem 0.85rem 2.2rem;
+}
+
+.flow-dep-card__reason {
+  margin: 0 0 0.75rem;
+}
+
+.flow-dep-version-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75rem;
+}
+
+.flow-dep-version-table th,
+.flow-dep-version-table td {
+  border-bottom: 1px solid #eaecf0;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.flow-dep-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.flow-dep-progress__step {
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: #f2f4f7;
+  font-size: 0.875rem;
+}
+
+.flow-dep-progress__step--success {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.flow-dep-progress__step--failed {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.flow-dep-progress__step--running {
+  background: #eff8ff;
+  color: #175cd3;
+}
+
+.flow-dep-progress__arrow {
+  color: #667085;
+}
+
+.flow-dep-progress__error {
+  margin-left: 0.35rem;
+}
+
+@media (max-width: 960px) {
+  .flow-dep-toolbar,
+  .flow-dep-card__header {
+    grid-template-columns: 1fr;
+  }
+}
