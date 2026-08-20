@@ -9,6 +9,7 @@ import {
   mapNamedOptions,
   renderBulkActionGrid,
 } from "./bulk-user-picker.js";
+import { filterUsersWithoutWebRtcPhone, invalidatePhoneResourceCache, mapPhoneBuildResultsToRows, runPhoneBuildWithProgress } from "./bulk-phone-utils.js";
 
 const BULK_KIND = "phone-build";
 const USER_CHECKBOX_CLASS = "bulk-phone-build-user-checkbox";
@@ -62,7 +63,7 @@ const renderBulkPhoneBuildBody = (resultId, exportMeta) => {
       placeholder: "Optional template phone ID",
       attrs: `data-result-id="${escapeHtml(resultId)}"`,
     })}
-    <p class="muted">Choose a template phone or provide a custom template ID. New phones will be named <code>{user_name}_webRTC</code>.</p>
+    <p class="muted">Choose a template phone or provide a custom template ID. New phones will be named <code>{user_name}_webRTC</code>. Users who already have a WebRTC phone are not shown.</p>
   </div>`;
 
   return renderBulkActionGrid({
@@ -143,7 +144,12 @@ const createBulkPhoneBuildFeature = ({
           loadUsers(credentials),
           getPhones(credentials),
         ]);
-        const statusBase = `Loaded ${users.length} users`;
+        const eligibleUsers = filterUsersWithoutWebRtcPhone(users, phones);
+        const excludedCount = users.length - eligibleUsers.length;
+        const statusBase =
+          excludedCount > 0
+            ? `Loaded ${eligibleUsers.length} users (${excludedCount} already have WebRTC phones)`
+            : `Loaded ${eligibleUsers.length} users`;
         const exportMeta = {
           kind: "bulk-phone-build",
           resultId: loadingResultId,
@@ -152,7 +158,9 @@ const createBulkPhoneBuildFeature = ({
           status: appendUserCacheStatus(statusBase, userCache),
           userCache,
           editable: false,
-          users: users.slice().sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""))),
+          users: eligibleUsers
+            .slice()
+            .sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""))),
           templatePhoneOptions: mapNamedOptions(phones),
           pendingTemplatePhoneId: "",
           customTemplatePhoneId: "",
@@ -185,34 +193,20 @@ const createBulkPhoneBuildFeature = ({
       return;
     }
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Building phones for ${selectedUsers.length} users...`
-    );
-
     try {
-      const results = await buildPhones({
-        ...credentials,
-        users: selectedUsers.map((user) => ({
-          id: user.id,
-          name: user.name || user.userName || user.id,
-          userName: user.userName || "",
-        })),
+      const results = await runPhoneBuildWithProgress({
+        resultEl,
+        users: selectedUsers,
         templatePhoneId,
+        buildPhones,
+        credentials,
+        actionLabel: "Building phones",
       });
 
-      const resultRows = selectedUsers.map((user) => {
-        const buildResult = results.find((entry) => entry.userId === user.id);
-        return {
-          name: user.name || "",
-          userName: user.userName || user.username || "",
-          id: user.id,
-          phoneName: buildResult?.phoneName || "",
-          phoneId: buildResult?.phoneId || "",
-          status: buildResult?.status || "unknown",
-          error: buildResult?.error || "",
-        };
-      });
+      const resultRows = mapPhoneBuildResultsToRows(selectedUsers, results);
       const status = summarizeBulkStatuses(resultRows);
+
+      invalidatePhoneResourceCache();
 
       finishExportResult(
         resultId,

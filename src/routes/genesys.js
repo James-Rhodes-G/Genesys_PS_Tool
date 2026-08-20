@@ -767,6 +767,7 @@ const createGenesysRouter = () => {
 
     const phoneIds = Array.isArray(req.body?.phoneIds) ? req.body.phoneIds.filter(Boolean) : [];
     const siteId = String(req.body?.siteId || "").trim();
+    const siteName = String(req.body?.siteName || "").trim();
 
     if (!phoneIds.length) {
       res.status(400).json({ error: "phoneIds must be a non-empty array." });
@@ -779,7 +780,7 @@ const createGenesysRouter = () => {
     }
 
     try {
-      const results = await movePhonesToSite({ ...credentials, phoneIds, siteId });
+      const results = await movePhonesToSite({ ...credentials, phoneIds, siteId, siteName });
       res.status(200).json({ results });
     } catch (error) {
       res.status(error.status || 502).json({

@@ -27,6 +27,10 @@ const clearResourceCaches = () => {
   resourceCaches.groups = null;
 };
 
+const clearCachedPhones = () => {
+  resourceCaches.phones = null;
+};
+
 const getResourceCacheMeta = (key) => {
   const entry = resourceCaches[key];
   if (!entry) {
@@ -96,6 +100,7 @@ const peekCachedSkills = () => unwrapCacheEntry(resourceCaches.skills);
 const peekCachedGroups = () => unwrapCacheEntry(resourceCaches.groups);
 
 export {
+  clearCachedPhones,
   clearResourceCaches,
   getAllResourceCacheMeta,
   getCachedDataTables,

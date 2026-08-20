@@ -2,10 +2,13 @@ import { renderGuxFieldSelect, resolveDropdownChange } from "./gux-ui.js";
 import { summarizeBulkStatuses } from "./bulk-utils.js";
 import {
   escapeHtml,
+  invalidatePhoneResourceCache,
   isWebRtcPhone,
   mapNamedOptions,
+  mapPhoneMoveResultsToRows,
   normalizePhoneRecord,
   renderSelectedPhonesSummary,
+  runPhoneMoveWithProgress,
 } from "./bulk-phone-utils.js";
 
 const CLASS_PREFIX = "bulk-phone-site-migrate";
@@ -160,35 +163,28 @@ const createBulkPhoneSiteMigrateFeature = ({
     });
   };
 
-  const executeMigrate = async (resultId, exportMeta, phonesToMove, destinationSiteId) => {
+  const executeMigrate = async (resultId, exportMeta, phonesToMove, destinationSiteId, destinationSiteName = "") => {
     const resultEl = document.getElementById(resultId);
     const credentials = requireCredentials("Phone Site Migrator");
     if (!resultEl || !exportMeta || !credentials) {
       return;
     }
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Migrating ${phonesToMove.length} WebRTC phone(s)...`
-    );
-
     try {
-      const results = await movePhonesToSite({
-        ...credentials,
-        phoneIds: phonesToMove.map((phone) => phone.id),
+      const results = await runPhoneMoveWithProgress({
+        resultEl,
+        phones: phonesToMove,
         siteId: destinationSiteId,
+        siteName: destinationSiteName,
+        movePhonesToSite,
+        credentials,
+        actionLabel: "Migrating WebRTC phones",
       });
 
-      const resultRows = phonesToMove.map((phone) => {
-        const moveResult = results.find((entry) => entry.id === phone.id || entry.phoneId === phone.id);
-        return {
-          phoneId: phone.id,
-          phoneName: phone.name || phone.id,
-          siteName: phone.siteName || "",
-          status: moveResult?.status || "unknown",
-          error: moveResult?.error || "",
-        };
-      });
+      const resultRows = mapPhoneMoveResultsToRows(phonesToMove, results);
       const status = summarizeBulkStatuses(resultRows);
+
+      invalidatePhoneResourceCache();
 
       finishExportResult(
         resultId,
@@ -287,7 +283,7 @@ const createBulkPhoneSiteMigrateFeature = ({
           return;
         }
         close();
-        await executeMigrate(confirmedResultId, confirmedMeta, phonesToMove, destinationSiteId);
+        await executeMigrate(confirmedResultId, confirmedMeta, phonesToMove, destinationSiteId, destinationLabel);
       },
     });
     return true;

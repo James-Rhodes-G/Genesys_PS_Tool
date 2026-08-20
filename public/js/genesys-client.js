@@ -893,7 +893,7 @@ const exportDataTables = async ({ region, token, tableIds }) => {
   return payload.exports || [];
 };
 
-const movePhonesToSite = async ({ region, token, phoneIds, siteId }) => {
+const movePhonesToSite = async ({ region, token, phoneIds, siteId, siteName = "" }) => {
   const payload = await requestGenesysJson(
     "/api/genesys/phones/bulk-move",
     {
@@ -903,7 +903,7 @@ const movePhonesToSite = async ({ region, token, phoneIds, siteId }) => {
         "x-genesys-region": region,
         "x-genesys-token": token,
       },
-      body: JSON.stringify({ phoneIds, siteId }),
+      body: JSON.stringify({ phoneIds, siteId, siteName }),
     },
     "Genesys phone move failed"
   );

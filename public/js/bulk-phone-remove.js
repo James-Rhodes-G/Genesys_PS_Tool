@@ -2,9 +2,12 @@ import { summarizeBulkStatuses } from "./bulk-utils.js";
 import {
   createPhoneSelectionHandlers,
   escapeHtml,
+  invalidatePhoneResourceCache,
+  mapPhoneDeleteResultsToRows,
   mergeManualPhoneIds,
   normalizePhoneRecord,
   renderPhoneSelectionPanel,
+  runPhoneDeleteWithProgress,
 } from "./bulk-phone-utils.js";
 
 const CLASS_PREFIX = "bulk-phone-remove";
@@ -112,27 +115,19 @@ const createBulkPhoneRemoveFeature = ({
       return;
     }
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Deleting ${selectedPhones.length} phone(s)...`
-    );
-
     try {
-      const results = await deletePhones({
-        ...credentials,
-        phoneIds: selectedPhones.map((phone) => phone.id),
+      const results = await runPhoneDeleteWithProgress({
+        resultEl,
+        phones: selectedPhones,
+        deletePhones,
+        credentials,
+        actionLabel: "Deleting phones",
       });
 
-      const resultRows = selectedPhones.map((phone) => {
-        const deleteResult = results.find((entry) => entry.id === phone.id || entry.phoneId === phone.id);
-        return {
-          phoneId: phone.id,
-          phoneName: phone.name || phone.id,
-          siteName: phone.siteName || "",
-          status: deleteResult?.status || "unknown",
-          error: deleteResult?.error || "",
-        };
-      });
+      const resultRows = mapPhoneDeleteResultsToRows(selectedPhones, results);
       const status = summarizeBulkStatuses(resultRows);
+
+      invalidatePhoneResourceCache();
 
       finishExportResult(
         resultId,
