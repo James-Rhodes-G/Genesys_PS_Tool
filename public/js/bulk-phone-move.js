@@ -5,8 +5,11 @@ import {
   escapeHtml,
   mapNamedOptions,
   mergeManualPhoneIds,
+  mapPhoneMoveResultsToRows,
   normalizePhoneRecord,
+  invalidatePhoneResourceCache,
   renderPhoneSelectionPanel,
+  runPhoneMoveWithProgress,
 } from "./bulk-phone-utils.js";
 
 const CLASS_PREFIX = "bulk-phone-move";
@@ -140,35 +143,28 @@ const createBulkPhoneMoveFeature = ({
     });
   };
 
-  const executeMove = async (resultId, exportMeta, selectedPhones, siteId) => {
+  const executeMove = async (resultId, exportMeta, selectedPhones, siteId, siteName = "") => {
     const resultEl = document.getElementById(resultId);
     const credentials = requireCredentials("Phone Mover");
     if (!resultEl || !exportMeta || !credentials) {
       return;
     }
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Moving ${selectedPhones.length} phone(s)...`
-    );
-
     try {
-      const results = await movePhonesToSite({
-        ...credentials,
-        phoneIds: selectedPhones.map((phone) => phone.id),
+      const results = await runPhoneMoveWithProgress({
+        resultEl,
+        phones: selectedPhones,
         siteId,
+        siteName,
+        movePhonesToSite,
+        credentials,
+        actionLabel: "Moving phones",
       });
 
-      const resultRows = selectedPhones.map((phone) => {
-        const moveResult = results.find((entry) => entry.id === phone.id || entry.phoneId === phone.id);
-        return {
-          phoneId: phone.id,
-          phoneName: phone.name || phone.id,
-          siteName: phone.siteName || "",
-          status: moveResult?.status || "unknown",
-          error: moveResult?.error || "",
-        };
-      });
+      const resultRows = mapPhoneMoveResultsToRows(selectedPhones, results);
       const status = summarizeBulkStatuses(resultRows);
+
+      invalidatePhoneResourceCache();
 
       finishExportResult(
         resultId,
@@ -245,7 +241,7 @@ const createBulkPhoneMoveFeature = ({
           return;
         }
         close();
-        await executeMove(confirmedResultId, confirmedMeta, selectedPhones, siteId);
+        await executeMove(confirmedResultId, confirmedMeta, selectedPhones, siteId, destinationLabel);
       },
     });
     return true;

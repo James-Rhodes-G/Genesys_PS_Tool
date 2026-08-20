@@ -1,5 +1,10 @@
 import { renderGuxFieldCheckbox, renderGuxFieldText, renderGuxFieldTextarea } from "./gux-ui.js";
 import { mapNamedOptions } from "./bulk-utils.js";
+import { clearCachedPhones } from "./resource-cache.js";
+
+import { renderLoadingState, updateLoadingProgress } from "./loading-message.js";
+
+const BULK_PHONE_BATCH_SIZE = 1;
 
 const escapeHtml = (value) =>
   String(value == null ? "" : value)
@@ -28,6 +33,23 @@ const parseDelimitedIds = (raw) => {
 };
 
 const isWebRtcPhone = (phone) => Boolean(phone?.webRtcUser?.id);
+
+const getWebRtcUserIds = (phones) =>
+  new Set(
+    (phones || [])
+      .filter(isWebRtcPhone)
+      .map((phone) => phone.webRtcUser.id)
+      .filter(Boolean)
+  );
+
+const filterUsersWithoutWebRtcPhone = (users, phones) => {
+  const webRtcUserIds = getWebRtcUserIds(phones);
+  return (users || []).filter((user) => user?.id && !webRtcUserIds.has(user.id));
+};
+
+const invalidatePhoneResourceCache = () => {
+  clearCachedPhones();
+};
 
 const normalizePhoneRecord = (phone) => ({
   id: phone?.id || "",
@@ -255,16 +277,238 @@ const createPhoneSelectionHandlers = ({
   };
 };
 
+const formatBulkProgressGuidance = ({ completed, total, successCount, failedCount, unitLabel = "items" }) => {
+  const safeTotal = Math.max(0, Number(total) || 0);
+  const safeCompleted = Math.max(0, Math.min(Number(completed) || 0, safeTotal));
+  const percent = safeTotal > 0 ? Math.round((safeCompleted / safeTotal) * 100) : 0;
+
+  return `${safeCompleted} / ${safeTotal} ${unitLabel} (${percent}%) — ${successCount} succeeded, ${failedCount} failed`;
+};
+
+const formatPhoneMoveProgressGuidance = (progress) =>
+  formatBulkProgressGuidance({ ...progress, unitLabel: "phones" });
+
+const runBulkItemsWithProgress = async ({
+  resultEl,
+  items,
+  batchSize = BULK_PHONE_BATCH_SIZE,
+  actionLabel,
+  unitLabel = "items",
+  processBatch,
+  resolveResultForItem,
+  buildFailureResult,
+}) => {
+  if (!resultEl || !items?.length) {
+    return [];
+  }
+
+  const total = items.length;
+  const allResults = [];
+  let successCount = 0;
+  let failedCount = 0;
+
+  const bodyEl = resultEl.querySelector(".export-results__body");
+  if (!bodyEl) {
+    return [];
+  }
+
+  bodyEl.innerHTML = renderLoadingState({
+    primaryMessage: actionLabel,
+    additionalGuidance: formatBulkProgressGuidance({
+      completed: 0,
+      total,
+      successCount,
+      failedCount,
+      unitLabel,
+    }),
+    value: 0,
+    max: total,
+  });
+
+  const loadingPanel = bodyEl.querySelector(".export-loading-panel");
+
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize);
+
+    try {
+      const batchResults = await processBatch(batch);
+
+      batch.forEach((item) => {
+        const itemResult =
+          resolveResultForItem(item, batchResults) ||
+          buildFailureResult(item, new Error("No result returned for this item."));
+
+        allResults.push(itemResult);
+        if (itemResult.status === "success") {
+          successCount += 1;
+        } else {
+          failedCount += 1;
+        }
+      });
+    } catch (error) {
+      batch.forEach((item) => {
+        allResults.push(buildFailureResult(item, error));
+        failedCount += 1;
+      });
+    }
+
+    const completed = Math.min(index + batch.length, total);
+    updateLoadingProgress(loadingPanel, {
+      value: completed,
+      max: total,
+      primaryMessage: actionLabel,
+      additionalGuidance: formatBulkProgressGuidance({
+        completed,
+        total,
+        successCount,
+        failedCount,
+        unitLabel,
+      }),
+    });
+  }
+
+  return allResults;
+};
+
+const runPhoneMoveWithProgress = async ({
+  resultEl,
+  phones,
+  siteId,
+  siteName = "",
+  movePhonesToSite,
+  credentials,
+  actionLabel = "Moving phones",
+}) =>
+  runBulkItemsWithProgress({
+    resultEl,
+    items: phones,
+    actionLabel,
+    unitLabel: "phones",
+    processBatch: (batch) =>
+      movePhonesToSite({
+        ...credentials,
+        phoneIds: batch.map((phone) => phone.id),
+        siteId,
+        siteName,
+      }),
+    resolveResultForItem: (phone, batchResults) =>
+      batchResults.find((entry) => entry.phoneId === phone.id || entry.id === phone.id),
+    buildFailureResult: (phone, error) => ({
+      phoneId: phone.id,
+      status: "failed",
+      error: error.message || "Phone move failed.",
+    }),
+  });
+
+const mapPhoneMoveResultsToRows = (phones, results) =>
+  phones.map((phone) => {
+    const moveResult = results.find((entry) => entry.phoneId === phone.id || entry.id === phone.id);
+
+    return {
+      phoneId: phone.id,
+      phoneName: phone.name || phone.id,
+      siteName: phone.siteName || "",
+      status: moveResult?.status || "unknown",
+      error: moveResult?.error || "",
+    };
+  });
+
+const mapPhoneDeleteResultsToRows = (phones, results) => mapPhoneMoveResultsToRows(phones, results);
+
+const mapPhoneBuildResultsToRows = (users, results) =>
+  users.map((user) => {
+    const buildResult = results.find((entry) => entry.userId === user.id);
+
+    return {
+      name: user.name || "",
+      userName: user.userName || user.username || "",
+      id: user.id,
+      phoneName: buildResult?.phoneName || "",
+      phoneId: buildResult?.phoneId || "",
+      status: buildResult?.status || "unknown",
+      error: buildResult?.error || "",
+    };
+  });
+
+const runPhoneDeleteWithProgress = async ({
+  resultEl,
+  phones,
+  deletePhones,
+  credentials,
+  actionLabel = "Deleting phones",
+}) =>
+  runBulkItemsWithProgress({
+    resultEl,
+    items: phones,
+    actionLabel,
+    unitLabel: "phones",
+    processBatch: (batch) =>
+      deletePhones({
+        ...credentials,
+        phoneIds: batch.map((phone) => phone.id),
+      }),
+    resolveResultForItem: (phone, batchResults) =>
+      batchResults.find((entry) => entry.phoneId === phone.id || entry.id === phone.id),
+    buildFailureResult: (phone, error) => ({
+      phoneId: phone.id,
+      status: "failed",
+      error: error.message || "Phone delete failed.",
+    }),
+  });
+
+const runPhoneBuildWithProgress = async ({
+  resultEl,
+  users,
+  templatePhoneId,
+  buildPhones,
+  credentials,
+  actionLabel = "Building phones",
+}) =>
+  runBulkItemsWithProgress({
+    resultEl,
+    items: users,
+    actionLabel,
+    unitLabel: "users",
+    processBatch: (batch) =>
+      buildPhones({
+        ...credentials,
+        templatePhoneId,
+        users: batch.map((user) => ({
+          id: user.id,
+          name: user.name || user.userName || user.id,
+          userName: user.userName || "",
+        })),
+      }),
+    resolveResultForItem: (user, batchResults) => batchResults.find((entry) => entry.userId === user.id),
+    buildFailureResult: (user, error) => ({
+      userId: user.id,
+      status: "failed",
+      error: error.message || "Phone build failed.",
+    }),
+  });
+
 export {
   createPhoneSelectionHandlers,
   escapeHtml,
   filterPhones,
+  filterUsersWithoutWebRtcPhone,
+  formatBulkProgressGuidance,
+  formatPhoneMoveProgressGuidance,
   getSelectedPhones,
+  getWebRtcUserIds,
+  invalidatePhoneResourceCache,
   isWebRtcPhone,
   mapNamedOptions,
+  mapPhoneBuildResultsToRows,
+  mapPhoneDeleteResultsToRows,
+  mapPhoneMoveResultsToRows,
   mergeManualPhoneIds,
   normalizePhoneRecord,
   parseDelimitedIds,
   renderPhoneSelectionPanel,
   renderSelectedPhonesSummary,
+  runBulkItemsWithProgress,
+  runPhoneBuildWithProgress,
+  runPhoneDeleteWithProgress,
+  runPhoneMoveWithProgress,
 };

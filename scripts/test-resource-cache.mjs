@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import {
   clearResourceCaches,
+  clearCachedPhones,
   getCachedPhones,
   getCachedRoles,
   loadCachedResource,
 } from "../public/js/resource-cache.js";
-import { parseDelimitedIds, isWebRtcPhone, filterPhones } from "../public/js/bulk-phone-utils.js";
+import { parseDelimitedIds, isWebRtcPhone, filterPhones, filterUsersWithoutWebRtcPhone, getWebRtcUserIds } from "../public/js/bulk-phone-utils.js";
 
 const calls = [];
 
@@ -26,6 +27,13 @@ clearResourceCaches();
 await getCachedPhones({ region: "us-east-1", token: "token" }, mockLoader);
 assert.equal(calls.length, 2, "cache clear should force reload");
 
+await getCachedPhones({ region: "us-east-1", token: "token" }, mockLoader);
+assert.equal(calls.length, 2, "phones cache should still be warm");
+
+clearCachedPhones();
+await getCachedPhones({ region: "us-east-1", token: "token" }, mockLoader);
+assert.equal(calls.length, 3, "clearCachedPhones should force phones reload only");
+
 const roleCalls = [];
 const mockRoleLoader = async (credentials) => {
   roleCalls.push(credentials);
@@ -42,6 +50,24 @@ assert.deepEqual(parseDelimitedIds("a, a, b"), ["a", "b"]);
 
 assert.equal(isWebRtcPhone({ webRtcUser: { id: "user-1" } }), true);
 assert.equal(isWebRtcPhone({ name: "desk phone" }), false);
+
+assert.deepEqual([...getWebRtcUserIds([
+  { id: "phone-1", webRtcUser: { id: "user-1" } },
+  { id: "phone-2", name: "desk phone" },
+  { id: "phone-3", webRtcUser: { id: "user-2" } },
+])].sort(), ["user-1", "user-2"]);
+
+assert.deepEqual(
+  filterUsersWithoutWebRtcPhone(
+    [
+      { id: "user-1", name: "Alice" },
+      { id: "user-2", name: "Bob" },
+      { id: "user-3", name: "Carol" },
+    ],
+    [{ id: "phone-1", webRtcUser: { id: "user-2" } }]
+  ).map((user) => user.id),
+  ["user-1", "user-3"]
+);
 
 const phones = [
   { id: "1", name: "Alpha", siteName: "Site A" },

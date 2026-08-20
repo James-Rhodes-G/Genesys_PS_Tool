@@ -72,10 +72,10 @@ Copy `.env.example` to `.env` and configure:
 | User Logoff | Force logoff for selected users |
 | **Bulk Disconnect** | Load open queue interactions, select rows, disconnect |
 | **Priority Updater** | Same interaction selection as Bulk Disconnect; decrementing priority updates |
-| Phone Build | Provision WebRTC phones from a template |
-| **Phone Mover** | Move phones to another site (manual IDs or cached phone picker) |
-| **Phone Remover** | Delete phones (manual IDs or cached phone picker) |
-| **Phone Site Migrator** | Migrate all WebRTC phones from one site to another |
+| Phone Build | Provision WebRTC phones from a template; excludes users who already have a WebRTC phone |
+| **Phone Mover** | Move phones to another site (manual IDs or cached phone picker); radial progress, one phone per request |
+| **Phone Remover** | Delete phones (manual IDs or cached phone picker); radial progress, one phone per request |
+| **Phone Site Migrator** | Migrate all WebRTC phones from one site to another; radial progress, one phone per request |
 | Load Schedules | Import schedule templates with naming rules |
 
 ### Call Spoof
@@ -290,12 +290,14 @@ Session-scoped in-memory cache in `public/js/resource-cache.js`. First request h
 | Queues | Queue export, queue members export, bulk disconnect, priority updater, dashboard inventory/health checks |
 | Skills | Skill export, bulk skill assign, dashboard inventory |
 | Groups | Group export, group members export, dashboard inventory |
-| Phones | Phone export, phone mover/remover/site migrator, dashboard inventory |
+| Phones | Phone export, phone build, phone mover/remover/site migrator, dashboard inventory |
 | Sites | Phone mover/remover/site migrator |
 | Divisions | Bulk role assign, load schedules |
 | Data tables | Data table export, dashboard inventory |
 
 **Shared cache:** Loading roles, queues, skills, or groups from the dashboard **Load** button, an export screen, or a bulk workflow all use the same cached copy. A second feature that needs the same list will not refetch from Genesys until you disconnect or switch orgs.
+
+**Phone cache invalidation:** After a successful Phone Build, Phone Mover, Phone Remover, or Phone Site Migrator run, the in-memory phone cache is cleared so the next open of those tools (or a phone export) refetches current phone assignments from Genesys.
 
 **Not cached:** interactions, conversations, routing state, presence, queue activity, telephony metrics, organization limits docs — always live.
 
@@ -316,6 +318,14 @@ Bulk actions share:
 - Progress reporting and success/failure summary tables
 - CSV download on result tables
 
+### Bulk phone workflows
+
+Phone Build, Phone Mover, Phone Remover, and Phone Site Migrator share a radial progress ring with per-item status (`25 / 100 phones (25%) — 24 succeeded, 1 failed`). Each mutation is sent one phone (or one user for Phone Build) at a time to avoid browser timeouts on large jobs.
+
+- **Phone Build** loads users and phones together, then hides users who already have a WebRTC phone (`phone.webRtcUser.id`). User records do not include phone assignment directly.
+- **Phone Site Migrator** operates on WebRTC phones only for the selected source site.
+- After a successful run, the session phone cache is invalidated so pickers reflect the latest Genesys state.
+
 ### Bulk Disconnect & Priority Updater
 
 Both use the same interaction selection workflow:
@@ -330,6 +340,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 
 | Date | Change |
 | --- | --- |
+| 2026-08-20 | **Bulk phone hotfix** — radial progress for build/move/remove/migrate; one item per request; WebRTC site move uses minimal PUT body; Phone Build excludes users with existing WebRTC phones; phone cache invalidated after successful phone mutations |
 | 2026-08-10 | **Architect Execution Timeline Viewer** — flow selection page, async download, parser, card timeline, search, variable tracking, error navigation |
 | 2026-08-05 | **Organization Dashboard** — landing page with six modular widgets; auto-opens after connect |
 | 2026-08-05 | **Organization Limits widget** — displays namespace limit docs with friendly-name filter; columns: key, description, default value, configured value |
@@ -352,7 +363,8 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 
 | Script | Purpose |
 | --- | --- |
-| `scripts/test-resource-cache.mjs` | Resource cache reuse, phone ID parsing |
+| `scripts/test-resource-cache.mjs` | Resource cache reuse, phone ID parsing, targeted phone cache invalidation |
+| `scripts/test-phone-site-move.mjs` | WebRTC site-move payload builder and bulk progress guidance |
 | `scripts/test-notification-topics.mjs` | Notification topic grouping/filtering |
 | `scripts/test-notification-message-store.mjs` | Parsed message store behavior |
 | `scripts/test-mock-api.mjs` | Mock API slug normalization, redaction, lifecycle, validation |

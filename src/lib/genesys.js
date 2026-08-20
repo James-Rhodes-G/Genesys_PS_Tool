@@ -807,49 +807,45 @@ const getSites = ({ region, token }) =>
     path: "/api/v2/telephony/providers/edges/sites",
   });
 
-const sanitizePhoneForUpdate = (phone) => {
-  const clone = JSON.parse(JSON.stringify(phone || {}));
-
-  [
-    "id",
-    "selfUri",
-    "dateCreated",
-    "dateModified",
-    "createdBy",
-    "modifiedBy",
-    "status",
-    "state",
-    "version",
-    "primaryEdge",
-  ].forEach((key) => {
-    delete clone[key];
-  });
-
-  if (clone.site?.id) {
-    clone.site = { id: clone.site.id };
+const buildPhoneSiteMoveBody = (phone, { siteId, siteName = "" }) => {
+  const normalizedSiteId = String(siteId || "").trim();
+  if (!normalizedSiteId) {
+    throw new Error("siteId is required.");
   }
 
-  if (clone.phoneBaseSettings?.id) {
-    clone.phoneBaseSettings = { id: clone.phoneBaseSettings.id };
+  const normalizedSiteName = String(siteName || phone?.site?.name || "").trim();
+  const body = {
+    name: String(phone?.name || "").trim(),
+    site: normalizedSiteName
+      ? { id: normalizedSiteId, name: normalizedSiteName }
+      : { id: normalizedSiteId },
+  };
+
+  if (phone?.phoneBaseSettings?.id) {
+    body.phoneBaseSettings = { id: phone.phoneBaseSettings.id };
   }
 
-  if (Array.isArray(clone.lines)) {
-    clone.lines = clone.lines.map((line) => {
-      const nextLine = JSON.parse(JSON.stringify(line || {}));
+  if (phone?.webRtcUser?.id) {
+    body.webRtcUser = { id: phone.webRtcUser.id };
+  }
 
-      ["id", "selfUri", "loggedInUser", "state", "status", "dateCreated", "dateModified", "version"].forEach((key) => {
-        delete nextLine[key];
-      });
-
-      if (nextLine.lineBaseSettings?.id) {
-        nextLine.lineBaseSettings = { id: nextLine.lineBaseSettings.id };
+  if (Array.isArray(phone?.lines) && phone.lines.length) {
+    body.lines = phone.lines.map((line) => {
+      const nextLine = {};
+      if (line?.id) {
+        nextLine.id = line.id;
       }
-
+      if (line?.name) {
+        nextLine.name = line.name;
+      }
+      if (line?.lineBaseSettings?.id) {
+        nextLine.lineBaseSettings = { id: line.lineBaseSettings.id };
+      }
       return nextLine;
     });
   }
 
-  return clone;
+  return body;
 };
 
 const updatePhone = async ({ region, token, phoneId, phoneBody }) =>
@@ -861,17 +857,16 @@ const updatePhone = async ({ region, token, phoneId, phoneBody }) =>
     body: phoneBody,
   });
 
-const movePhoneToSite = async ({ region, token, phoneId, siteId }) => {
+const movePhoneToSite = async ({ region, token, phoneId, siteId, siteName = "" }) => {
   const phone = await getPhone({ region, token, phoneId });
-  const body = sanitizePhoneForUpdate(phone);
-  body.site = { id: siteId };
+  const body = buildPhoneSiteMoveBody(phone, { siteId, siteName });
 
   const updatedPhone = await updatePhone({ region, token, phoneId, phoneBody: body });
 
   return {
     phoneId,
     phoneName: updatedPhone?.name || phone?.name || phoneId,
-    siteId,
+    siteId: String(siteId || "").trim(),
   };
 };
 
@@ -883,15 +878,26 @@ const deletePhoneById = ({ region, token, phoneId }) =>
     path: `/api/v2/telephony/providers/edges/phones/${encodeURIComponent(phoneId)}`,
   });
 
-const movePhonesToSite = async ({ region, token, phoneIds, siteId }) => {
+const movePhonesToSite = async ({ region, token, phoneIds, siteId, siteName = "" }) => {
   const normalizedSiteId = String(siteId || "").trim();
   if (!normalizedSiteId) {
     throw new Error("siteId is required.");
   }
 
+  let resolvedSiteName = String(siteName || "").trim();
+  if (!resolvedSiteName) {
+    try {
+      const sites = await getSites({ region, token });
+      resolvedSiteName = String(sites.find((site) => String(site?.id) === normalizedSiteId)?.name || "").trim();
+    } catch {
+      resolvedSiteName = "";
+    }
+  }
+
   return executeBulkMutation({
     ids: phoneIds,
-    executeItem: async (phoneId) => movePhoneToSite({ region, token, phoneId, siteId: normalizedSiteId }),
+    executeItem: async (phoneId) =>
+      movePhoneToSite({ region, token, phoneId, siteId: normalizedSiteId, siteName: resolvedSiteName }),
   }).then((results) =>
     results.map((result) => ({
       phoneId: result.id,
@@ -1672,6 +1678,7 @@ export {
   assignRoutingSkillsToUsers,
   assignUsersToRoleDivision,
   buildGenesysApiUrl,
+  buildPhoneSiteMoveBody,
   buildPhones,
   createMasterAdminRole,
   genesysRequest,
