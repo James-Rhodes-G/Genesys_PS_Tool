@@ -494,9 +494,15 @@ const renderGuxTopicMultiSelect = ({
   return `<div class="field-container notification-topic-picker">
     <label class="field-label">${safeEscape(label)}</label>
     <details class="notification-topic-multiselect ${safeEscape(className)}-multiselect">
-      <summary class="notification-topic-multiselect__summary">${safeEscape(
-        String(selectedTopics.length)
-      )} topic${selectedTopics.length === 1 ? "" : "s"} selected</summary>
+      <summary class="notification-topic-multiselect__summary">
+        <span class="notification-topic-multiselect__summary-text">
+          <span class="notification-topic-multiselect__summary-title">Browse available topics</span>
+          <span class="notification-topic-multiselect__summary-meta">${safeEscape(
+            String(selectedTopics.length)
+          )} selected · ${safeEscape(String(topics.length))} available</span>
+        </span>
+        <span class="notification-topic-multiselect__chevron" aria-hidden="true"></span>
+      </summary>
       <div class="notification-topic-multiselect__options">${optionsHtml}</div>
     </details>
     <div class="notification-topic-selected">

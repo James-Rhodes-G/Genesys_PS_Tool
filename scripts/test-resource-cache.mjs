@@ -6,7 +6,7 @@ import {
   getCachedRoles,
   loadCachedResource,
 } from "../public/js/resource-cache.js";
-import { parseDelimitedIds, isWebRtcPhone, filterPhones, filterUsersWithoutWebRtcPhone, getWebRtcUserIds } from "../public/js/bulk-phone-utils.js";
+import { parseDelimitedIds, isWebRtcPhone, filterPhones, filterUsersWithoutWebRtcPhone, getWebRtcUserIds, getPhonesForSite } from "../public/js/bulk-phone-utils.js";
 
 const calls = [];
 
@@ -67,6 +67,18 @@ assert.deepEqual(
     [{ id: "phone-1", webRtcUser: { id: "user-2" } }]
   ).map((user) => user.id),
   ["user-1", "user-3"]
+);
+
+assert.deepEqual(
+  getPhonesForSite(
+    [
+      { id: "phone-1", name: "WebRTC", site: { id: "site-a" }, webRtcUser: { id: "user-1" } },
+      { id: "phone-2", name: "Desk", site: { id: "site-a" } },
+      { id: "phone-3", name: "Other", site: { id: "site-b" } },
+    ],
+    "site-a"
+  ).map((phone) => phone.id),
+  ["phone-1", "phone-2"]
 );
 
 const phones = [

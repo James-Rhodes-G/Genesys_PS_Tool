@@ -28,6 +28,29 @@ const resolveUserTopics = (userId, topics) =>
     placeholderKeys: ["{id}", "{userId}"],
   });
 
+const SUBSCRIPTION_DENIED_GUIDANCE =
+  "HTTP 403 usually means the connected OAuth client or user lacks permission for that topic. Verify OAuth scopes, user permissions, and whether you are allowed to subscribe to another user's topics.";
+
+const formatSubscriptionTopicFailure = (failure) => {
+  const topic = String(failure?.topic || "unknown topic");
+  const status = Number(failure?.status) || 502;
+  const message = String(failure?.message || "Subscription failed.").trim();
+  return `${topic} (${status}): ${message}`;
+};
+
+const summarizeSubscriptionFailures = (failedTopics, { allTopicsFailed = false } = {}) => {
+  const failures = Array.isArray(failedTopics) ? failedTopics : [];
+  if (!failures.length) {
+    return "";
+  }
+
+  const header = allTopicsFailed
+    ? "Unable to subscribe to any selected topics:"
+    : "Some topics could not be subscribed:";
+
+  return [header, ...failures.map(formatSubscriptionTopicFailure), "", SUBSCRIPTION_DENIED_GUIDANCE].join("\n");
+};
+
 const createNotificationSubscriptionManager = ({
   createChannel,
   subscribeTopics,
@@ -35,6 +58,7 @@ const createNotificationSubscriptionManager = ({
   onMessage,
   onStatusChange,
   onError,
+  onSubscriptionResult,
 } = {}) => {
   let webSocket = null;
   let channelId = null;
@@ -140,14 +164,25 @@ const createNotificationSubscriptionManager = ({
     await openWebSocket(channel.connectUri);
 
     setStatus("subscribing");
-    await subscribeTopics({ channelId: channel.id, topics: finalTopics });
+    const subscriptionResult = await subscribeTopics({ channelId: channel.id, topics: finalTopics });
+    const succeeded = Array.isArray(subscriptionResult?.succeeded) ? subscriptionResult.succeeded : [];
+    const failed = Array.isArray(subscriptionResult?.failed) ? subscriptionResult.failed : [];
 
-    setStatus("listening");
+    if (!succeeded.length) {
+      await stop();
+      throw new Error(summarizeSubscriptionFailures(failed, { allTopicsFailed: true }));
+    }
+
+    onSubscriptionResult?.({ succeeded, failed, resolvedTopics: finalTopics });
+
+    setStatus(failed.length ? "listening_with_warnings" : "listening");
 
     return {
       channelId: channel.id,
       userId: normalizedEntityId,
       resolvedTopics: finalTopics,
+      succeededTopics: succeeded,
+      failedTopics: failed,
       connectUri: channel.connectUri,
     };
   };
@@ -164,7 +199,10 @@ const createNotificationSubscriptionManager = ({
 export {
   DEFAULT_USER_TOPICS,
   DEFAULT_USER_TOPICS_TEXT,
+  SUBSCRIPTION_DENIED_GUIDANCE,
   createNotificationSubscriptionManager,
+  formatSubscriptionTopicFailure,
   normalizeTopicInput,
   resolveUserTopics,
+  summarizeSubscriptionFailures,
 };

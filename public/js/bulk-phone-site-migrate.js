@@ -2,8 +2,8 @@ import { renderGuxFieldSelect, resolveDropdownChange } from "./gux-ui.js";
 import { summarizeBulkStatuses } from "./bulk-utils.js";
 import {
   escapeHtml,
+  getPhonesForSite,
   invalidatePhoneResourceCache,
-  isWebRtcPhone,
   mapNamedOptions,
   mapPhoneMoveResultsToRows,
   normalizePhoneRecord,
@@ -30,8 +30,8 @@ const createBulkPhoneSiteMigrateResultsMeta = (resultId, rows, title, status) =>
   selectedColumnKeys: ["phoneId", "phoneName", "siteName", "status", "error"],
 });
 
-const getWebRtcPhonesForSite = (phones, siteId) =>
-  (phones || []).filter((phone) => isWebRtcPhone(phone) && String(phone.site?.id || phone.siteId) === String(siteId));
+const getPhonesForSitePreview = (phones, siteId) =>
+  getPhonesForSite(phones, siteId).map(normalizePhoneRecord);
 
 const renderSiteOptions = (siteOptions, selectedValue) =>
   (siteOptions || [])
@@ -47,8 +47,8 @@ const renderBulkPhoneSiteMigrateBody = (resultId, exportMeta) => {
   const previewPhones = exportMeta.previewPhones || [];
 
   return `<div class="column-editor">
-    <div class="column-editor__header">Phone Site Migrator (WebRTC)</div>
-    <p class="muted">Migrate all WebRTC phones from a source site to a destination site.</p>
+    <div class="column-editor__header">Phone Site Migrator</div>
+    <p class="muted">Migrate all phones from a source site to a destination site.</p>
     <div class="bulk-skill-filters call-spoof-form">
       ${renderGuxFieldSelect({
         escapeHtml,
@@ -74,14 +74,14 @@ const renderBulkPhoneSiteMigrateBody = (resultId, exportMeta) => {
       })}
     </div>
     <div class="bulk-phone-preview">
-      <h4>WebRTC Phones to Migrate (${previewPhones.length})</h4>
+      <h4>Phones to Migrate (${previewPhones.length})</h4>
       ${renderSelectedPhonesSummary(previewPhones)}
     </div>
   </div>
   <div class="bulk-skill-actions">
     <gux-button class="${CLASS_PREFIX}-apply" type="button" accent="primary" data-result-id="${escapeHtml(
       resultId
-    )}">Migrate WebRTC Phones</gux-button>
+    )}">Migrate Phones</gux-button>
   </div>`;
 };
 
@@ -106,7 +106,7 @@ const createBulkPhoneSiteMigrateFeature = ({
       return;
     }
 
-    exportMeta.previewPhones = getWebRtcPhonesForSite(exportMeta.rawPhones || [], sourceSiteId).map(normalizePhoneRecord);
+    exportMeta.previewPhones = getPhonesForSitePreview(exportMeta.rawPhones || [], sourceSiteId);
   };
 
   const wireButton = (button, { hasConnection }) => {
@@ -178,7 +178,7 @@ const createBulkPhoneSiteMigrateFeature = ({
         siteName: destinationSiteName,
         movePhonesToSite,
         credentials,
-        actionLabel: "Migrating WebRTC phones",
+        actionLabel: "Migrating phones",
       });
 
       const resultRows = mapPhoneMoveResultsToRows(phonesToMove, results);
@@ -250,8 +250,8 @@ const createBulkPhoneSiteMigrateFeature = ({
     if (phonesToMove.length === 0) {
       prependExportResult(
         "Phone Site Migrator",
-        "No WebRTC phones found",
-        '<p class="muted">No WebRTC phones are assigned to the selected source site.</p>'
+        "No phones found",
+        '<p class="muted">No phones are assigned to the selected source site.</p>'
       );
       return true;
     }
@@ -263,9 +263,9 @@ const createBulkPhoneSiteMigrateFeature = ({
 
     confirmModal.open({
       resultId,
-      title: "Confirm WebRTC Site Migration",
+      title: "Confirm Site Migration",
       bodyHtml: `<div class="bulk-confirm-body">
-        <p>Migrate <strong>${escapeHtml(phonesToMove.length)}</strong> WebRTC phone(s) from <strong>${escapeHtml(
+        <p>Migrate <strong>${escapeHtml(phonesToMove.length)}</strong> phone(s) from <strong>${escapeHtml(
           sourceLabel
         )}</strong> to <strong>${escapeHtml(destinationLabel)}</strong>?</p>
         ${renderSelectedPhonesSummary(phonesToMove.slice(0, 20))}

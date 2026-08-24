@@ -459,6 +459,13 @@ const getQueues = ({ region, token }) =>
     path: "/api/v2/routing/queues",
   });
 
+const getCampaigns = ({ region, token }) =>
+  genesysPaginatedRequest({
+    region,
+    token,
+    path: "/api/v2/outbound/campaigns",
+  });
+
 const getQueueMembers = ({ region, token, queueId }) =>
   genesysPaginatedRequest({
     region,
@@ -1659,6 +1666,30 @@ const subscribeNotificationTopics = ({ region, token, channelId, topics }) =>
     body: (topics || []).map((topicId) => ({ id: topicId })),
   });
 
+const formatNotificationSubscriptionFailure = (error, topicId) => ({
+  topic: topicId,
+  status: error?.status || 502,
+  message: error?.message || "Subscription failed.",
+  details: error?.details || null,
+});
+
+const subscribeNotificationTopicsWithResults = async ({ region, token, channelId, topics }) => {
+  const normalizedTopics = (topics || []).map((topicId) => String(topicId || "").trim()).filter(Boolean);
+  const succeeded = [];
+  const failed = [];
+
+  for (const topicId of normalizedTopics) {
+    try {
+      await subscribeNotificationTopics({ region, token, channelId, topics: [topicId] });
+      succeeded.push(topicId);
+    } catch (error) {
+      failed.push(formatNotificationSubscriptionFailure(error, topicId));
+    }
+  }
+
+  return { succeeded, failed };
+};
+
 const deleteNotificationChannel = ({ region, token, channelId }) =>
   genesysRequest({
     region,
@@ -1721,6 +1752,7 @@ export {
   getPrompts,
   getQueueMembers,
   getQueues,
+  getCampaigns,
   getRoles,
   getSkills,
   getUsers,
@@ -1742,5 +1774,6 @@ export {
   spoofInboundCall,
   spoofOutboundCall,
   subscribeNotificationTopics,
+  subscribeNotificationTopicsWithResults,
   getTelephonyCallMetrics,
 };

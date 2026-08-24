@@ -5,6 +5,7 @@ const parseJsonResponse = async (response, fallbackMessage) => {
 
   if (!response.ok) {
     const error = new Error(payload.error || fallbackMessage);
+    error.status = response.status;
     error.payload = payload;
     throw error;
   }
@@ -179,6 +180,22 @@ const getQueues = async ({ region, token }) => {
   );
 
   return payload.queues || [];
+};
+
+const getCampaigns = async ({ region, token }) => {
+  const payload = await requestGenesysJson(
+    "/api/genesys/campaigns",
+    {
+      method: "GET",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys campaigns request failed"
+  );
+
+  return payload.campaigns || [];
 };
 
 const getQueueMembers = async ({ region, token, queueId }) => {
@@ -813,7 +830,7 @@ const subscribeNotificationTopics = async ({ region, token, channelId, topics })
     "Genesys notification subscription request failed"
   );
 
-  return payload.subscription || null;
+  return payload.subscription || { succeeded: [], failed: [] };
 };
 
 const deleteNotificationChannel = async ({ region, token, channelId }) => {
@@ -1022,6 +1039,7 @@ export {
   getPrompts,
   getQueueMembers,
   getQueues,
+  getCampaigns,
   getRoles,
   getSkills,
   getUser,

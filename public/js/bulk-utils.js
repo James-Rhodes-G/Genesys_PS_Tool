@@ -125,14 +125,60 @@ const restoreBulkUserListScroll = (root, scrollTops) => {
   });
 };
 
+const captureFocusedField = (root) => {
+  const active = document.activeElement;
+  if (!active || !root.contains(active)) {
+    return null;
+  }
+
+  if (!(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)) {
+    return null;
+  }
+
+  return {
+    id: active.id || "",
+    preserveClass:
+      [...active.classList].find((cls) => cls.includes("user-filter") || cls.includes("entity-filter")) || "",
+    selectionStart: active.selectionStart,
+    selectionEnd: active.selectionEnd,
+  };
+};
+
+const restoreFocusedField = (root, snapshot) => {
+  if (!snapshot) {
+    return;
+  }
+
+  let input = snapshot.id ? document.getElementById(snapshot.id) : null;
+  if ((!input || !root.contains(input)) && snapshot.preserveClass) {
+    input = root.querySelector(`input.${snapshot.preserveClass}`);
+  }
+
+  if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) {
+    return;
+  }
+
+  input.focus();
+
+  if (typeof snapshot.selectionStart === "number" && typeof input.setSelectionRange === "function") {
+    try {
+      input.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd ?? snapshot.selectionStart);
+    } catch {
+      // Some input types do not support selection ranges.
+    }
+  }
+};
+
 export {
   captureBulkUserListScroll,
+  captureFocusedField,
   createRoleAssignmentEntry,
   createSkillAssignmentEntry,
   filterUsers,
   getSelectedUsers,
   mapNamedOptions,
   restoreBulkUserListScroll,
+  restoreFocusedField,
   summarizeBulkStatuses,
   updateBulkUserSelectionUi,
 };
