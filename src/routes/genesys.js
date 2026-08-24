@@ -39,6 +39,7 @@ import {
   queryOpenQueueInteractions,
   getQueueMembers,
   getPhones,
+  getCampaigns,
   getQueues,
   getRoles,
   getSkills,
@@ -58,7 +59,7 @@ import {
   getTelephonyCallMetrics,
   spoofInboundCall,
   spoofOutboundCall,
-  subscribeNotificationTopics,
+  subscribeNotificationTopicsWithResults,
 } from "../lib/genesys.js";
 import { parseExecutionJson } from "../lib/flow-execution-parser.js";
 
@@ -342,6 +343,13 @@ const createGenesysRouter = () => {
     label: "queues",
     field: "queues",
     handler: getQueues,
+  });
+
+  registerExportRoute({
+    routePath: "/api/genesys/campaigns",
+    label: "campaigns",
+    field: "campaigns",
+    handler: getCampaigns,
   });
 
   registerExportRoute({
@@ -1632,12 +1640,12 @@ const createGenesysRouter = () => {
     }
 
     try {
-      const subscription = await subscribeNotificationTopics({
+      const subscription = await subscribeNotificationTopicsWithResults({
         ...credentials,
         channelId: req.params.channelId,
         topics,
       });
-      res.status(200).json({ subscription: subscription || null });
+      res.status(200).json({ subscription });
     } catch (error) {
       res.status(error.status || 502).json({
         error: error.message,

@@ -75,7 +75,7 @@ Copy `.env.example` to `.env` and configure:
 | Phone Build | Provision WebRTC phones from a template; excludes users who already have a WebRTC phone |
 | **Phone Mover** | Move phones to another site (manual IDs or cached phone picker); radial progress, one phone per request |
 | **Phone Remover** | Delete phones (manual IDs or cached phone picker); radial progress, one phone per request |
-| **Phone Site Migrator** | Migrate all WebRTC phones from one site to another; radial progress, one phone per request |
+| **Phone Site Migrator** | Migrate all phones from one site to another; radial progress, one phone per request |
 | Load Schedules | Import schedule templates with naming rules |
 
 ### Call Spoof
@@ -323,7 +323,7 @@ Bulk actions share:
 Phone Build, Phone Mover, Phone Remover, and Phone Site Migrator share a radial progress ring with per-item status (`25 / 100 phones (25%) — 24 succeeded, 1 failed`). Each mutation is sent one phone (or one user for Phone Build) at a time to avoid browser timeouts on large jobs.
 
 - **Phone Build** loads users and phones together, then hides users who already have a WebRTC phone (`phone.webRtcUser.id`). User records do not include phone assignment directly.
-- **Phone Site Migrator** operates on WebRTC phones only for the selected source site.
+- **Phone Site Migrator** moves every phone assigned to the selected source site.
 - After a successful run, the session phone cache is invalidated so pickers reflect the latest Genesys state.
 
 ### Bulk Disconnect & Priority Updater

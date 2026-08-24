@@ -70,6 +70,7 @@ import {
   getPrompts,
   getQueueMembers,
   getQueues,
+  getCampaigns,
   getRoles,
   getScheduleTemplates,
   getSites,
@@ -188,7 +189,9 @@ import { createOrgPickerModal } from "./org-picker-modal.js";
 import { renderLoadingState } from "./loading-message.js";
 import {
   captureBulkUserListScroll,
+  captureFocusedField,
   restoreBulkUserListScroll,
+  restoreFocusedField,
 } from "./bulk-utils.js";
 
 const escapeHtml = (value) =>
@@ -1584,12 +1587,14 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
       const isOpen = resultEl.open;
       const savedScrollTops = captureBulkUserListScroll(resultEl);
+      const savedFocus = captureFocusedField(resultEl);
       resultEl.outerHTML = finishExportMarkup(exportId, exportMeta.title, exportMeta.status, "", exportMeta);
 
       const nextEl = document.getElementById(exportId);
       if (nextEl) {
         nextEl.open = isOpen;
         restoreBulkUserListScroll(nextEl, savedScrollTops);
+        restoreFocusedField(nextEl, savedFocus);
         afterExportTableRender(exportId);
       }
       };
@@ -2633,9 +2638,16 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       getUser,
     });
 
-    const queueNotificationsFeature = createQueueNotificationsFeature(notificationSubscriptionDeps);
+    const queueNotificationsFeature = createQueueNotificationsFeature({
+      ...notificationSubscriptionDeps,
+      getCachedQueues: loadCachedQueuesForSession,
+      getQueues,
+    });
 
-    const outboundNotificationsFeature = createOutboundNotificationsFeature(notificationSubscriptionDeps);
+    const outboundNotificationsFeature = createOutboundNotificationsFeature({
+      ...notificationSubscriptionDeps,
+      getCampaigns,
+    });
 
     if (resultsListEl) {
       resultsListEl.addEventListener("click", async (event) => {
@@ -2931,6 +2943,18 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
       resultsListEl.addEventListener("input", (event) => {
         if (loadSchedulesFeature.handleInput(event)) {
+          return;
+        }
+
+        if (userNotificationsFeature.handleInput?.(event)) {
+          return;
+        }
+
+        if (queueNotificationsFeature.handleInput?.(event)) {
+          return;
+        }
+
+        if (outboundNotificationsFeature.handleInput?.(event)) {
           return;
         }
       });

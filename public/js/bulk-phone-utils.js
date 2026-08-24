@@ -47,6 +47,17 @@ const filterUsersWithoutWebRtcPhone = (users, phones) => {
   return (users || []).filter((user) => user?.id && !webRtcUserIds.has(user.id));
 };
 
+const getPhonesForSite = (phones, siteId) => {
+  const normalizedSiteId = String(siteId || "").trim();
+  if (!normalizedSiteId) {
+    return [];
+  }
+
+  return (phones || []).filter(
+    (phone) => String(phone?.site?.id || phone?.siteId || "").trim() === normalizedSiteId
+  );
+};
+
 const invalidatePhoneResourceCache = () => {
   clearCachedPhones();
 };
@@ -494,6 +505,7 @@ export {
   filterUsersWithoutWebRtcPhone,
   formatBulkProgressGuidance,
   formatPhoneMoveProgressGuidance,
+  getPhonesForSite,
   getSelectedPhones,
   getWebRtcUserIds,
   invalidatePhoneResourceCache,

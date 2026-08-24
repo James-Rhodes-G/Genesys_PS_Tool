@@ -225,6 +225,7 @@ main {
 
 .export-results__body {
   padding-top: 0.25rem;
+  min-width: 0;
 }
 
 .export-loading-panel {
@@ -872,8 +873,12 @@ pre {
 }
 
 .user-notifications-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   width: 100%;
   max-width: none;
+  min-width: 0;
 }
 
 .user-notifications-form {
@@ -900,10 +905,15 @@ pre {
   overflow: hidden;
 }
 
-.notification-topic-multiselect > summary {
+.notification-topic-multiselect > summary,
+.notification-topic-multiselect__summary {
   cursor: pointer;
   list-style: none;
-  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
   font-weight: 600;
 }
 
@@ -911,13 +921,56 @@ pre {
   display: none;
 }
 
+.notification-topic-multiselect__summary-text {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.notification-topic-multiselect__summary-title {
+  font-size: 0.95rem;
+}
+
+.notification-topic-multiselect__summary-meta {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.notification-topic-multiselect__chevron {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+  margin-top: -0.15rem;
+  opacity: 0.72;
+}
+
+.notification-topic-multiselect[open] > summary .notification-topic-multiselect__chevron,
+.notification-topic-multiselect[open] > .notification-topic-multiselect__summary .notification-topic-multiselect__chevron {
+  transform: rotate(-135deg);
+  margin-top: 0.15rem;
+}
+
+.notification-topic-multiselect > summary:hover,
+.notification-topic-multiselect__summary:hover {
+  background: rgba(216, 91, 44, 0.06);
+}
+
+.notification-topic-multiselect[open] > summary,
+.notification-topic-multiselect[open] > .notification-topic-multiselect__summary {
+  border-bottom: 1px solid var(--border);
+}
+
 .notification-topic-multiselect__options {
   display: grid;
   gap: 0.35rem;
   max-height: 16rem;
   overflow: auto;
-  padding: 0 1rem 1rem;
-  border-top: 1px solid var(--border);
+  padding: 0.75rem 1rem 1rem;
 }
 
 .notification-topic-option__id {
@@ -972,9 +1025,131 @@ pre {
   font-size: 0.92rem;
 }
 
+.user-notifications-subscription-results {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.user-notifications-subscription-results--warning {
+  border-color: #d4a017;
+  background: #fff8e6;
+}
+
+.user-notifications-subscription-results--error {
+  border-color: #c62828;
+  background: #ffebee;
+}
+
+.user-notifications-subscription-results__section + .user-notifications-subscription-results__section {
+  margin-top: 0.75rem;
+}
+
+.user-notifications-subscription-results__section ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.user-notifications-subscription-results__body {
+  margin: 0.5rem 0 0;
+  white-space: pre-wrap;
+  font: inherit;
+}
+
+.notification-user-selection__modes {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.notification-user-selection__mode {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.notification-user-selection__me-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.35rem 0 1rem;
+}
+
+.notification-user-selection__search {
+  margin-bottom: 0.75rem;
+}
+
+.notification-user-selection__filter-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  font: inherit;
+  background: #fff;
+}
+
+.notification-user-selection__filter-input:focus {
+  outline: 2px solid rgba(216, 91, 44, 0.35);
+  border-color: var(--accent);
+}
+
+.notification-user-selection__picker {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.notification-user-selection__list {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 16rem;
+  overflow: auto;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  margin-bottom: 1rem;
+}
+
+.notification-user-selection__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.notification-user-selection__option:hover {
+  background: rgba(216, 91, 44, 0.08);
+}
+
+.notification-user-selection__option.is-selected {
+  border-color: var(--accent);
+  background: rgba(216, 91, 44, 0.12);
+}
+
+.notification-user-selection__option-name {
+  font-weight: 600;
+}
+
 .user-notifications-output {
   margin-top: 1rem;
   width: 100%;
+  max-width: none;
+  min-width: 0;
+  align-self: stretch;
 }
 
 .user-notifications-output__header {
@@ -986,6 +1161,8 @@ pre {
 .user-notifications-stream {
   display: block;
   width: 100%;
+  max-width: none;
+  min-width: 0;
   min-height: 22rem;
   box-sizing: border-box;
   border: 1px solid var(--border);
@@ -997,6 +1174,8 @@ pre {
   resize: vertical;
   background: #0f1824;
   color: #e3eefc;
+  white-space: pre;
+  overflow-x: auto;
 }
 
 .notification-message-list {
