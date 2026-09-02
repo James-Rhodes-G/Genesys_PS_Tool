@@ -1,0 +1,178 @@
+:root {
+  --nav-blue: #3d538f;
+  --genesys-color-white-10: #ffffff;
+  --panel-border: #d8dde6;
+  --panel-muted: #5c6779;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Noto Sans", Roboto, sans-serif;
+  color: #1f2430;
+  background: #f7f8fa;
+}
+
+.topbar {
+  background: var(--nav-blue);
+  color: var(--genesys-color-white-10);
+  padding: 12px 16px;
+}
+
+.topbar h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.topbar h1,
+.topbar p {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.topbar .subtle {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.9;
+}
+
+.panel {
+  padding: 8px 0 24px;
+}
+
+.section {
+  border-top: 1px solid var(--panel-border);
+}
+
+.section-header {
+  width: 100%;
+  border: 0;
+  background: #eef1f6;
+  color: #1f2430;
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.section-body {
+  padding: 10px 12px 14px;
+}
+
+.section-body[hidden] {
+  display: none;
+}
+
+.info-grid {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.info-row {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.info-grid span.label {
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.copyable {
+  border: 0;
+  background: transparent;
+  color: #2954cb;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.copyable:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.copyable:disabled {
+  color: #5c6779;
+  cursor: default;
+}
+
+.copyable.copied {
+  color: #1f7a3f;
+}
+
+.row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.btn {
+  flex: 1 1 30%;
+  min-width: 0;
+  border: 1px solid #c5ccd8;
+  border-radius: 4px;
+  background: #fff;
+  color: #1f2430;
+  padding: 8px 6px;
+  font-size: 11px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: #edf2ff;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: #2954cb;
+  border-color: #2954cb;
+  color: #fff;
+}
+
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.field-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #c5ccd8;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.status {
+  margin: 8px 12px 0;
+  font-size: 12px;
+  color: var(--panel-muted);
+}
+
+.status.error {
+  color: #b00020;
+}
+
+.options-link {
+  display: block;
+  margin: 12px 16px 0;
+  font-size: 12px;
+}

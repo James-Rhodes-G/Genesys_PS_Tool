@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Genesys PS Tool Launcher",
+  "version": "0.1.0",
+  "description": "Launch Genesys PS Tool features from Genesys Cloud",
+  "permissions": ["activeTab", "tabs", "storage", "scripting", "sidePanel"],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+    "https://*.mypurecloud.com/*",
+    "https://*.mypurecloud.com.au/*",
+    "https://*.mypurecloud.de/*",
+    "https://*.mypurecloud.ie/*",
+    "https://*.mypurecloud.jp/*",
+    "https://*.pure.cloud/*",
+    "https://*.us-gov-pure.cloud/*",
+    "https://developer.genesys.cloud/*"
+  ],
+  "action": {
+    "default_title": "Genesys PS Tool"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

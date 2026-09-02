@@ -38,10 +38,16 @@ const createMockApiPublicRouter = ({ mockApiService, requestBodyLimit }) => {
 const createMockApiManagementRouter = ({ mockApiService, sessionDb }) => {
   const router = Router();
 
-  const getCredentials = (req) => ({
-    region: req.body?.region || req.query?.region || req.get("x-genesys-region"),
-    token: req.body?.token || req.query?.token || req.get("x-genesys-token"),
-  });
+  const getCredentials = (req) => {
+    if (req.genesysCredentials?.region && req.genesysCredentials?.token) {
+      return req.genesysCredentials;
+    }
+
+    return {
+      region: req.body?.region || req.query?.region || req.get("x-genesys-region"),
+      token: req.body?.token || req.query?.token || req.get("x-genesys-token"),
+    };
+  };
 
   const resolveOwner = async (req, res) => {
     const { region, token } = getCredentials(req);

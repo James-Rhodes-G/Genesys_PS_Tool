@@ -63,7 +63,7 @@ const renderAppSidebar = () => {
     navGroupDefinition({
       id: "dashboard",
       label: "Dashboard",
-      icon: "dashboard",
+      icon: "home",
       bodyHtml: `${navSubmenuItem("genesys-dashboard", "Overview")}
 <li class="menu-item-container"><p id="dashboard-status" class="command-nav__status">Connect to an organization to view the dashboard.</p></li>`,
     }),
@@ -197,12 +197,13 @@ ${navSubmenuItem("genesys-quick-action-9", "quickAction#9")}
 </aside>`;
 };
 
-const layout = ({ title, body, updatedAt, regions = [] }) => {
+const layout = ({ title, body, updatedAt, regions = [], vaultLaunch = false }) => {
   const safeTitle = escapeHtml(title);
   const stamp = updatedAt ? new Date(updatedAt).toLocaleString() : null;
+  const vaultClass = vaultLaunch ? ' class="vault-mode"' : "";
 
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${vaultClass}>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -219,8 +220,27 @@ const layout = ({ title, body, updatedAt, regions = [] }) => {
   <link rel="stylesheet" href="/css/dashboard.css" />
   <link rel="stylesheet" href="/css/mock-api.css" />
   <link rel="stylesheet" href="/css/flow-execution-timeline.css" />
+  <script>
+    (function () {
+      try {
+        var vault = ${vaultLaunch ? "true" : "false"} || localStorage.getItem("ps_tool_vault_mode") === "true";
+        if (!vault) {
+          return;
+        }
+        document.documentElement.classList.add("vault-mode");
+        localStorage.setItem("ps_tool_vault_mode", "true");
+        document.addEventListener("DOMContentLoaded", function () {
+          document.body.classList.add("vault-mode");
+          var picker = document.querySelector(".region-picker");
+          if (picker) {
+            picker.hidden = true;
+          }
+        });
+      } catch (error) {}
+    })();
+  </script>
 </head>
-<body>
+<body${vaultLaunch ? ' class="vault-mode"' : ""}>
   <div id="genesys-org-banner" class="command-banner" hidden>
     <div class="banner-container trustee">
       <div class="banner-content">
@@ -253,7 +273,7 @@ const layout = ({ title, body, updatedAt, regions = [] }) => {
       ${stamp ? `<p class="muted">Last updated: ${escapeHtml(stamp)}</p>` : ""}
     </div>
 
-      <div class="region-picker">
+      <div class="region-picker"${vaultLaunch ? " hidden" : ""}>
         ${renderRegionPicker(regions)}
         <div class="region-picker__auth">
           <div class="field-container region-picker__field">
@@ -333,11 +353,12 @@ const loadRegionsForRender = () => {
   }
 };
 
-const renderAppPage = () =>
+const renderAppPage = ({ vaultLaunch = false } = {}) =>
   layout({
     title: "Genesys PS Tool",
     body: "",
     regions: loadRegionsForRender(),
+    vaultLaunch,
   });
 
 const renderLogList = ({ logs }) => {

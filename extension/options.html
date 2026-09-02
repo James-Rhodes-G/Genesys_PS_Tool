@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PS Tool Extension Options</title>
+  <link rel="stylesheet" href="css/sidepanel.css" />
+  <style>
+    body { padding: 16px; max-width: 960px; }
+    fieldset { margin: 0 0 16px; border: 1px solid #d8dde6; padding: 12px; }
+    label { display: block; font-size: 12px; font-weight: 600; margin: 8px 0 4px; }
+    input[type="text"] { width: 100%; padding: 8px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  </style>
+</head>
+<body>
+  <h1>PS Tool Extension Options</h1>
+  <p>Configure the web app URL, optional HMAC secret, and Quick Navigation buttons.</p>
+
+  <form id="options-form">
+    <fieldset>
+      <legend>Web App</legend>
+      <label for="webAppBaseUrl">PS Tool base URL</label>
+      <input id="webAppBaseUrl" name="webAppBaseUrl" type="text" placeholder="http://localhost:3000" />
+
+      <label for="hmacSecret">Launch HMAC secret (optional for local dev)</label>
+      <input id="hmacSecret" name="hmacSecret" type="text" placeholder="Matches LAUNCH_HMAC_SECRET in .env" />
+    </fieldset>
+
+    <div id="quick-nav-fields"></div>
+
+    <button class="btn primary" type="submit">Save</button>
+  </form>
+
+  <script type="module" src="js/options.js"></script>
+</body>
+</html>

@@ -4,6 +4,10 @@ const CONNECTED_KEY = "ps_tool_connected";
 const ORG_NAME_KEY = "ps_tool_org_name";
 const ORG_ID_KEY = "ps_tool_org_id";
 const PREFERRED_TARGET_ORG_KEY = "ps_tool_preferred_target_org";
+const USER_ID_KEY = "ps_tool_user_id";
+const USER_NAME_KEY = "ps_tool_user_name";
+const USER_DISPLAY_NAME_KEY = "ps_tool_user_display_name";
+const VAULT_MODE_KEY = "ps_tool_vault_mode";
 
 const CONNECTED_AT_KEY = "ps_tool_connected_at";
 
@@ -80,18 +84,88 @@ const setPreferredTargetOrg = (organizationId) => {
   localStorage.setItem(PREFERRED_TARGET_ORG_KEY, organizationId);
 };
 
+const isVaultMode = () => localStorage.getItem(VAULT_MODE_KEY) === "true";
+
+const hasApiCredentials = () => {
+  const region = getRegion();
+  if (!region) {
+    return false;
+  }
+
+  if (isVaultMode()) {
+    return isConnected();
+  }
+
+  return Boolean(getToken());
+};
+
+const setVaultMode = (enabled) => {
+  if (enabled) {
+    localStorage.setItem(VAULT_MODE_KEY, "true");
+    return;
+  }
+  localStorage.removeItem(VAULT_MODE_KEY);
+};
+
+const getUserId = () => localStorage.getItem(USER_ID_KEY) || "";
+
+const setUserId = (userId) => {
+  if (!userId) {
+    localStorage.removeItem(USER_ID_KEY);
+    return;
+  }
+  localStorage.setItem(USER_ID_KEY, userId);
+};
+
+const getUserName = () => localStorage.getItem(USER_NAME_KEY) || "";
+
+const setUserName = (userName) => {
+  if (!userName) {
+    localStorage.removeItem(USER_NAME_KEY);
+    return;
+  }
+  localStorage.setItem(USER_NAME_KEY, userName);
+};
+
+const getUserDisplayName = () => localStorage.getItem(USER_DISPLAY_NAME_KEY) || "";
+
+const setUserDisplayName = (displayName) => {
+  if (!displayName) {
+    localStorage.removeItem(USER_DISPLAY_NAME_KEY);
+    return;
+  }
+  localStorage.setItem(USER_DISPLAY_NAME_KEY, displayName);
+};
+
+const clearVaultSession = () => {
+  setVaultMode(false);
+  setUserId("");
+  setUserName("");
+  setUserDisplayName("");
+};
+
 export {
+  clearVaultSession,
   getConnectedAt,
   getOrganizationId,
   getOrganizationName,
   getPreferredTargetOrg,
   getRegion,
   getToken,
+  getUserDisplayName,
+  getUserId,
+  getUserName,
+  hasApiCredentials,
   isConnected,
+  isVaultMode,
   setConnected,
   setOrganizationId,
   setOrganizationName,
   setPreferredTargetOrg,
   setRegion,
   setToken,
+  setUserDisplayName,
+  setUserId,
+  setUserName,
+  setVaultMode,
 };

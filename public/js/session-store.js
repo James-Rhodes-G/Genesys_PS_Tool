@@ -113,6 +113,8 @@ const fetchUserSyncStatus = async () =>
     "Failed to read user sync status."
   );
 
+import { isVaultMode } from "./genesys-auth.js";
+
 const syncSessionUsers = async ({ region, token, force = false }) =>
   parseJsonResponse(
     await fetch("/api/session/users/sync", {
@@ -170,7 +172,11 @@ const ensureSessionUsersSynced = async ({
   onProgress,
   signal,
 } = {}) => {
-  if (!region || !token) {
+  if (!region) {
+    throw new Error("Region is required.");
+  }
+
+  if (!isVaultMode() && !token) {
     throw new Error("Both region and token are required.");
   }
 

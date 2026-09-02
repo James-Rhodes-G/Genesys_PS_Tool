@@ -119,8 +119,8 @@ const createSessionRouter = ({ sessionDb }) => {
       return;
     }
 
-    const region = String(req.body?.region || "").trim();
-    const token = String(req.body?.token || "").trim();
+    const region = String(req.body?.region || req.genesysCredentials?.region || "").trim();
+    const token = String(req.body?.token || req.genesysCredentials?.token || "").trim();
     const force = Boolean(req.body?.force);
 
     if (!region || !token) {

@@ -1,7 +1,25 @@
-const buildHeaders = ({ region, token }) => ({
-  "Content-Type": "application/json",
-  "x-genesys-region": region,
-  "x-genesys-token": token,
+import { isVaultMode } from "./genesys-auth.js";
+
+const buildHeaders = ({ region, token }) => {
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  if (!isVaultMode()) {
+    headers["x-genesys-region"] = region;
+    headers["x-genesys-token"] = token;
+  }
+
+  return headers;
+};
+
+const withFetchOptions = ({ region, token, ...options }) => ({
+  credentials: "include",
+  ...options,
+  headers: {
+    ...buildHeaders({ region, token }),
+    ...(options.headers || {}),
+  },
 });
 
 const executionModelCache = new Map();
@@ -20,11 +38,15 @@ export const clearFlowExecutionModelCache = () => {
 };
 
 export const fetchFlowExecutions = async ({ region, token, conversationId }) => {
-  const response = await fetch("/api/genesys/flow-executions", {
-    method: "POST",
-    headers: buildHeaders({ region, token }),
-    body: JSON.stringify({ conversationId }),
-  });
+  const response = await fetch(
+    "/api/genesys/flow-executions",
+    withFetchOptions({
+      region,
+      token,
+      method: "POST",
+      body: JSON.stringify({ conversationId }),
+    })
+  );
   return parseResponse(response);
 };
 
@@ -45,11 +67,15 @@ export const downloadFlowExecutionModel = async ({
     }
   }
 
-  const response = await fetch(`/api/genesys/flow-executions/${encodeURIComponent(instanceId)}/download`, {
-    method: "POST",
-    headers: buildHeaders({ region, token }),
-    body: JSON.stringify({ conversationId, flowName, flowType, flowVersion }),
-  });
+  const response = await fetch(
+    `/api/genesys/flow-executions/${encodeURIComponent(instanceId)}/download`,
+    withFetchOptions({
+      region,
+      token,
+      method: "POST",
+      body: JSON.stringify({ conversationId, flowName, flowType, flowVersion }),
+    })
+  );
   const payload = await parseResponse(response);
 
   if (cacheKey) {
