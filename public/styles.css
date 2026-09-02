@@ -180,6 +180,12 @@ main {
   width: 100%;
 }
 
+body.vault-mode .region-picker,
+html.vault-mode .region-picker,
+.region-picker[hidden] {
+  display: none !important;
+}
+
 .export-results {
   display: grid;
   gap: 1rem;

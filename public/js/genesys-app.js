@@ -1,18 +1,25 @@
 import {
+  clearVaultSession,
   getConnectedAt,
   getOrganizationId,
   getOrganizationName,
   getPreferredTargetOrg,
   getRegion,
   getToken,
+  getUserDisplayName,
+  getUserName,
+  hasApiCredentials,
   isConnected,
+  isVaultMode,
   setConnected,
   setOrganizationId,
   setOrganizationName,
   setPreferredTargetOrg,
   setRegion,
   setToken,
+  setVaultMode,
 } from "./genesys-auth.js";
+import { applyLaunchContext, captureLaunchContext } from "./launch-context.js";
 import {
   clearOAuthAutoConnect,
   clearOAuthError,
@@ -39,6 +46,7 @@ import { collectUserRoleMappings } from "./user-role-export.js";
 import { collectUserSkillMappings, formatUserSkillAssignments, getSkillsFromUser } from "./user-skill-export.js";
 import {
   connect,
+  connectFromVault,
   assignRoutingSkillsToUsers,
   assignUsersToRoleDivision,
   buildPhones,
@@ -1347,6 +1355,14 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         console.warn("Failed to clear org session store:", error);
       }
 
+      if (isVaultMode()) {
+        try {
+          await fetch("/api/launch/disconnect", { method: "POST", credentials: "include" });
+        } catch (error) {
+          console.warn("Failed to clear vault session:", error);
+        }
+      }
+
       clearResourceCaches();
       clearFlowExecutionModelCache();
       clearInventoryStore();
@@ -1362,6 +1378,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       setRegion("");
       setOrganizationName("");
       setOrganizationId("");
+      clearVaultSession();
       if (regionSelect) {
         regionSelect.value = "";
       }
@@ -1376,31 +1393,39 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       expectedOrganizationId = "",
       expectedOrganizationName = "",
     }) => {
-      if (!token) {
+      const vaultMode = isVaultMode();
+      const effectiveRegion = region || getRegion();
+      const effectiveToken = vaultMode ? "" : token;
+
+      if (!vaultMode && !effectiveToken) {
         setExportsEnabled(false);
         showStatus("Token required");
         prependExportResult("Connection: Organization", "Token required", renderJsonBlock({ error: "Token required" }));
         return false;
       }
 
-      if (!region) {
+      if (!effectiveRegion) {
         setExportsEnabled(false);
         showStatus("Region required");
         prependExportResult("Connection: Organization", "Region required", renderJsonBlock({ error: "Region required" }));
         return false;
       }
 
-      setToken(token);
-      setRegion(region);
+      if (!vaultMode) {
+        setToken(effectiveToken);
+      }
+      setRegion(effectiveRegion);
       showStatus("Connecting...");
       prependExportResult(
         "Connection: Organization",
         "Connecting...",
-        renderJsonBlock({ status: "Connecting", region, hasToken: Boolean(token) })
+        renderJsonBlock({ status: "Connecting", region: effectiveRegion, vaultMode })
       );
 
       try {
-        const organization = await connect({ region, token });
+        const organization = vaultMode
+          ? await connectFromVault()
+          : await connect({ region: effectiveRegion, token: effectiveToken });
 
         if (expectedOrganizationId && organization?.id !== expectedOrganizationId) {
           setConnected(false);
@@ -1417,9 +1442,13 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         }
 
         setConnected(true);
-        setOrganizationName(organization?.name || "");
-        setOrganizationId(organization?.id || "");
-        showStatus(organization?.name ? `Connected: ${organization.name}` : "Connected");
+        setOrganizationName(organization?.name || getOrganizationName() || "");
+        setOrganizationId(organization?.id || getOrganizationId() || "");
+        const userLabel = getUserDisplayName() || getUserName();
+        const orgLabel = organization?.name || getOrganizationName() || "";
+        showStatus(
+          orgLabel && userLabel ? `Connected: ${orgLabel} as ${userLabel}` : orgLabel ? `Connected: ${orgLabel}` : "Connected"
+        );
         syncConnectionUi();
         clearResourceCaches();
         clearFlowExecutionModelCache();
@@ -1432,7 +1461,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
             await bindSession({
               orgId: organization.id,
               orgName: organization?.name || "",
-              region,
+              region: effectiveRegion,
             });
           } catch (error) {
             console.warn("Failed to bind org session store:", error);
@@ -1464,14 +1493,29 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       }
     };
 
+    const regionPickerEl = document.querySelector(".region-picker");
+
+    const applyVaultLaunchUi = () => {
+      const vaultMode = isVaultMode();
+      document.body.classList.toggle("vault-mode", vaultMode);
+      document.documentElement.classList.toggle("vault-mode", vaultMode);
+      if (regionPickerEl) {
+        regionPickerEl.hidden = vaultMode;
+      }
+    };
+
+    applyVaultLaunchUi();
+
     const syncConnectionUi = () => {
       const connected = isConnected();
       const storedToken = getToken();
+      const vaultMode = isVaultMode();
 
-      setExportsEnabled(connected && Boolean(storedToken));
+      applyVaultLaunchUi();
+      setExportsEnabled(connected && hasApiCredentials());
 
       if (tokenInput) {
-        tokenInput.value = connected ? "" : storedToken;
+        tokenInput.value = connected && !vaultMode ? "" : storedToken;
         tokenInput.disabled = connected;
         tokenInput.style.backgroundColor = connected ? "#ece7de" : "#fff";
         tokenInput.style.cursor = connected ? "not-allowed" : "text";
@@ -1617,8 +1661,28 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       };
 
     const requireCredentials = (title) => {
+      const region = getRegionControlValue(regionSelect) || getRegion();
+
+      if (isVaultMode()) {
+        if (!isConnected()) {
+          prependExportResult(
+            title,
+            "Not connected",
+            '<p class="muted">Launch from the extension or connect before running this action.</p>'
+          );
+          return null;
+        }
+
+        if (!region) {
+          prependExportResult(title, "Region required", '<p class="muted">Select a region before running this export.</p>');
+          return null;
+        }
+
+        setRegion(region);
+        return { token: "", region };
+      }
+
       const token = getToken();
-      const region = getRegionControlValue(regionSelect);
 
       if (!token) {
         prependExportResult(title, "Token required", '<p class="muted">Enter a token before running this export.</p>');
@@ -1962,6 +2026,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     };
 
     capturePreferredTargetOrgFromUrl();
+    captureLaunchContext();
 
     const getRegionDomain = (regionId) => {
       const matchedRegion = state.regions.find((entry) => entry.id === regionId);
@@ -2468,7 +2533,18 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     });
 
     const openDashboardAfterConnect = async (connected) => {
-      if (connected) {
+      if (!connected) {
+        return;
+      }
+
+      const launched = await applyLaunchContext({
+        isConnected: true,
+        openDashboardAfterConnect: async () => {
+          await dashboardFeatureRef?.openDashboard();
+        },
+      });
+
+      if (!launched) {
         await dashboardFeatureRef?.openDashboard();
       }
     };
@@ -3559,9 +3635,13 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         }
       });
 
-    if (isConnected() && getToken()) {
-      queueMicrotask(() => {
-        dashboardFeatureRef?.openDashboard().catch(() => {});
+    if (isConnected() && (getToken() || isVaultMode())) {
+      queueMicrotask(async () => {
+        if (isVaultMode() && getRegion()) {
+          await openDashboardAfterConnect(await connectOrganization({ region: getRegion(), token: "" }));
+          return;
+        }
+        await dashboardFeatureRef?.openDashboard().catch(() => {});
       });
     }
   };

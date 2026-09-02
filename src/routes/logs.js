@@ -4,8 +4,12 @@ import { renderAppPage, renderLogDetail, renderLogList } from "../views/render.j
 const createLogsRouter = ({ getLogs, getLogById }) => {
   const router = Router();
 
-  router.get("/", async (_req, res) => {
-    res.status(200).send(renderAppPage());
+  router.get("/", async (req, res) => {
+    res.status(200).send(
+      renderAppPage({
+        vaultLaunch: Boolean(req.genesysCredentials?.vaultMode),
+      })
+    );
   });
 
   router.get("/api/logs", async (_req, res) => {

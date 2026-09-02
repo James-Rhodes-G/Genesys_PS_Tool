@@ -72,6 +72,10 @@ const createGenesysRouter = () => {
   const router = Router();
 
   const getCredentials = (req) => {
+    if (req.genesysCredentials?.region && req.genesysCredentials?.token) {
+      return req.genesysCredentials;
+    }
+
     const region = req.body?.region || req.query?.region || req.get("x-genesys-region");
     const token = req.body?.token || req.query?.token || req.get("x-genesys-token");
 

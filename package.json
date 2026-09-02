@@ -10,7 +10,7 @@
     "seed:logs": "node scripts/seed_logs.js",
     "sw:build": "node scripts/build_sw.js",
     "clean": "node scripts/clean.js",
-    "test": "node scripts/test-resource-cache.mjs && node scripts/test-phone-site-move.mjs && node scripts/test-notification-topics.mjs && node scripts/test-notification-subscription.mjs && node scripts/test-notification-message-store.mjs && node scripts/test-mock-api.mjs && node scripts/test-flow-execution-parser.mjs"
+    "test": "node scripts/test-resource-cache.mjs && node scripts/test-phone-site-move.mjs && node scripts/test-notification-topics.mjs && node scripts/test-notification-subscription.mjs && node scripts/test-notification-message-store.mjs && node scripts/test-mock-api.mjs && node scripts/test-flow-execution-parser.mjs && node scripts/test-launch-security.mjs"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

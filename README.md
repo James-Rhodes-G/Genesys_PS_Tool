@@ -19,6 +19,10 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+### Chrome extension launcher
+
+Load the rebuilt extension from `extension/` (see [`extension/README.md`](extension/README.md)). Set `VAULT_ENCRYPTION_KEY` in `.env` before using extension pairing. Full launch flow documentation: [`docs/launch-endpoint.md`](docs/launch-endpoint.md).
+
 ## Environment
 
 Copy `.env.example` to `.env` and configure:
@@ -44,8 +48,13 @@ Copy `.env.example` to `.env` and configure:
 | `MOCK_API_RETENTION_EXPIRED_MS` | Retention before purging deleted/archived endpoints (default `604800000` — 7 days) |
 | `MOCK_API_PURGE_INTERVAL_MS` | Background lifecycle purge interval (default `3600000`) |
 | `MOCK_API_MAX_DELAY_MS` | Maximum artificial response delay (default `30000`) |
+| `VAULT_ENCRYPTION_KEY` | 32-byte hex key for encrypted credential vault (required for extension launch) |
+| `LAUNCH_HMAC_SECRET` | Optional HMAC secret for signed extension pair/handoff requests |
+| `LAUNCH_BASE_URL` | Public base URL for launch redirects (defaults to request host) |
+| `LAUNCH_VAULT_TTL_MS` | Vault entry lifetime (default 8 hours) |
+| `LAUNCH_CODE_TTL_MS` | One-time launch code lifetime (default 60 seconds) |
 
-**Security:** Tokens are held in the browser session (not stored server-side). The server proxies Genesys API calls using credentials sent per request. Never commit `.env`, access tokens, or SQLite database files.
+**Security:** Manual OAuth login still keeps tokens in browser `localStorage`. Extension launch uses a server-side encrypted vault bound to the `ps_tool_session` cookie — the Genesys token is sent once at pair time and not repeated on handoff. Never commit `.env`, access tokens, or SQLite database files.
 
 ## Features
 
@@ -369,6 +378,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 | `scripts/test-notification-message-store.mjs` | Parsed message store behavior |
 | `scripts/test-mock-api.mjs` | Mock API slug normalization, redaction, lifecycle, validation |
 | `scripts/test-flow-execution-parser.mjs` | Execution parser timeline, variables, search, and error navigation |
+| `scripts/test-launch-security.mjs` | Launch schema validation, HMAC verification, vault encryption, rate limiting |
 
 ## Preparing for GitHub
 

@@ -10,6 +10,8 @@ import {
   createMockApiPublicRouter,
 } from "./routes/mock-api.js";
 import { ensureSessionMiddleware } from "./middleware/session.js";
+import { createVaultCredentialsMiddleware } from "./middleware/vault-credentials.js";
+import { createLaunchRouter } from "./routes/launch.js";
 import { initDb, getLogs as dbGetLogs, getLogById as dbGetLogById } from "./data/db.js";
 import { initSessionDb } from "./data/session-db.js";
 import {
@@ -87,8 +89,16 @@ const start = async () => {
     })
   );
 
-  app.use(express.json({ limit: jsonBodyLimit }));
   app.use(ensureSessionMiddleware);
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/launch") && req.method !== "GET") {
+      return express.json({ limit: "4kb" })(req, res, next);
+    }
+    next();
+  });
+  app.use(createLaunchRouter({ sessionDb }));
+  app.use(express.json({ limit: jsonBodyLimit }));
+  app.use(createVaultCredentialsMiddleware(sessionDb));
 
   app.use(
     "/",

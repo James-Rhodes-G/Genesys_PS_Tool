@@ -72,6 +72,48 @@ const initSessionDb = async () => {
 
         CREATE INDEX IF NOT EXISTS idx_cached_users_session_org
           ON cached_users (session_id, org_id);
+
+        CREATE TABLE IF NOT EXISTS credential_vault (
+          link_id TEXT PRIMARY KEY,
+          org_id TEXT NOT NULL,
+          org_name TEXT,
+          third_party_org_name TEXT,
+          region TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          user_name TEXT,
+          user_display_name TEXT,
+          encrypted_token TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,
+          revoked INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS session_credentials (
+          session_id TEXT PRIMARY KEY,
+          org_id TEXT NOT NULL,
+          org_name TEXT,
+          third_party_org_name TEXT,
+          region TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          user_name TEXT,
+          user_display_name TEXT,
+          encrypted_token TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS launch_codes (
+          code TEXT PRIMARY KEY,
+          link_id TEXT NOT NULL,
+          feature TEXT NOT NULL,
+          params_json TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,
+          consumed INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_launch_codes_link_id
+          ON launch_codes (link_id);
       `);
 
       try {
@@ -132,6 +174,7 @@ const clearSessionData = async (db, sessionId) => {
   await db.run(`DELETE FROM cached_users WHERE session_id = ?`, sessionId);
   await db.run(`DELETE FROM user_sync WHERE session_id = ?`, sessionId);
   await db.run(`DELETE FROM session_connections WHERE session_id = ?`, sessionId);
+  await db.run(`DELETE FROM session_credentials WHERE session_id = ?`, sessionId);
 };
 
 const getUserSyncState = async (db, { sessionId, orgId }) =>
@@ -349,18 +392,185 @@ const getAllExportRows = async (db, { exportId, sessionId, orgId }) => {
   };
 };
 
+const upsertCredentialVault = async (
+  db,
+  {
+    linkId,
+    orgId,
+    orgName,
+    thirdPartyOrgName,
+    region,
+    userId,
+    userName,
+    userDisplayName,
+    encryptedToken,
+    expiresAt,
+  }
+) => {
+  const now = Date.now();
+  await db.run(
+    `INSERT INTO credential_vault (
+      link_id, org_id, org_name, third_party_org_name, region, user_id, user_name, user_display_name,
+      encrypted_token, created_at, expires_at, revoked
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    ON CONFLICT(link_id) DO UPDATE SET
+      org_id = excluded.org_id,
+      org_name = excluded.org_name,
+      third_party_org_name = excluded.third_party_org_name,
+      region = excluded.region,
+      user_id = excluded.user_id,
+      user_name = excluded.user_name,
+      user_display_name = excluded.user_display_name,
+      encrypted_token = excluded.encrypted_token,
+      created_at = excluded.created_at,
+      expires_at = excluded.expires_at,
+      revoked = 0`,
+    linkId,
+    orgId,
+    orgName ?? null,
+    thirdPartyOrgName ?? null,
+    region,
+    userId,
+    userName ?? null,
+    userDisplayName ?? null,
+    encryptedToken,
+    now,
+    expiresAt
+  );
+};
+
+const getCredentialVault = async (db, linkId) =>
+  db.get(
+    `SELECT link_id AS linkId, org_id AS orgId, org_name AS orgName, third_party_org_name AS thirdPartyOrgName,
+            region, user_id AS userId, user_name AS userName, user_display_name AS userDisplayName,
+            encrypted_token AS encryptedToken, created_at AS createdAt, expires_at AS expiresAt, revoked
+     FROM credential_vault
+     WHERE link_id = ?`,
+    linkId
+  );
+
+const revokeCredentialVault = async (db, linkId) => {
+  await db.run(`UPDATE credential_vault SET revoked = 1 WHERE link_id = ?`, linkId);
+};
+
+const upsertSessionCredentials = async (
+  db,
+  {
+    sessionId,
+    orgId,
+    orgName,
+    thirdPartyOrgName,
+    region,
+    userId,
+    userName,
+    userDisplayName,
+    encryptedToken,
+    expiresAt,
+  }
+) => {
+  const now = Date.now();
+  await db.run(
+    `INSERT INTO session_credentials (
+      session_id, org_id, org_name, third_party_org_name, region, user_id, user_name, user_display_name,
+      encrypted_token, created_at, expires_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(session_id) DO UPDATE SET
+      org_id = excluded.org_id,
+      org_name = excluded.org_name,
+      third_party_org_name = excluded.third_party_org_name,
+      region = excluded.region,
+      user_id = excluded.user_id,
+      user_name = excluded.user_name,
+      user_display_name = excluded.user_display_name,
+      encrypted_token = excluded.encrypted_token,
+      created_at = excluded.created_at,
+      expires_at = excluded.expires_at`,
+    sessionId,
+    orgId,
+    orgName ?? null,
+    thirdPartyOrgName ?? null,
+    region,
+    userId,
+    userName ?? null,
+    userDisplayName ?? null,
+    encryptedToken,
+    now,
+    expiresAt
+  );
+};
+
+const getSessionCredentials = async (db, sessionId) =>
+  db.get(
+    `SELECT session_id AS sessionId, org_id AS orgId, org_name AS orgName, third_party_org_name AS thirdPartyOrgName,
+            region, user_id AS userId, user_name AS userName, user_display_name AS userDisplayName,
+            encrypted_token AS encryptedToken, created_at AS createdAt, expires_at AS expiresAt
+     FROM session_credentials
+     WHERE session_id = ?`,
+    sessionId
+  );
+
+const clearSessionCredentials = async (db, sessionId) => {
+  await db.run(`DELETE FROM session_credentials WHERE session_id = ?`, sessionId);
+};
+
+const createLaunchCode = async (
+  db,
+  { code, linkId, feature, paramsJson, expiresAt }
+) => {
+  const now = Date.now();
+  await db.run(
+    `INSERT INTO launch_codes (code, link_id, feature, params_json, created_at, expires_at, consumed)
+     VALUES (?, ?, ?, ?, ?, ?, 0)`,
+    code,
+    linkId,
+    feature,
+    paramsJson,
+    now,
+    expiresAt
+  );
+};
+
+const consumeLaunchCode = async (db, code) => {
+  const row = await db.get(
+    `SELECT code, link_id AS linkId, feature, params_json AS paramsJson, created_at AS createdAt,
+            expires_at AS expiresAt, consumed
+     FROM launch_codes
+     WHERE code = ?`,
+    code
+  );
+
+  if (!row || row.consumed) {
+    return null;
+  }
+
+  if (Date.now() > row.expiresAt) {
+    return null;
+  }
+
+  await db.run(`UPDATE launch_codes SET consumed = 1 WHERE code = ?`, code);
+  return row;
+};
+
 export {
   bindSessionConnection,
   clearCachedUsers,
+  clearSessionCredentials,
   clearSessionData,
+  consumeLaunchCode,
+  createLaunchCode,
   getAllExportRows,
   getCachedUsers,
+  getCredentialVault,
   getExportRows,
   getSessionConnection,
+  getSessionCredentials,
   getUserSyncState,
   initSessionDb,
   insertCachedUsers,
+  revokeCredentialVault,
   saveExportResult,
   sessionDbPath,
   setUserSyncState,
+  upsertCredentialVault,
+  upsertSessionCredentials,
 };

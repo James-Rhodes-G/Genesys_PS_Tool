@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PS Tool Launcher</title>
+  <link rel="stylesheet" href="css/sidepanel.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h3>Pro Serve Support Tools</h3>
+    <h1 id="org-name">Loading...</h1>
+    <p class="subtle" id="user-name"></p>
+  </header>
+
+  <p id="status" class="status" aria-live="polite"></p>
+
+  <main class="panel">
+    <section class="section">
+      <button class="section-header" type="button" data-section-toggle="org-info">Org Info</button>
+      <div class="section-body" id="org-info">
+        <div class="info-grid">
+          <div class="info-row">
+            <span class="label">Org ID:</span>
+            <button class="copyable" type="button" id="org-id" data-copy="" title="Click to copy" disabled>—</button>
+          </div>
+          <div class="info-row">
+            <span class="label">Region:</span>
+            <button class="copyable" type="button" id="region-label" data-copy="" title="Click to copy" disabled>—</button>
+          </div>
+          <div class="info-row">
+            <span class="label">Token:</span>
+            <button class="copyable" type="button" id="token-mask" data-copy="" title="Click to copy" disabled>—</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <button class="section-header" type="button" data-section-toggle="quick-nav">Quick Navigation</button>
+      <div class="section-body" id="quick-nav">
+        <div class="row">
+          <button class="btn primary" type="button" data-quick-nav="QuickNav1"></button>
+          <button class="btn primary" type="button" data-quick-nav="QuickNav2"></button>
+          <button class="btn primary" type="button" data-quick-nav="QuickNav3"></button>
+        </div>
+        <div class="row">
+          <button class="btn primary" type="button" data-quick-nav="QuickNav4"></button>
+          <button class="btn primary" type="button" data-quick-nav="QuickNav5"></button>
+          <button class="btn primary" type="button" data-quick-nav="QuickNav6"></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <button class="section-header" type="button" data-section-toggle="exports">Export Functions</button>
+      <div class="section-body" id="exports">
+        <div class="row">
+          <button class="btn" type="button" data-feature="userList">Users</button>
+          <button class="btn" type="button" data-feature="userRoles">User Roles</button>
+          <button class="btn" type="button" data-feature="exportRoles">Roles</button>
+        </div>
+        <div class="row">
+          <button class="btn" type="button" data-feature="queueList">Queues</button>
+          <button class="btn" type="button" data-feature="queueMemberList">Q Members</button>
+          <button class="btn" type="button" data-feature="exportSkills">Skills</button>
+        </div>
+        <div class="row">
+          <button class="btn" type="button" data-feature="exportGroups">Groups</button>
+          <button class="btn" type="button" data-feature="exportGroupUsers">Group Members</button>
+          <button class="btn" type="button" data-feature="phoneList">Phones</button>
+        </div>
+        <div class="row">
+          <button class="btn" type="button" data-feature="exportPrompts">Prompts</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <button class="section-header" type="button" data-section-toggle="bulk">Bulk Changes</button>
+      <div class="section-body" id="bulk">
+        <div class="row">
+          <button class="btn" type="button" data-feature="bulkPhoneBuild">Phone Build</button>
+          <button class="btn" type="button" data-feature="passwordReset">PWD Reset</button>
+          <button class="btn" type="button" data-feature="bulkAssignAutoAnswer">Auto Answer</button>
+        </div>
+        <div class="row">
+          <button class="btn" type="button" data-feature="bulkRoleAssign">Role Assign</button>
+          <button class="btn" type="button" data-feature="bulkAssignSkills">Skill Assign</button>
+          <button class="btn" type="button" data-feature="bulkSelectUserLogoff">User Logoff</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <button class="section-header" type="button" data-section-toggle="quick-actions">Quick Actions</button>
+      <div class="section-body" id="quick-actions">
+        <div class="row">
+          <button class="btn" type="button" data-feature="masterAdmin">Master Admin</button>
+          <button class="btn" type="button" data-feature="loadSchedules">Holidays</button>
+          <button class="btn" type="button" data-feature="disconnect">Disconnect</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <button class="section-header" type="button" data-section-toggle="call-spoof">Call Spoofing</button>
+      <div class="section-body" id="call-spoof">
+        <button class="btn primary" type="button" data-feature="callSpoof">Open Call Spoof</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <button class="section-header" type="button" data-section-toggle="conversation">Conversation</button>
+      <div class="section-body" id="conversation">
+        <label class="field-label" for="conversation-id">Conversation ID</label>
+        <input class="field-input" id="conversation-id" type="text" placeholder="Conversation ID" />
+        <div class="row" style="margin-top: 8px;">
+          <button class="btn" type="button" data-feature="printConversationData">Conv Data</button>
+          <button class="btn" type="button" data-feature="goToInteraction">Interaction</button>
+          <button class="btn" type="button" data-feature="goToFlowExecution">Execution</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <button class="section-header" type="button" data-section-toggle="digital">Digital Actions</button>
+      <div class="section-body" id="digital">
+        <div class="row">
+          <button class="btn" type="button" data-feature="utterances">Utterances</button>
+          <button class="btn" type="button" data-feature="intentHealth">Intent Health</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <a class="options-link" href="options.html" target="_blank" rel="noreferrer">Extension options</a>
+
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>

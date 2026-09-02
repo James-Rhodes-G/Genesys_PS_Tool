@@ -1,4 +1,22 @@
 import { ensureSessionUsersSynced, fetchCachedUsers, loadSessionUsers } from "./session-store.js";
+import { isVaultMode } from "./genesys-auth.js";
+
+const withGenesysFetchOptions = (options = {}) => {
+  const init = {
+    credentials: "include",
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+    },
+  };
+
+  if (isVaultMode()) {
+    delete init.headers["x-genesys-region"];
+    delete init.headers["x-genesys-token"];
+  }
+
+  return init;
+};
 
 const parseJsonResponse = async (response, fallbackMessage) => {
   const payload = await response.json();
@@ -14,7 +32,7 @@ const parseJsonResponse = async (response, fallbackMessage) => {
 };
 
 const requestGenesysJson = async (url, options, fallbackMessage) => {
-  const response = await fetch(url, options);
+  const response = await fetch(url, withGenesysFetchOptions(options));
   return parseJsonResponse(response, fallbackMessage);
 };
 
@@ -25,6 +43,8 @@ const connect = async ({ region, token }) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(region ? { "x-genesys-region": region } : {}),
+        ...(token ? { "x-genesys-token": token } : {}),
       },
       body: JSON.stringify({ region, token }),
     },
@@ -33,6 +53,19 @@ const connect = async ({ region, token }) => {
 
   return payload.organization;
 };
+
+const connectFromVault = async () =>
+  requestGenesysJson(
+    "/api/genesys/organization",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    },
+    "Genesys vault connection failed"
+  ).then((payload) => payload.organization);
 
 const getAccessibleOrganizations = async ({ region, token }) => {
   const payload = await requestGenesysJson(
@@ -1009,6 +1042,7 @@ export {
   assignUsersToRoleDivision,
   buildPhones,
   connect,
+  connectFromVault,
   createAuditQuery,
   createMasterAdminRole,
   createNotificationChannel,
