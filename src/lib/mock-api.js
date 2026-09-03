@@ -198,6 +198,7 @@ const createMockApiService = ({
   purgeDeletedEndpoints,
   purgeArchivedEndpoints,
   expireStaleActiveEndpoints,
+  recordHourlyStats,
 }) => {
   const refreshLifecycle = async () => {
     const now = Date.now();
@@ -529,9 +530,23 @@ const createMockApiService = ({
       responseBody,
       responseTimeMs: finishedAt - startedAt,
       requestIp: req.ip || req.socket?.remoteAddress || "",
+      requestBodyBytes: Buffer.byteLength(requestBody, "utf8"),
+      responseBodyBytes: Buffer.byteLength(responseBody, "utf8"),
     };
 
     await insertRequestLog(db, logEntry);
+    if (recordHourlyStats) {
+      const hourStart = Math.floor(now / 3600000) * 3600000;
+      await recordHourlyStats(db, {
+        endpointId: endpoint.id,
+        hourStart,
+        requestBytes: logEntry.requestBodyBytes,
+        responseBytes: logEntry.responseBodyBytes,
+        responseTimeMs: logEntry.responseTimeMs,
+        isError: endpoint.httpStatusCode >= 400,
+        requestIp: logEntry.requestIp,
+      });
+    }
     await trimRequestLogs(db, {
       endpointId: endpoint.id,
       maxLogs: MOCK_API_CONFIG.maxRequestLogsPerEndpoint,

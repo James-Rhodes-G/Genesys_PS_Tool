@@ -122,6 +122,12 @@ const initSessionDb = async () => {
         // Column already exists.
       }
 
+      try {
+        await db.exec(`ALTER TABLE session_connections ADD COLUMN last_seen_at INTEGER`);
+      } catch (_error) {
+        // Column already exists.
+      }
+
       return db;
     });
   }
@@ -131,11 +137,22 @@ const initSessionDb = async () => {
 
 const getSessionConnection = async (db, sessionId) =>
   db.get(
-    `SELECT session_id AS sessionId, org_id AS orgId, org_name AS orgName, region, connected_at AS connectedAt
+    `SELECT session_id AS sessionId, org_id AS orgId, org_name AS orgName, region,
+            connected_at AS connectedAt, last_seen_at AS lastSeenAt
      FROM session_connections
      WHERE session_id = ?`,
     sessionId
   );
+
+const touchSessionActivity = async (db, sessionId) => {
+  const now = Date.now();
+  await db.run(
+    `UPDATE session_connections SET last_seen_at = ? WHERE session_id = ?`,
+    now,
+    sessionId
+  );
+  return now;
+};
 
 const bindSessionConnection = async (db, { sessionId, orgId, orgName, region }) => {
   const existing = await getSessionConnection(db, sessionId);
@@ -146,17 +163,19 @@ const bindSessionConnection = async (db, { sessionId, orgId, orgName, region }) 
 
   const connectedAt = Date.now();
   await db.run(
-    `INSERT INTO session_connections (session_id, org_id, org_name, region, connected_at)
-     VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO session_connections (session_id, org_id, org_name, region, connected_at, last_seen_at)
+     VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(session_id) DO UPDATE SET
        org_id = excluded.org_id,
        org_name = excluded.org_name,
        region = excluded.region,
-       connected_at = excluded.connected_at`,
+       connected_at = excluded.connected_at,
+       last_seen_at = excluded.last_seen_at`,
     sessionId,
     orgId,
     orgName ?? null,
     region ?? null,
+    connectedAt,
     connectedAt
   );
 
@@ -551,6 +570,131 @@ const consumeLaunchCode = async (db, code) => {
   return row;
 };
 
+const ACTIVITY_WINDOW_MS = 15 * 60 * 1000;
+
+const getConnectedUsers = async (db) => {
+  const now = Date.now();
+  const vaultRows = await db.all(
+    `SELECT session_id AS sessionId, org_id AS orgId, org_name AS orgName, region,
+            user_id AS userId, user_name AS userName, user_display_name AS userDisplayName,
+            created_at AS connectedAt, expires_at AS expiresAt, 'vault' AS authMode,
+            created_at AS lastSeenAt
+     FROM session_credentials
+     WHERE expires_at > ?`,
+    now
+  );
+
+  const connectionRows = await db.all(
+    `SELECT sc.session_id AS sessionId, sc.org_id AS orgId, sc.org_name AS orgName, sc.region,
+            sc.connected_at AS connectedAt, sc.last_seen_at AS lastSeenAt
+     FROM session_connections sc
+     LEFT JOIN session_credentials cred ON cred.session_id = sc.session_id AND cred.expires_at > ?
+     WHERE cred.session_id IS NULL
+       AND sc.last_seen_at IS NOT NULL
+       AND sc.last_seen_at > ?`,
+    now,
+    now - ACTIVITY_WINDOW_MS
+  );
+
+  const manual = connectionRows.map((row) => ({
+    ...row,
+    userId: null,
+    userName: null,
+    userDisplayName: null,
+    authMode: "manual",
+    expiresAt: null,
+  }));
+
+  return [...vaultRows, ...manual];
+};
+
+const purgeExpiredSessionCredentials = async (db) => {
+  const now = Date.now();
+  const expired = await db.all(
+    `SELECT session_id AS sessionId FROM session_credentials WHERE expires_at <= ?`,
+    now
+  );
+  for (const row of expired) {
+    await clearSessionCredentials(db, row.sessionId);
+    await db.run(`DELETE FROM session_connections WHERE session_id = ?`, row.sessionId);
+  }
+
+  const staleCutoff = now - ACTIVITY_WINDOW_MS;
+  const staleResult = await db.run(
+    `DELETE FROM session_connections
+     WHERE (last_seen_at IS NULL OR last_seen_at < ?)
+       AND session_id NOT IN (
+         SELECT session_id FROM session_credentials WHERE expires_at > ?
+       )`,
+    staleCutoff,
+    now
+  );
+
+  return (expired.length || 0) + (staleResult.changes || 0);
+};
+
+const listActiveSessionCredentials = async (db) => {
+  const now = Date.now();
+  return db.all(
+    `SELECT session_id AS sessionId, org_id AS orgId, org_name AS orgName, region,
+            user_id AS userId, user_name AS userName, user_display_name AS userDisplayName,
+            created_at AS createdAt, expires_at AS expiresAt
+     FROM session_credentials
+     WHERE expires_at > ?
+     ORDER BY created_at DESC`,
+    now
+  );
+};
+
+const listActiveCredentialVault = async (db) => {
+  const now = Date.now();
+  return db.all(
+    `SELECT link_id AS linkId, org_id AS orgId, org_name AS orgName, region,
+            user_id AS userId, user_name AS userName, user_display_name AS userDisplayName,
+            created_at AS createdAt, expires_at AS expiresAt, revoked
+     FROM credential_vault
+     WHERE revoked = 0 AND expires_at > ?
+     ORDER BY created_at DESC`,
+    now
+  );
+};
+
+const purgeExpiredVaultEntries = async (db) => {
+  const now = Date.now();
+  const result = await db.run(
+    `DELETE FROM credential_vault WHERE expires_at < ? OR revoked = 1`,
+    now
+  );
+  return result.changes || 0;
+};
+
+const purgeConsumedLaunchCodes = async (db, { olderThanMs = 24 * 60 * 60 * 1000 } = {}) => {
+  const cutoff = Date.now() - olderThanMs;
+  const result = await db.run(
+    `DELETE FROM launch_codes WHERE consumed = 1 AND created_at < ?`,
+    cutoff
+  );
+  return result.changes || 0;
+};
+
+const purgeOldExportData = async (db, { olderThanMs = 30 * 24 * 60 * 60 * 1000 } = {}) => {
+  const cutoff = Date.now() - olderThanMs;
+  const exports = await db.all(
+    `SELECT id FROM export_results WHERE updated_at < ?`,
+    cutoff
+  );
+  for (const entry of exports) {
+    await db.run(`DELETE FROM export_rows WHERE export_id = ?`, entry.id);
+  }
+  const result = await db.run(`DELETE FROM export_results WHERE updated_at < ?`, cutoff);
+  return result.changes || 0;
+};
+
+const revokeSessionById = async (db, sessionId) => {
+  await clearSessionCredentials(db, sessionId);
+  await clearSessionData(db, sessionId);
+};
+
 export {
   bindSessionConnection,
   clearCachedUsers,
@@ -560,6 +704,7 @@ export {
   createLaunchCode,
   getAllExportRows,
   getCachedUsers,
+  getConnectedUsers,
   getCredentialVault,
   getExportRows,
   getSessionConnection,
@@ -567,10 +712,18 @@ export {
   getUserSyncState,
   initSessionDb,
   insertCachedUsers,
+  listActiveSessionCredentials,
+  listActiveCredentialVault,
+  purgeExpiredSessionCredentials,
+  purgeConsumedLaunchCodes,
+  purgeExpiredVaultEntries,
+  purgeOldExportData,
   revokeCredentialVault,
+  revokeSessionById,
   saveExportResult,
   sessionDbPath,
   setUserSyncState,
+  touchSessionActivity,
   upsertCredentialVault,
   upsertSessionCredentials,
 };

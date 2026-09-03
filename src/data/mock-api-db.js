@@ -57,6 +57,8 @@ const mapLogRow = (row) => {
     responseBody: row.response_body,
     responseTimeMs: row.response_time_ms,
     requestIp: row.request_ip,
+    requestBodyBytes: row.request_body_bytes,
+    responseBodyBytes: row.response_body_bytes,
   };
 };
 
@@ -116,7 +118,27 @@ const initMockApiDb = async () => {
 
         CREATE INDEX IF NOT EXISTS idx_mock_request_logs_endpoint
           ON mock_request_logs(endpoint_id, timestamp DESC);
+
+        CREATE TABLE IF NOT EXISTS mock_endpoint_hourly_stats (
+          endpoint_id TEXT NOT NULL,
+          hour_start INTEGER NOT NULL,
+          call_count INTEGER NOT NULL DEFAULT 0,
+          request_bytes INTEGER NOT NULL DEFAULT 0,
+          response_bytes INTEGER NOT NULL DEFAULT 0,
+          error_count INTEGER NOT NULL DEFAULT 0,
+          unique_ip_count INTEGER NOT NULL DEFAULT 0,
+          avg_response_time_ms INTEGER NOT NULL DEFAULT 0,
+          max_response_time_ms INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY (endpoint_id, hour_start)
+        );
       `);
+
+      try {
+        await db.exec(`ALTER TABLE mock_request_logs ADD COLUMN request_body_bytes INTEGER`);
+      } catch (_error) {}
+      try {
+        await db.exec(`ALTER TABLE mock_request_logs ADD COLUMN response_body_bytes INTEGER`);
+      } catch (_error) {}
 
       return db;
     });
@@ -258,8 +280,8 @@ const insertRequestLog = async (db, log) => {
     `INSERT INTO mock_request_logs (
       id, endpoint_id, timestamp, method, path, query_string,
       request_headers_json, request_body, response_code, response_headers_json,
-      response_body, response_time_ms, request_ip
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      response_body, response_time_ms, request_ip, request_body_bytes, response_body_bytes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       log.id,
       log.endpointId,
@@ -274,6 +296,8 @@ const insertRequestLog = async (db, log) => {
       log.responseBody,
       log.responseTimeMs,
       log.requestIp,
+      log.requestBodyBytes ?? 0,
+      log.responseBodyBytes ?? 0,
     ]
   );
 };
@@ -339,22 +363,142 @@ const expireStaleActiveEndpoints = async (db, { now }) => {
   return result.changes || 0;
 };
 
+const listAllEndpoints = async (db, { limit = 200, offset = 0 } = {}) => {
+  const rows = await db.all(
+    `SELECT * FROM mock_endpoints WHERE status != 'deleted' ORDER BY hit_count DESC LIMIT ? OFFSET ?`,
+    limit,
+    offset
+  );
+  return rows.map(mapEndpointRow);
+};
+
+const getEndpointByIdAdmin = async (db, id) => {
+  const row = await db.get(`SELECT * FROM mock_endpoints WHERE id = ?`, id);
+  return mapEndpointRow(row);
+};
+
+const markEndpointStatusAdmin = async (db, { id, status, updatedAt }) => {
+  await db.run(`UPDATE mock_endpoints SET status = ?, updated_at = ? WHERE id = ?`, status, updatedAt, id);
+};
+
+const recordHourlyStats = async (db, { endpointId, hourStart, requestBytes, responseBytes, responseTimeMs, isError, requestIp }) => {
+  await db.run(
+    `INSERT INTO mock_endpoint_hourly_stats
+     (endpoint_id, hour_start, call_count, request_bytes, response_bytes, error_count, unique_ip_count, avg_response_time_ms, max_response_time_ms)
+     VALUES (?, ?, 1, ?, ?, ?, 1, ?, ?)
+     ON CONFLICT(endpoint_id, hour_start) DO UPDATE SET
+       call_count = call_count + 1,
+       request_bytes = request_bytes + excluded.request_bytes,
+       response_bytes = response_bytes + excluded.response_bytes,
+       error_count = error_count + excluded.error_count,
+       avg_response_time_ms = (avg_response_time_ms * call_count + excluded.avg_response_time_ms) / (call_count + 1),
+       max_response_time_ms = MAX(max_response_time_ms, excluded.max_response_time_ms)`,
+    endpointId,
+    hourStart,
+    requestBytes,
+    responseBytes,
+    isError ? 1 : 0,
+    responseTimeMs,
+    responseTimeMs
+  );
+};
+
+const getEndpointStats24h = async (db, endpointId) => {
+  const since = Date.now() - 24 * 60 * 60 * 1000;
+  const row = await db.get(
+    `SELECT COALESCE(SUM(call_count), 0) AS calls,
+            COALESCE(SUM(request_bytes), 0) AS requestBytes,
+            COALESCE(SUM(response_bytes), 0) AS responseBytes,
+            COALESCE(SUM(error_count), 0) AS errors
+     FROM mock_endpoint_hourly_stats
+     WHERE endpoint_id = ? AND hour_start >= ?`,
+    endpointId,
+    since
+  );
+  const ipRow = await db.get(
+    `SELECT COUNT(DISTINCT request_ip) AS uniqueIps
+     FROM mock_request_logs
+     WHERE endpoint_id = ? AND timestamp >= ?`,
+    endpointId,
+    since
+  );
+  return {
+    calls24h: row?.calls ?? 0,
+    requestBytes24h: row?.requestBytes ?? 0,
+    responseBytes24h: row?.responseBytes ?? 0,
+    errors24h: row?.errors ?? 0,
+    uniqueIps24h: ipRow?.uniqueIps ?? 0,
+  };
+};
+
+const getGlobalMockApiTraffic = async (db, { from, to } = {}) => {
+  const fromTs = from ?? Date.now() - 24 * 60 * 60 * 1000;
+  const toTs = to ?? Date.now();
+  const row = await db.get(
+    `SELECT COALESCE(SUM(call_count), 0) AS calls,
+            COALESCE(SUM(request_bytes), 0) AS requestBytes,
+            COALESCE(SUM(response_bytes), 0) AS responseBytes,
+            COALESCE(SUM(error_count), 0) AS errors
+     FROM mock_endpoint_hourly_stats
+     WHERE hour_start >= ? AND hour_start <= ?`,
+    fromTs,
+    toTs
+  );
+  return row ?? { calls: 0, requestBytes: 0, responseBytes: 0, errors: 0 };
+};
+
+const listHourlyTraffic = async (db, { from, to } = {}) => {
+  const fromTs = from ?? Date.now() - 24 * 60 * 60 * 1000;
+  const toTs = to ?? Date.now();
+  return db.all(
+    `SELECT hour_start AS hourStart,
+            SUM(call_count) AS calls,
+            SUM(request_bytes) AS requestBytes,
+            SUM(response_bytes) AS responseBytes,
+            SUM(error_count) AS errors
+     FROM mock_endpoint_hourly_stats
+     WHERE hour_start >= ? AND hour_start <= ?
+     GROUP BY hour_start
+     ORDER BY hour_start ASC`,
+    fromTs,
+    toTs
+  );
+};
+
+const listRequestLogsAdmin = async (db, { endpointId, limit = 100, offset = 0 }) => {
+  const rows = await db.all(
+    `SELECT * FROM mock_request_logs WHERE endpoint_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
+    endpointId,
+    limit,
+    offset
+  );
+  return rows.map(mapLogRow);
+};
+
 export {
   initMockApiDb,
   mockApiDbPath,
   insertEndpoint,
   updateEndpoint,
   getEndpointById,
+  getEndpointByIdAdmin,
   getEndpointForInvocation,
   listEndpoints,
+  listAllEndpoints,
   countActiveEndpoints,
   markEndpointStatus,
+  markEndpointStatusAdmin,
   recordEndpointUsage,
   insertRequestLog,
   trimRequestLogs,
   listRequestLogs,
+  listRequestLogsAdmin,
   getRequestLogById,
   purgeDeletedEndpoints,
   purgeArchivedEndpoints,
   expireStaleActiveEndpoints,
+  recordHourlyStats,
+  getEndpointStats24h,
+  getGlobalMockApiTraffic,
+  listHourlyTraffic,
 };

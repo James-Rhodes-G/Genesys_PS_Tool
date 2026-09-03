@@ -1,14 +1,27 @@
 const sessionActivities = [];
 
 const recordSessionActivity = ({ action, affectedCount = 0, successCount = 0, failureCount = 0 }) => {
-  sessionActivities.unshift({
+  const entry = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp: Date.now(),
     action,
     affectedCount,
     successCount,
     failureCount,
-  });
+  };
+  sessionActivities.unshift(entry);
+
+  fetch("/api/admin/activity", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action,
+      affectedCount,
+      successCount,
+      failureCount,
+    }),
+  }).catch(() => {});
 };
 
 const recordSessionActivityFromResults = (action, rows = []) => {
