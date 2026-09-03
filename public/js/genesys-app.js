@@ -158,6 +158,7 @@ import { createIntentHealthFeature } from "./intent-health.js";
 import { createUtterancesFeature } from "./utterances.js";
 import { createAuditLogViewerFeature } from "./audit-log-viewer.js";
 import { createMockApiFeature } from "./mock-api-feature.js";
+import { createAdminFeatures } from "./admin/admin-features.js";
 import { createFlowExecutionFeature } from "./flow-execution-feature.js";
 import { clearFlowExecutionModelCache } from "./flow-execution-client.js";
 import { createUserNotificationsFeature } from "./user-notifications.js";
@@ -1191,6 +1192,19 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const notificationMessageParserBtn = document.getElementById("genesys-notification-message-parser");
     const auditLogViewerBtn = document.getElementById("genesys-audit-log-viewer");
     const mockApiBtn = document.getElementById("genesys-mock-api");
+    const adminButtonIds = [
+      "genesys-admin-operations",
+      "genesys-admin-endpoint-registry",
+      "genesys-admin-audit-log",
+      "genesys-admin-activity",
+      "genesys-admin-dangerous",
+      "genesys-admin-server-health",
+      "genesys-admin-launch-monitor",
+      "genesys-admin-sessions",
+      "genesys-admin-usage",
+      "genesys-admin-storage",
+    ];
+    const adminButtons = adminButtonIds.map((id) => document.getElementById(id));
     const confirmModalEl = document.getElementById("genesys-confirm-modal");
     const confirmModalTitleEl = document.getElementById("genesys-confirm-modal-title");
     const confirmModalBodyEl = document.getElementById("genesys-confirm-modal-body");
@@ -1274,6 +1288,12 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         if (notificationMessageParserBtn) {
           notificationMessageParserBtn.disabled = false;
         }
+
+        adminButtons.forEach((button) => {
+          if (button) {
+            button.disabled = false;
+          }
+        });
 
       if (exportsStatusEl) {
         exportsStatusEl.textContent = enabled
@@ -2676,6 +2696,13 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       confirmModal,
     });
 
+    const adminFeatures = createAdminFeatures({
+      startExportResult,
+      finishExportResult,
+      renderLoadingState,
+      confirmModal,
+    });
+
     const flowExecutionFeature = createFlowExecutionFeature({
       state,
       requireCredentials,
@@ -2804,6 +2831,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         }
 
         if (await mockApiFeature.handleClick(event)) {
+          return;
+        }
+
+        if (await adminFeatures.handleClick(event)) {
           return;
         }
 
@@ -3415,6 +3446,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     notificationMessageParserFeature.wireButton(notificationMessageParserBtn);
     auditLogViewerFeature.wireButton(auditLogViewerBtn);
     mockApiFeature.wireButton(mockApiBtn);
+    adminFeatures.initButtons();
 
     const getConversationIdForReport = (title) => {
       const credentials = requireCredentials(title);

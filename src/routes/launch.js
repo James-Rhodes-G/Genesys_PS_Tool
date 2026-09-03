@@ -55,8 +55,13 @@ const assertHttpsIfRequired = (baseUrl) => {
   }
 };
 
-const createLaunchRouter = ({ sessionDb }) => {
+const createLaunchRouter = ({ sessionDb, recordEvent }) => {
   const router = Router();
+
+  const audit = (req, payload) => {
+    if (!recordEvent) return;
+    recordEvent(req, { source: "extension", ...payload }).catch(() => {});
+  };
 
   const pairRateLimit = createRateLimiter({
     limit: 10,
@@ -137,7 +142,9 @@ const createLaunchRouter = ({ sessionDb }) => {
         },
         expiresAt,
       });
+      audit(req, { action: "launch_pair", feature: "launch", status: "success", orgId: organization.id, userId: user.id, userName: user.name });
     } catch (error) {
+      audit(req, { action: "launch_pair", feature: "launch", status: "failure", errorCode: error.message });
       res.status(error.status || 502).json({
         error: error.message || "Pairing failed.",
       });
@@ -182,7 +189,9 @@ const createLaunchRouter = ({ sessionDb }) => {
         code,
         launchUrl: `${baseUrl}/launch?code=${encodeURIComponent(code)}`,
       });
+      audit(req, { action: "launch_handoff", feature: "launch", status: "success", orgId: vault.orgId, userId: vault.userId });
     } catch (error) {
+      audit(req, { action: "launch_handoff", feature: "launch", status: "failure", errorCode: error.message });
       res.status(500).json({ error: error.message || "Handoff failed." });
     }
   });
@@ -201,6 +210,7 @@ const createLaunchRouter = ({ sessionDb }) => {
 
     const linkId = hashLinkToken(validated.value.linkToken);
     await revokeCredentialVault(sessionDb, linkId);
+    audit(req, { action: "launch_unpair", feature: "launch", status: "success" });
     res.status(200).json({ revoked: true });
   });
 
@@ -213,6 +223,7 @@ const createLaunchRouter = ({ sessionDb }) => {
 
     const launchRecord = await consumeLaunchCode(sessionDb, code);
     if (!launchRecord) {
+      audit(req, { action: "launch_consume", feature: "launch", status: "failure", errorCode: "invalid_or_expired" });
       res.status(400).send("Launch code is invalid or expired.");
       return;
     }
@@ -316,6 +327,7 @@ const createLaunchRouter = ({ sessionDb }) => {
   </script>
 </body>
 </html>`);
+    audit(req, { action: "launch_consume", feature: "launch", status: "success", orgId: vault.orgId, userId: vault.userId });
   });
 
   router.post("/api/launch/disconnect", async (req, res) => {
@@ -325,6 +337,7 @@ const createLaunchRouter = ({ sessionDb }) => {
     }
 
     await clearSessionCredentials(sessionDb, req.sessionId);
+    audit(req, { action: "launch_disconnect", feature: "launch", status: "success" });
     res.status(200).json({ cleared: true });
   });
 

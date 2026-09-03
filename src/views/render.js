@@ -134,8 +134,19 @@ ${navSubmenuItem("genesys-load-schedules", "Load Schedules")}
       id: "ps-tool-admin",
       label: "PS Tool Admin",
       icon: "settings",
-      bodyHtml: `${navSubmenuItem("genesys-mock-api", "Mock API")}
-<li class="menu-item-container"><p id="mock-api-status" class="command-nav__status">Connect to an organization to manage mock endpoints.</p></li>`,
+      bodyHtml: `${navSubmenuItem("genesys-admin-operations", "Operations Dashboard")}
+${navSubmenuItem("genesys-mock-api", "Mock API")}
+<li class="menu-item-container"><p id="mock-api-status" class="command-nav__status">Connect to an organization to manage mock endpoints.</p></li>
+${navSubmenuItem("genesys-admin-endpoint-registry", "API Endpoint Registry")}
+${navSubmenuItem("genesys-admin-audit-log", "PS Tool Audit Log")}
+${navSubmenuItem("genesys-admin-activity", "Activity Timeline")}
+${navSubmenuItem("genesys-admin-dangerous", "Dangerous Actions")}
+${navSubmenuItem("genesys-admin-server-health", "Server Health")}
+${navSubmenuItem("genesys-admin-launch-monitor", "Launch Monitor")}
+${navSubmenuItem("genesys-admin-sessions", "Sessions & Vault")}
+${navSubmenuItem("genesys-admin-usage", "Usage Analytics")}
+${navSubmenuItem("genesys-admin-storage", "Storage Detail")}
+<li class="menu-item-container"><p id="admin-status" class="command-nav__status">Server administration tools.</p></li>`,
     }),
     navGroupDefinition({
       id: "audit-log",
@@ -219,6 +230,7 @@ const layout = ({ title, body, updatedAt, regions = [], vaultLaunch = false }) =
   <link rel="stylesheet" href="/css/notification-message-parser.css" />
   <link rel="stylesheet" href="/css/dashboard.css" />
   <link rel="stylesheet" href="/css/mock-api.css" />
+  <link rel="stylesheet" href="/css/admin.css" />
   <link rel="stylesheet" href="/css/flow-execution-timeline.css" />
   <script>
     (function () {
