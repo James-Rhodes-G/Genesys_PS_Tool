@@ -3,6 +3,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { executeBulkMutation, executeChunkedBulkMutation, normalizeIds } from "./genesys-bulk.js";
 import { downloadFlowExecutionJson } from "./flow-execution-download.js";
+import {
+  runGenesysHttp,
+} from "./genesys-rate-limit.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,8 +44,6 @@ const buildGenesysApiUrl = async (region, path) => {
   return `https://api.${domain}${path}`;
 };
 
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const normalizeHeaders = (headers = {}) => {
   const nextHeaders = new Headers(headers);
 
@@ -53,17 +54,6 @@ const normalizeHeaders = (headers = {}) => {
   return nextHeaders;
 };
 
-const getRetryDelayMs = (response, retryAttempt) => {
-  const retryAfterHeader = response.headers.get("retry-after");
-  const retryAfterSeconds = Number(retryAfterHeader);
-
-  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
-    return retryAfterSeconds * 1000;
-  }
-
-  return Math.min(1000 * 2 ** retryAttempt, 10000);
-};
-
 const genesysRequest = async ({
   region,
   token,
@@ -71,7 +61,6 @@ const genesysRequest = async ({
   method = "GET",
   headers = {},
   body,
-  retries = 3,
 }) => {
   if (!token) {
     throw new Error("Genesys token is required");
@@ -79,62 +68,49 @@ const genesysRequest = async ({
 
   const url = await buildGenesysApiUrl(region, path);
 
-  let attempt = 0;
-  while (attempt <= retries) {
-    const requestHeaders = normalizeHeaders(headers);
-    requestHeaders.set("Authorization", `Bearer ${token}`);
+  const response = await runGenesysHttp(
+    () => {
+      const requestHeaders = normalizeHeaders(headers);
+      requestHeaders.set("Authorization", `Bearer ${token}`);
 
-    console.log("[genesys] outbound request", { method, region, url, attempt });
+      console.log("[genesys] outbound request", { method, region, url });
 
-    const response = await fetch(url, {
-      method,
-      headers: requestHeaders,
-      body: body == null ? undefined : JSON.stringify(body),
-    });
-
-    const text = await response.text();
-    let data = null;
-
-    if (text) {
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = { raw: text };
-      }
-    }
-
-    if (response.status === 429 && attempt < retries) {
-      const delayMs = getRetryDelayMs(response, attempt);
-      console.warn("[genesys] rate limited, retrying", {
-        region,
-        url,
-        attempt,
-        delayMs,
+      return fetch(url, {
+        method,
+        headers: requestHeaders,
+        body: body == null ? undefined : JSON.stringify(body),
       });
-      await wait(delayMs);
-      attempt += 1;
-      continue;
+    },
+    { method, region, url }
+  );
+
+  const text = await response.text();
+  let data = null;
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
     }
-
-    if (!response.ok) {
-      const message = data?.message || data?.error || `Genesys request failed with ${response.status}`;
-      const error = new Error(message);
-      error.status = response.status;
-      error.details = data;
-      throw error;
-    }
-
-    console.log("[genesys] outbound response ok", {
-      method,
-      region,
-      url,
-      status: response.status,
-    });
-
-    return data;
   }
 
-  throw new Error(`Genesys request retries exhausted for ${path}`);
+  if (!response.ok) {
+    const message = data?.message || data?.error || `Genesys request failed with ${response.status}`;
+    const error = new Error(message);
+    error.status = response.status;
+    error.details = data;
+    throw error;
+  }
+
+  console.log("[genesys] outbound response ok", {
+    method,
+    region,
+    url,
+    status: response.status,
+  });
+
+  return data;
 };
 
 const buildPaginatedPath = (path, pageNumber, pageSize) => {
@@ -222,7 +198,7 @@ const getUsers = ({ region, token }) =>
   });
 
 const USERS_CACHE_EXPAND =
-  "employerInfo,customAttributes,locations,authorization,skills";
+  "employerInfo,customAttributes,locations,authorization,skills,dateLastLogin";
 
 const USERS_CACHE_QUERY = `expand=${USERS_CACHE_EXPAND}&sortOrder=ascending&state=any`;
 
@@ -678,8 +654,81 @@ const getPhone = ({ region, token, phoneId }) =>
   genesysRequest({
     region,
     token,
-    path: `/api/v2/telephony/providers/edges/phones/${phoneId}`,
+    path: `/api/v2/telephony/providers/edges/phones/${encodeURIComponent(phoneId)}`,
   });
+
+const PHONE_SITE_MOVE_QUERY =
+  "expand=site,phoneBaseSettings,lines&fields=properties.*,lines.properties.*,lines.edgeGroup,webRtcUser";
+
+const getPhoneForSiteMove = ({ region, token, phoneId }) =>
+  genesysRequest({
+    region,
+    token,
+    path: `/api/v2/telephony/providers/edges/phones/${encodeURIComponent(phoneId)}?${PHONE_SITE_MOVE_QUERY}`,
+  });
+
+const clonePhoneConfigValue = (value) => {
+  if (value == null) {
+    return value;
+  }
+
+  return JSON.parse(JSON.stringify(value));
+};
+
+const buildPhoneSiteMoveLineBody = (line) => {
+  const nextLine = {};
+
+  if (line?.id) {
+    nextLine.id = line.id;
+  }
+  if (line?.name) {
+    nextLine.name = line.name;
+  }
+  if (line?.lineBaseSettings?.id) {
+    nextLine.lineBaseSettings = { id: line.lineBaseSettings.id };
+  }
+  if (line?.edgeGroup?.id) {
+    nextLine.edgeGroup = { id: line.edgeGroup.id };
+  }
+  if (line?.properties && typeof line.properties === "object" && Object.keys(line.properties).length) {
+    nextLine.properties = clonePhoneConfigValue(line.properties);
+  }
+
+  return nextLine;
+};
+
+const buildPhoneSiteMoveBody = (phone, { siteId, siteName = "" }) => {
+  const normalizedSiteId = String(siteId || "").trim();
+  if (!normalizedSiteId) {
+    throw new Error("siteId is required.");
+  }
+
+  const normalizedSiteName = String(siteName || phone?.site?.name || "").trim();
+  const body = {
+    name: String(phone?.name || "").trim(),
+    site: normalizedSiteName
+      ? { id: normalizedSiteId, name: normalizedSiteName }
+      : { id: normalizedSiteId },
+  };
+
+  if (phone?.phoneBaseSettings?.id) {
+    body.phoneBaseSettings = { id: phone.phoneBaseSettings.id };
+  }
+
+  if (phone?.webRtcUser?.id) {
+    body.webRtcUser = { id: phone.webRtcUser.id };
+  }
+
+  if (phone?.properties && typeof phone.properties === "object" && Object.keys(phone.properties).length) {
+    body.properties = clonePhoneConfigValue(phone.properties);
+  }
+
+  if (Array.isArray(phone?.lines) && phone.lines.length) {
+    body.lines = phone.lines.map(buildPhoneSiteMoveLineBody);
+  }
+
+  return body;
+};
 
 const getPasswordPolicy = ({ region, token }) =>
   genesysRequest({
@@ -814,47 +863,6 @@ const getSites = ({ region, token }) =>
     path: "/api/v2/telephony/providers/edges/sites",
   });
 
-const buildPhoneSiteMoveBody = (phone, { siteId, siteName = "" }) => {
-  const normalizedSiteId = String(siteId || "").trim();
-  if (!normalizedSiteId) {
-    throw new Error("siteId is required.");
-  }
-
-  const normalizedSiteName = String(siteName || phone?.site?.name || "").trim();
-  const body = {
-    name: String(phone?.name || "").trim(),
-    site: normalizedSiteName
-      ? { id: normalizedSiteId, name: normalizedSiteName }
-      : { id: normalizedSiteId },
-  };
-
-  if (phone?.phoneBaseSettings?.id) {
-    body.phoneBaseSettings = { id: phone.phoneBaseSettings.id };
-  }
-
-  if (phone?.webRtcUser?.id) {
-    body.webRtcUser = { id: phone.webRtcUser.id };
-  }
-
-  if (Array.isArray(phone?.lines) && phone.lines.length) {
-    body.lines = phone.lines.map((line) => {
-      const nextLine = {};
-      if (line?.id) {
-        nextLine.id = line.id;
-      }
-      if (line?.name) {
-        nextLine.name = line.name;
-      }
-      if (line?.lineBaseSettings?.id) {
-        nextLine.lineBaseSettings = { id: line.lineBaseSettings.id };
-      }
-      return nextLine;
-    });
-  }
-
-  return body;
-};
-
 const updatePhone = async ({ region, token, phoneId, phoneBody }) =>
   genesysRequest({
     region,
@@ -865,7 +873,7 @@ const updatePhone = async ({ region, token, phoneId, phoneBody }) =>
   });
 
 const movePhoneToSite = async ({ region, token, phoneId, siteId, siteName = "" }) => {
-  const phone = await getPhone({ region, token, phoneId });
+  const phone = await getPhoneForSiteMove({ region, token, phoneId });
   const body = buildPhoneSiteMoveBody(phone, { siteId, siteName });
 
   const updatedPhone = await updatePhone({ region, token, phoneId, phoneBody: body });
@@ -1159,10 +1167,58 @@ const assignUsersToRoleDivision = async ({ region, token, userIds, roleId, divis
 
 const MEDIA_TYPE_VALUES = ["voice", "chat", "email", "message", "callback"];
 const INTERACTION_SCOPE_VALUES = ["all-open", "waiting", "agent"];
+const OPEN_INTERACTIONS_DEFAULT_LOOKBACK_DAYS = 30;
+const OPEN_INTERACTIONS_MAX_LOOKBACK_DAYS = 90;
+const OPEN_INTERACTIONS_MAX_INTERVAL_DAYS = 31;
+
+const startOfUtcDay = (date) => {
+  const next = new Date(date);
+  next.setUTCHours(0, 0, 0, 0);
+  return next;
+};
+
+const endOfUtcDay = (date) => {
+  const next = new Date(date);
+  next.setUTCHours(23, 59, 59, 999);
+  return next;
+};
+
+const normalizeOpenInteractionsLookbackDays = (lookbackDays) =>
+  Math.max(
+    1,
+    Math.min(Number(lookbackDays) || OPEN_INTERACTIONS_DEFAULT_LOOKBACK_DAYS, OPEN_INTERACTIONS_MAX_LOOKBACK_DAYS)
+  );
+
+const buildOpenInteractionsLookbackWindows = (lookbackDays) => {
+  const normalizedLookbackDays = normalizeOpenInteractionsLookbackDays(lookbackDays);
+  const overallEnd = endOfUtcDay(new Date());
+  const overallStart = startOfUtcDay(new Date(overallEnd));
+  overallStart.setUTCDate(overallStart.getUTCDate() - normalizedLookbackDays);
+
+  const windows = [];
+  let windowEnd = overallEnd;
+
+  while (windowEnd > overallStart) {
+    const windowStart = startOfUtcDay(new Date(windowEnd));
+    windowStart.setUTCDate(windowStart.getUTCDate() - (OPEN_INTERACTIONS_MAX_INTERVAL_DAYS - 1));
+    const effectiveStart = windowStart < overallStart ? overallStart : windowStart;
+
+    windows.push({
+      intervalStart: effectiveStart,
+      intervalEnd: windowEnd,
+    });
+
+    windowEnd = endOfUtcDay(new Date(effectiveStart));
+    windowEnd.setUTCDate(windowEnd.getUTCDate() - 1);
+  }
+
+  return windows;
+};
 
 const buildOpenInteractionsQueryBody = ({
   queueId,
-  lookbackDays = 7,
+  intervalStart,
+  intervalEnd,
   scope = "all-open",
   mediaTypes = [],
   pageNumber = 1,
@@ -1173,11 +1229,13 @@ const buildOpenInteractionsQueryBody = ({
     throw new Error("queueId is required.");
   }
 
+  if (!intervalStart || !intervalEnd) {
+    throw new Error("intervalStart and intervalEnd are required.");
+  }
+
   const normalizedScope = INTERACTION_SCOPE_VALUES.includes(scope) ? scope : "all-open";
-  const normalizedLookbackDays = Math.max(1, Math.min(Number(lookbackDays) || 7, 30));
-  const end = new Date();
-  const start = new Date(end);
-  start.setUTCDate(start.getUTCDate() - normalizedLookbackDays);
+  const start = startOfUtcDay(new Date(intervalStart));
+  const end = endOfUtcDay(new Date(intervalEnd));
 
   const segmentPredicates = [
     {
@@ -1332,7 +1390,7 @@ const queryOpenQueueInteractions = async ({
   region,
   token,
   queueId,
-  lookbackDays = 7,
+  lookbackDays = OPEN_INTERACTIONS_DEFAULT_LOOKBACK_DAYS,
   scope = "all-open",
   mediaTypes = [],
   minDurationMinutes = 0,
@@ -1344,48 +1402,53 @@ const queryOpenQueueInteractions = async ({
 
   const minDurationMs = Math.max(0, Number(minDurationMinutes) || 0) * 60 * 1000;
   const pageSize = 100;
-  let pageNumber = 1;
-  let pageCount = 1;
   const conversationsById = new Map();
+  const windows = buildOpenInteractionsLookbackWindows(lookbackDays);
 
-  while (pageNumber <= pageCount) {
-    const body = buildOpenInteractionsQueryBody({
-      queueId: normalizedQueueId,
-      lookbackDays,
-      scope,
-      mediaTypes,
-      pageNumber,
-      pageSize,
-    });
+  for (const window of windows) {
+    let pageNumber = 1;
+    let pageCount = 1;
 
-    const data = await genesysRequest({
-      region,
-      token,
-      method: "POST",
-      path: "/api/v2/analytics/conversations/details/query",
-      body,
-    });
+    while (pageNumber <= pageCount) {
+      const body = buildOpenInteractionsQueryBody({
+        queueId: normalizedQueueId,
+        intervalStart: window.intervalStart,
+        intervalEnd: window.intervalEnd,
+        scope,
+        mediaTypes,
+        pageNumber,
+        pageSize,
+      });
 
-    pageCount = Number(data?.pageCount || 1);
-    const entities = Array.isArray(data?.conversations) ? data.conversations : [];
+      const data = await genesysRequest({
+        region,
+        token,
+        method: "POST",
+        path: "/api/v2/analytics/conversations/details/query",
+        body,
+      });
 
-    entities.forEach((conversation) => {
-      const row = normalizeOpenInteractionRow(conversation, normalizedQueueId);
-      if (!row.conversationId) {
-        return;
-      }
+      pageCount = Number(data?.pageCount || 1);
+      const entities = Array.isArray(data?.conversations) ? data.conversations : [];
 
-      if (minDurationMs > 0) {
-        const startedAt = Date.parse(row.startTime);
-        if (!Number.isFinite(startedAt) || Date.now() - startedAt < minDurationMs) {
+      entities.forEach((conversation) => {
+        const row = normalizeOpenInteractionRow(conversation, normalizedQueueId);
+        if (!row.conversationId) {
           return;
         }
-      }
 
-      conversationsById.set(row.conversationId, row);
-    });
+        if (minDurationMs > 0) {
+          const startedAt = Date.parse(row.startTime);
+          if (!Number.isFinite(startedAt) || Date.now() - startedAt < minDurationMs) {
+            return;
+          }
+        }
 
-    pageNumber += 1;
+        conversationsById.set(row.conversationId, row);
+      });
+
+      pageNumber += 1;
+    }
   }
 
   return Array.from(conversationsById.values()).sort((left, right) => {
@@ -1710,6 +1773,8 @@ export {
   assignUsersToRoleDivision,
   buildGenesysApiUrl,
   buildPhoneSiteMoveBody,
+  buildOpenInteractionsLookbackWindows,
+  buildOpenInteractionsQueryBody,
   buildPhones,
   createMasterAdminRole,
   genesysRequest,
@@ -1743,6 +1808,9 @@ export {
   getDataTableRows,
   getSites,
   movePhonesToSite,
+  OPEN_INTERACTIONS_DEFAULT_LOOKBACK_DAYS,
+  OPEN_INTERACTIONS_MAX_LOOKBACK_DAYS,
+  normalizeOpenInteractionsLookbackDays,
   queryOpenQueueInteractions,
   updateConversationPriorities,
   getUserRoutingSkills,

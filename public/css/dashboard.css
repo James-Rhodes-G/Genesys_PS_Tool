@@ -159,9 +159,31 @@
   margin: 0 0 0.5rem;
 }
 
+.dashboard-table--limits {
+  table-layout: fixed;
+}
+
+.dashboard-table--limits .dashboard-table__col--key,
+.dashboard-table--limits .dashboard-table__col--description {
+  width: 40%;
+}
+
+.dashboard-table--limits .dashboard-table__col--default-value,
+.dashboard-table--limits .dashboard-table__col--configured-value {
+  width: 10%;
+}
+
 .dashboard-table--limits code {
   font-size: 0.8125rem;
   word-break: break-word;
+}
+
+.dashboard-limits-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
 }
 
 .dashboard-table {

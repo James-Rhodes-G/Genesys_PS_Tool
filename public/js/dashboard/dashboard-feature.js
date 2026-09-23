@@ -1,6 +1,12 @@
 import { bindWidgetActions } from "./widget-host.js";
 import { createDashboardWidgets } from "./widgets.js";
 import { loadInventoryEntry } from "./inventory-store.js";
+import {
+  buildHealthCheckReport,
+  HEALTH_CHECK_DEFINITIONS,
+  resolveHealthCheckContext,
+} from "./health-check-reports.js";
+import { clearQueueMembersCache, loadAllQueueMembers } from "./queue-members-cache.js";
 
 const createDashboardFeature = ({
   state,
@@ -62,6 +68,38 @@ const createDashboardFeature = ({
     }
   };
 
+  const openHealthCheckReport = async (checkId) => {
+    const credentials = requireCredentials("Dashboard");
+    if (!credentials) {
+      return;
+    }
+
+    const definition = HEALTH_CHECK_DEFINITIONS.find((entry) => entry.id === checkId);
+    if (!definition) {
+      return;
+    }
+
+    const resultId = startExportResult(
+      `Health Check: ${definition.issue}`,
+      "Loading report...",
+      renderLoadingState("Building health check report...")
+    );
+
+    try {
+      const context = await resolveHealthCheckContext(dashboardDeps, credentials, checkId);
+      const report = buildHealthCheckReport(checkId, context, resultId);
+      await finishExportResult(resultId, report.title, report.status, "", report.exportMeta);
+    } catch (error) {
+      await finishExportResult(
+        resultId,
+        `Health Check: ${definition.issue}`,
+        error.message || "Unable to build health check report",
+        "",
+        null
+      );
+    }
+  };
+
   const loadResource = async (resourceKey) => {
     const credentials = requireCredentials("Dashboard");
     if (!credentials) {
@@ -100,11 +138,25 @@ const createDashboardFeature = ({
   const disposeDashboard = () => {
     widgets.forEach((widget) => widget.dispose());
     widgets = [];
+    clearQueueMembersCache();
+  };
+
+  const loadQueueMembers = async () => {
+    const credentials = requireCredentials("Dashboard");
+    if (!credentials) {
+      return;
+    }
+
+    await loadAllQueueMembers(dashboardDeps, credentials);
+    const healthWidget = widgets.find((widget) => widget.id === "health-checks");
+    if (healthWidget) {
+      await healthWidget.refresh().catch(() => {});
+    }
   };
 
   const renderDashboardBody = (resultId) =>
     `<div class="dashboard-page">
-      <p class="muted dashboard-intro">Read-only organization health summary. Use Open Export or existing navigation items to drill into detailed workflows.</p>
+      <p class="muted dashboard-intro">Read-only organization health summary. Use View Report on health checks or existing navigation items to drill into detailed workflows.</p>
       <div class="dashboard-grid" id="${resultId}-dashboard-grid"></div>
     </div>`;
 
@@ -120,6 +172,8 @@ const createDashboardFeature = ({
       await widget.initialize(dashboardRootEl);
       bindWidgetActions(widget.getContainer(), widget, {
         openExport,
+        openHealthCheckReport,
+        loadQueueMembers,
         loadResource: async (resourceKey) => {
           await loadResource(resourceKey);
           await Promise.all(widgets.map((entry) => entry.refresh().catch(() => {})));
