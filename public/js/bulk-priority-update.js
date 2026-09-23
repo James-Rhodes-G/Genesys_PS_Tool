@@ -15,6 +15,8 @@ const escapeHtml = (value) =>
     .replace(/'/g, "&#39;");
 
 const BULK_KIND = "priority-update";
+const DEFAULT_LOOKBACK_DAYS = 30;
+const MAX_LOOKBACK_DAYS = 90;
 const INTERACTION_CHECKBOX_CLASS = "bulk-priority-interaction-checkbox";
 const MEDIA_TYPE_OPTIONS = ["voice", "chat", "email", "message", "callback"];
 const DEFAULT_MEDIA_TYPES = ["voice", "chat"];
@@ -125,7 +127,7 @@ const createBulkPrioritySelectionMeta = ({
   queueId,
   queueName,
   scope: scope || "all-open",
-  lookbackDays: String(lookbackDays ?? 7),
+  lookbackDays: String(lookbackDays ?? DEFAULT_LOOKBACK_DAYS),
   minDurationMinutes: String(minDurationMinutes ?? 0),
   mediaTypes: Array.isArray(mediaTypes) ? mediaTypes : DEFAULT_MEDIA_TYPES,
   startingPriority: String(startingPriority ?? 100),
@@ -188,8 +190,8 @@ const renderSetup = (resultId, exportMeta) => {
         className: "bulk-priority-lookback-input",
         label: "Lookback Days",
         type: "number",
-        value: String(exportMeta.lookbackDays ?? 7),
-        attrs: `data-result-id="${escapeHtml(resultId)}" min="1" max="30"`,
+        value: String(exportMeta.lookbackDays ?? DEFAULT_LOOKBACK_DAYS),
+        attrs: `data-result-id="${escapeHtml(resultId)}" min="1" max="${MAX_LOOKBACK_DAYS}"`,
       })}
       ${renderGuxFieldText({
         escapeHtml,
@@ -315,7 +317,9 @@ ${tableHtml}
 
     exportMeta.queueId = queueControl ? String(queueControl.value || "").trim() : exportMeta.queueId;
     exportMeta.scope = scopeControl ? String(scopeControl.value || "all-open").trim() : exportMeta.scope;
-    exportMeta.lookbackDays = lookbackControl ? String(lookbackControl.value || "7").trim() : exportMeta.lookbackDays;
+    exportMeta.lookbackDays = lookbackControl
+      ? String(lookbackControl.value || String(DEFAULT_LOOKBACK_DAYS)).trim()
+      : exportMeta.lookbackDays;
     exportMeta.minDurationMinutes = minDurationControl
       ? String(minDurationControl.value || "0").trim()
       : exportMeta.minDurationMinutes;
@@ -365,7 +369,7 @@ ${tableHtml}
       const interactions = await queryOpenQueueInteractions({
         ...credentials,
         queueId: exportMeta.queueId,
-        lookbackDays: Number(exportMeta.lookbackDays) || 7,
+        lookbackDays: Number(exportMeta.lookbackDays) || DEFAULT_LOOKBACK_DAYS,
         scope: exportMeta.scope || "all-open",
         mediaTypes: exportMeta.mediaTypes || DEFAULT_MEDIA_TYPES,
         minDurationMinutes: Number(exportMeta.minDurationMinutes) || 0,
@@ -575,7 +579,7 @@ ${tableHtml}
           queueId: "",
           queueName: "",
           scope: "all-open",
-          lookbackDays: 7,
+          lookbackDays: DEFAULT_LOOKBACK_DAYS,
           minDurationMinutes: 0,
           mediaTypes: DEFAULT_MEDIA_TYPES,
           startingPriority: 100,

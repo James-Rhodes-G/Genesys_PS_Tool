@@ -16,6 +16,7 @@ global.sessionStorage = global.localStorage;
 
 const {
   appendNotificationMessage,
+  closeNotificationMessageBroadcast,
   loadNotificationMessageExport,
   resetNotificationMessageExport,
   STORAGE_KEY,
@@ -54,3 +55,4 @@ if (!store[STORAGE_KEY]) {
 }
 
 console.log("notification-message-store validation passed");
+closeNotificationMessageBroadcast();

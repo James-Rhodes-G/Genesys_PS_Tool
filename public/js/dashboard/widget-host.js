@@ -131,11 +131,25 @@ const bindWidgetActions = (rootEl, widget, handlers = {}) => {
       return;
     }
 
+    if (action === "open-health-report") {
+      const checkId = target.getAttribute("data-health-check-id");
+      if (checkId && typeof handlers.openHealthCheckReport === "function") {
+        await handlers.openHealthCheckReport(checkId);
+      }
+      return;
+    }
+
+    if (action === "load-queue-members") {
+      if (typeof handlers.loadQueueMembers === "function") {
+        await handlers.loadQueueMembers();
+      }
+      return;
+    }
+
     if (action === "load-resource") {
       const resourceKey = target.getAttribute("data-resource-key");
       if (resourceKey && typeof handlers.loadResource === "function") {
         await handlers.loadResource(resourceKey);
-        await widget.refresh();
       }
     }
   });

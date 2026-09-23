@@ -44,6 +44,64 @@ assert.equal("site" in body.lines[0], false);
 assert.equal("loggedInUser" in body, false);
 assert.equal("selfUri" in body.webRtcUser, false);
 
+const sampleRemotePhone = {
+  id: "phone-remote-1",
+  name: "desk-remote",
+  site: { id: "site-old", name: "Old Site" },
+  phoneBaseSettings: { id: "pbs-remote" },
+  lines: [
+    {
+      id: "line-remote-1",
+      name: "desk-remote 1",
+      site: { id: "site-old" },
+      template: { id: "template-remote" },
+      lineBaseSettings: { id: "lbs-remote" },
+      edgeGroup: { id: "edge-group-1", name: "Remote Edge Group" },
+      properties: {
+        "station remote address": {
+          type: "string",
+          value: { default: null, instance: "+15551234567" },
+          required: true,
+        },
+        station_label: {
+          type: "string",
+          value: { instance: "Remote Phone" },
+        },
+      },
+    },
+  ],
+};
+
+const remoteBody = buildPhoneSiteMoveBody(sampleRemotePhone, {
+  siteId: "site-new",
+  siteName: "New Site",
+});
+
+assert.deepEqual(remoteBody, {
+  name: "desk-remote",
+  site: { id: "site-new", name: "New Site" },
+  phoneBaseSettings: { id: "pbs-remote" },
+  lines: [
+    {
+      id: "line-remote-1",
+      name: "desk-remote 1",
+      lineBaseSettings: { id: "lbs-remote" },
+      edgeGroup: { id: "edge-group-1" },
+      properties: {
+        "station remote address": {
+          type: "string",
+          value: { default: null, instance: "+15551234567" },
+          required: true,
+        },
+        station_label: {
+          type: "string",
+          value: { instance: "Remote Phone" },
+        },
+      },
+    },
+  ],
+});
+
 assert.equal(
   formatPhoneMoveProgressGuidance({ completed: 25, total: 100, successCount: 24, failedCount: 1 }),
   "25 / 100 phones (25%) — 24 succeeded, 1 failed"

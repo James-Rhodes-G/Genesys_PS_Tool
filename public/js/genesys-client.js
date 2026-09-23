@@ -18,6 +18,32 @@ const withGenesysFetchOptions = (options = {}) => {
   return init;
 };
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const parseRetryAfterMs = (response) => {
+  const header = response.headers.get("retry-after");
+  if (!header) {
+    return null;
+  }
+
+  const trimmed = String(header).trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const asSeconds = Number(trimmed);
+  if (Number.isFinite(asSeconds) && asSeconds >= 0) {
+    return asSeconds * 1000;
+  }
+
+  const asDate = Date.parse(trimmed);
+  if (Number.isFinite(asDate)) {
+    return Math.max(0, asDate - Date.now());
+  }
+
+  return null;
+};
+
 const parseJsonResponse = async (response, fallbackMessage) => {
   const payload = await response.json();
 
@@ -32,8 +58,21 @@ const parseJsonResponse = async (response, fallbackMessage) => {
 };
 
 const requestGenesysJson = async (url, options, fallbackMessage) => {
-  const response = await fetch(url, withGenesysFetchOptions(options));
-  return parseJsonResponse(response, fallbackMessage);
+  let attempt = 0;
+
+  while (true) {
+    const response = await fetch(url, withGenesysFetchOptions(options));
+
+    if (response.status === 429) {
+      const retryAfterMs = parseRetryAfterMs(response);
+      const delayMs = retryAfterMs != null && retryAfterMs > 0 ? retryAfterMs : Math.min(1000 * 2 ** attempt, 30000);
+      await wait(delayMs);
+      attempt += 1;
+      continue;
+    }
+
+    return parseJsonResponse(response, fallbackMessage);
+  }
 };
 
 const connect = async ({ region, token }) => {

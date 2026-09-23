@@ -21,10 +21,19 @@ const bulkActionLimiter = createRateLimiter({
   keyFn: (req) => `${req.sessionId || req.ip}:bulk`,
 });
 
+// Progress-driven bulk routes send one item per request; Genesys pacing is handled server-side.
+const INCREMENTAL_BULK_ROUTES = new Set([
+  "/api/genesys/phones/bulk-move",
+  "/api/genesys/phones/bulk-delete",
+  "/api/genesys/phones/bulk-build",
+]);
+
 const isBulkRoute = (path) =>
   path.includes("/bulk-") ||
   path.includes("/master-admin") ||
   path.includes("/schedules/load");
+
+const isIncrementalBulkRoute = (path) => INCREMENTAL_BULK_ROUTES.has(path);
 
 const createPreventionMiddleware = ({ sessionDb, getSessionConnection }) => {
   const validateOrgBind = async (req, res, next) => {
@@ -47,6 +56,9 @@ const createPreventionMiddleware = ({ sessionDb, getSessionConnection }) => {
       return next();
     }
     if (!req.path.startsWith("/api/genesys/")) {
+      return next();
+    }
+    if (isIncrementalBulkRoute(req.path)) {
       return next();
     }
     return genesysMutationLimiter(req, res, () => {
@@ -85,4 +97,4 @@ const createPreventionMiddleware = ({ sessionDb, getSessionConnection }) => {
   };
 };
 
-export { createPreventionMiddleware, DANGEROUS_ROUTE_PATTERNS };
+export { createPreventionMiddleware, DANGEROUS_ROUTE_PATTERNS, INCREMENTAL_BULK_ROUTES };

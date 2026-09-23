@@ -1,6 +1,6 @@
-import { isWebRtcPhone } from "../bulk-phone-utils.js";
 import { renderGuxDropdown } from "../gux-ui.js";
 import { escapeHtml, formatCacheAge, formatTimestamp, renderCacheStatus } from "./cache-utils.js";
+import { computeHealthChecks, peekQueueMembersById } from "./health-check-reports.js";
 import { createDashboardWidget } from "./widget-host.js";
 import {
   getInventoryData,
@@ -12,6 +12,7 @@ import { getAllResourceCacheMeta, getResourceCacheMeta } from "../resource-cache
 import { getSessionActivities } from "./session-activity.js";
 
 const ALL_LIMITS_NAMESPACE = "__all__";
+const LIMITS_PAGE_SIZE = 10;
 
 const formatLimitValue = (value) => {
   if (value == null || value === "") {
@@ -88,6 +89,39 @@ const filterLimitRows = (rows, selectedNamespace) => {
   return rows.filter((row) => row.namespaceName === selectedNamespace);
 };
 
+const paginateLimitRows = (rows, page = 1, pageSize = LIMITS_PAGE_SIZE) => {
+  const totalRows = rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const currentPage = Math.min(Math.max(1, Number(page) || 1), totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+
+  return {
+    rows: rows.slice(startIndex, startIndex + pageSize),
+    currentPage,
+    totalPages,
+    totalRows,
+    pageSize,
+    startIndex: totalRows ? startIndex + 1 : 0,
+    endIndex: totalRows ? Math.min(startIndex + pageSize, totalRows) : 0,
+  };
+};
+
+const renderLimitsPagination = ({ currentPage, totalPages, totalRows, widgetId }) => {
+  if (totalRows <= LIMITS_PAGE_SIZE) {
+    return "";
+  }
+
+  return `<div class="dashboard-limits-pagination">
+    <span class="muted">Page ${currentPage} of ${totalPages} (${totalRows} total)</span>
+    <gux-button type="button" accent="secondary" data-dashboard-action="limits-page" data-page="${currentPage - 1}" data-widget-id="${escapeHtml(
+      widgetId
+    )}"${currentPage <= 1 ? " disabled" : ""}>Previous</gux-button>
+    <gux-button type="button" accent="secondary" data-dashboard-action="limits-page" data-page="${currentPage + 1}" data-widget-id="${escapeHtml(
+      widgetId
+    )}"${currentPage >= totalPages ? " disabled" : ""}>Next</gux-button>
+  </div>`;
+};
+
 const flattenMetrics = (metrics) => {
   if (!metrics || typeof metrics !== "object") {
     return [];
@@ -129,74 +163,6 @@ const flattenMetrics = (metrics) => {
 
   visit(metrics);
   return rows.slice(0, 12);
-};
-
-const computeHealthChecks = ({ users, phones, queues, queueMembersById }) => {
-  const checks = [];
-
-  if (Array.isArray(users)) {
-    const usersWithoutRoles = users.filter(
-      (user) => !Array.isArray(user.authorization?.roles) || user.authorization.roles.length === 0
-    ).length;
-    const usersWithoutSkills = users.filter(
-      (user) => !Array.isArray(user.skills) || user.skills.length === 0
-    ).length;
-
-    checks.push({
-      id: "users-without-roles",
-      issue: "Users without Roles",
-      count: usersWithoutRoles,
-      exportNavId: "genesys-users",
-      dependsOn: ["users"],
-    });
-    checks.push({
-      id: "users-without-skills",
-      issue: "Users without Skills",
-      count: usersWithoutSkills,
-      exportNavId: "genesys-user-skills",
-      dependsOn: ["users"],
-    });
-
-    if (Array.isArray(phones)) {
-      const phoneUserIds = new Set(
-        phones.map((phone) => phone?.webRtcUser?.id).filter(Boolean)
-      );
-      const usersWithoutPhones = users.filter((user) => !phoneUserIds.has(user.id)).length;
-      checks.push({
-        id: "users-without-phones",
-        issue: "Users without Phones",
-        count: usersWithoutPhones,
-        exportNavId: "genesys-users",
-        dependsOn: ["users", "phones"],
-      });
-    }
-  }
-
-  if (Array.isArray(phones)) {
-    const webrtcWithoutUser = phones.filter(
-      (phone) => isWebRtcPhone(phone) && !phone?.webRtcUser?.id
-    ).length;
-    checks.push({
-      id: "webrtc-without-user",
-      issue: "WebRTC Phones with no corresponding User",
-      count: webrtcWithoutUser,
-      exportNavId: "genesys-phones",
-      dependsOn: ["phones"],
-    });
-  }
-
-  if (Array.isArray(queues) && queueMembersById) {
-    const emptyQueues = queues.filter((queue) => (queueMembersById[queue.id] || []).length === 0).length;
-    checks.push({
-      id: "queues-without-members",
-      issue: "Queues with no Members",
-      count: emptyQueues,
-      exportNavId: "genesys-queue-members",
-      dependsOn: ["queues", "queueMembers"],
-    });
-  }
-
-  return checks;
 };
 
 const renderInventoryRow = ({ label, count, status, cachedAt, exportNavId, resourceKey, widgetId }) => {
@@ -396,9 +362,8 @@ const createInventoryWidget = (deps) => {
 
 const createHealthChecksWidget = (deps) => {
   const widgetId = "health-checks";
-  let queueMembersById = null;
 
-  const resolveDependencies = async (credentials, { loadQueueMembers = false } = {}) => {
+  const resolveDependencies = async () => {
     const userStatus = await deps.fetchUserSyncStatus().catch(() => ({ sync: {} }));
     let users = null;
     if (userStatus?.sync?.status === "ready") {
@@ -408,19 +373,7 @@ const createHealthChecksWidget = (deps) => {
 
     const phones = deps.peekCachedPhones();
     const queues = getInventoryData("queues");
-
-    if (loadQueueMembers && Array.isArray(queues) && !queueMembersById) {
-      queueMembersById = {};
-      await Promise.all(
-        queues.map(async (queue) => {
-          try {
-            queueMembersById[queue.id] = await deps.getQueueMembers({ ...credentials, queueId: queue.id });
-          } catch {
-            queueMembersById[queue.id] = [];
-          }
-        })
-      );
-    }
+    const queueMembersById = peekQueueMembersById();
 
     return { users, phones, queues, queueMembersById };
   };
@@ -430,14 +383,9 @@ const createHealthChecksWidget = (deps) => {
     title: "Health Checks",
     className: "dashboard-widget--health",
     load: async ({ setState }) => {
-      const credentials = deps.requireCredentials("Dashboard");
-      if (!credentials) {
-        throw new Error("Connection required");
-      }
+      deps.requireCredentials("Dashboard");
 
-      const { users, phones, queues, queueMembersById: members } = await resolveDependencies(credentials, {
-        loadQueueMembers: Array.isArray(getInventoryData("queues")),
-      });
+      const { users, phones, queues, queueMembersById: members } = await resolveDependencies();
       const checks = computeHealthChecks({ users, phones, queues, queueMembersById: members });
       setState({
         status: "ready",
@@ -449,14 +397,9 @@ const createHealthChecksWidget = (deps) => {
       });
     },
     refresh: async ({ setState }) => {
-      const credentials = deps.requireCredentials("Dashboard");
-      if (!credentials) {
-        throw new Error("Connection required");
-      }
+      deps.requireCredentials("Dashboard");
 
-      const { users, phones, queues, queueMembersById: members } = await resolveDependencies(credentials, {
-        loadQueueMembers: Array.isArray(getInventoryData("queues")),
-      });
+      const { users, phones, queues, queueMembersById: members } = await resolveDependencies();
       const checks = computeHealthChecks({ users, phones, queues, queueMembersById: members });
       setState({
         status: "ready",
@@ -490,6 +433,9 @@ const createHealthChecksWidget = (deps) => {
           if (check.dependsOn.includes("queues") && !state.queuesLoaded) {
             missing.push("Queue Inventory");
           }
+          if (check.needsQueueMembers && !state.queueMembersLoaded) {
+            missing.push("Queue Members");
+          }
 
           const status =
             missing.length > 0 ? `Requires ${missing.join(" + ")}` : check.count > 0 ? "Review" : "OK";
@@ -516,9 +462,14 @@ const createHealthChecksWidget = (deps) => {
                   ? `<gux-button type="button" accent="secondary" data-dashboard-action="load-resource" data-resource-key="queues" data-widget-id="${widgetId}">Load Queue Inventory</gux-button>`
                   : ""
               }
-              <gux-button type="button" accent="ghost" data-dashboard-action="open-export" data-export-nav-id="${escapeHtml(
-                check.exportNavId
-              )}">Open Related Export</gux-button>
+              ${
+                missing.includes("Queue Members")
+                  ? `<gux-button type="button" accent="secondary" data-dashboard-action="load-queue-members" data-widget-id="${widgetId}">Load Queue Members</gux-button>`
+                  : ""
+              }
+              <gux-button type="button" accent="ghost" data-dashboard-action="open-health-report" data-health-check-id="${escapeHtml(
+                check.id
+              )}" data-widget-id="${escapeHtml(widgetId)}"${missing.length || check.count === 0 ? " disabled" : ""}>View Report</gux-button>
             </div>
           </div>`;
         })
@@ -538,6 +489,7 @@ const createOrganizationLimitsWidget = (deps) => {
       namespaces,
       rows,
       selectedNamespace,
+      currentPage: 1,
       cachedAt: Date.now(),
     });
   };
@@ -562,7 +514,26 @@ const createOrganizationLimitsWidget = (deps) => {
 
         const value =
           "value" in dropdown && dropdown.value != null ? String(dropdown.value) : ALL_LIMITS_NAMESPACE;
-        setState({ selectedNamespace: value });
+        setState({ selectedNamespace: value, currentPage: 1 });
+      });
+
+      widgetRoot.addEventListener("click", (event) => {
+        const button =
+          event.target instanceof HTMLElement
+            ? event.target.closest('[data-dashboard-action="limits-page"]')
+            : null;
+        if (!button || !widgetRoot.contains(button) || button.hasAttribute("disabled")) {
+          return;
+        }
+
+        event.preventDefault();
+
+        const page = Number(button.getAttribute("data-page"));
+        if (!Number.isFinite(page) || page < 1) {
+          return;
+        }
+
+        setState({ currentPage: page });
       });
 
       filterListenerAttached = true;
@@ -609,6 +580,8 @@ const createOrganizationLimitsWidget = (deps) => {
         })),
       ];
       const visibleRows = filterLimitRows(rows, selectedNamespace);
+      const pagination = paginateLimitRows(visibleRows, state.currentPage || 1);
+      const pageRows = pagination.rows;
 
       return `<div class="dashboard-table-wrap">
         <div class="dashboard-limits-toolbar">
@@ -625,10 +598,20 @@ const createOrganizationLimitsWidget = (deps) => {
           })}
           <div class="dashboard-row__meta">${renderCacheStatus({ status: "Cached", cachedAt: state.cachedAt })}</div>
         </div>
-        <p class="muted dashboard-limits-summary">${escapeHtml(String(visibleRows.length))} limit${visibleRows.length === 1 ? "" : "s"} shown</p>
+        <p class="muted dashboard-limits-summary">${
+          pagination.totalRows
+            ? `Showing ${escapeHtml(String(pagination.startIndex))}–${escapeHtml(String(pagination.endIndex))} of ${escapeHtml(String(pagination.totalRows))} limit${pagination.totalRows === 1 ? "" : "s"}`
+            : "0 limits shown"
+        }</p>
         <table class="dashboard-table dashboard-table--limits">
+          <colgroup>
+            <col class="dashboard-table__col dashboard-table__col--key" />
+            <col class="dashboard-table__col dashboard-table__col--description" />
+            <col class="dashboard-table__col dashboard-table__col--default-value" />
+            <col class="dashboard-table__col dashboard-table__col--configured-value" />
+          </colgroup>
           <thead><tr><th>Key</th><th>Description</th><th>Default Value</th><th>Configured Value</th></tr></thead>
-          <tbody>${visibleRows
+          <tbody>${pageRows
             .map(
               (row) =>
                 `<tr>
@@ -640,6 +623,7 @@ const createOrganizationLimitsWidget = (deps) => {
             )
             .join("")}</tbody>
         </table>
+        ${renderLimitsPagination({ ...pagination, widgetId })}
         <gux-button type="button" accent="secondary" data-dashboard-action="refresh" data-widget-id="${widgetId}">Refresh</gux-button>
       </div>`;
     },
@@ -764,4 +748,10 @@ const createDashboardWidgets = (deps) => [
   createSessionActivityWidget(),
 ];
 
-export { createDashboardWidgets, computeHealthChecks, parseOrganizationLimits, filterLimitRows };
+export {
+  createDashboardWidgets,
+  computeHealthChecks,
+  parseOrganizationLimits,
+  filterLimitRows,
+  paginateLimitRows,
+};

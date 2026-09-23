@@ -144,10 +144,18 @@ const subscribeNotificationMessageExport = (listener) => {
   };
 };
 
+const closeNotificationMessageBroadcast = () => {
+  if (broadcastChannel) {
+    broadcastChannel.close();
+    broadcastChannel = null;
+  }
+};
+
 export {
   BROADCAST_CHANNEL_NAME,
   STORAGE_KEY,
   appendNotificationMessage,
+  closeNotificationMessageBroadcast,
   clearNotificationMessageExport,
   initNotificationMessageExport,
   loadNotificationMessageExport,

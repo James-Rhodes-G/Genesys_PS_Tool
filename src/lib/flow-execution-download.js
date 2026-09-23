@@ -1,4 +1,5 @@
 import { genesysRequest, buildGenesysApiUrl } from "./genesys.js";
+import { runGenesysHttp } from "./genesys-rate-limit.js";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -149,7 +150,10 @@ const fetchExecutionDocument = async ({ region, token, downloadUri }) => {
     host: requestHost,
   });
 
-  const response = await fetch(requestUrl, { headers, redirect: "follow" });
+  const response = await runGenesysHttp(
+    () => fetch(requestUrl, { headers, redirect: "follow" }),
+    { host: requestHost, kind: "flow-execution-download" }
+  );
 
   const text = await response.text();
   console.log("[flow-execution] rendered execution document response", {
