@@ -29,5 +29,5 @@ npm-debug.log*
 
 # Optional local overrides
 *.local
-.FeaturePrompts/
-.data/backups/
+FeaturePrompts/
+data/backups/
