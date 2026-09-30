@@ -1,3 +1,108 @@
+import { applyExportProgress, yieldToUi } from "./export-progress.js";
+
+const formatBulkProgressGuidance = ({ completed, total, successCount, failedCount, unitLabel = "items" }) => {
+  const safeTotal = Math.max(0, Number(total) || 0);
+  const safeCompleted = Math.max(0, Math.min(Number(completed) || 0, safeTotal));
+  const percent = safeTotal > 0 ? Math.round((safeCompleted / safeTotal) * 100) : 0;
+
+  return `${safeCompleted} / ${safeTotal} ${unitLabel} (${percent}%) — ${successCount} succeeded, ${failedCount} failed`;
+};
+
+const buildJobSnapshotProgress = (jobSnapshot, totalItems, { message, unitLabel = "items" } = {}) => {
+  const total = Number(jobSnapshot?.total) || totalItems || 0;
+  const successCount = Number(jobSnapshot?.completed) || 0;
+  const failedCount = Number(jobSnapshot?.failed) || 0;
+  const processed = successCount + failedCount;
+  const processing = Number(jobSnapshot?.processing) || 0;
+
+  let detail = formatBulkProgressGuidance({
+    completed: processed,
+    total,
+    successCount,
+    failedCount,
+    unitLabel,
+  });
+
+  if (processing > 0) {
+    detail += ` — ${processing} in progress`;
+  }
+
+  return {
+    message,
+    current: processed,
+    total,
+    detail,
+  };
+};
+
+const executeBulkJobWithProgress = async ({
+  resultId,
+  exportMeta,
+  state,
+  totalItems,
+  actionMessage,
+  cancelLabel = "Cancel",
+  unitLabel = "items",
+  credentials,
+  runJob,
+  renderProgressBody,
+  inProgressKey = "bulkJobInProgress",
+  progressHtmlKey = "bulkJobProgressHtml",
+}) => {
+  const controller = new AbortController();
+  state.activeExports[resultId] = controller;
+
+  const previousRenderBody = exportMeta.renderBody;
+  const clearState = () => {
+    exportMeta[inProgressKey] = false;
+    exportMeta[progressHtmlKey] = null;
+    exportMeta.renderBody = previousRenderBody;
+  };
+
+  exportMeta[inProgressKey] = true;
+  if (typeof renderProgressBody === "function") {
+    exportMeta.renderBody = () =>
+      exportMeta[progressHtmlKey] || renderProgressBody(resultId, state.exportData[resultId] || exportMeta);
+  }
+
+  const progressOptions = { cancellable: true, cancelLabel };
+
+  const renderProgress = (jobSnapshot) => {
+    applyExportProgress(
+      resultId,
+      buildJobSnapshotProgress(jobSnapshot, totalItems, { message: actionMessage, unitLabel }),
+      progressOptions
+    );
+    exportMeta[progressHtmlKey] = document.getElementById(resultId)?.querySelector(".export-results__body")?.innerHTML;
+  };
+
+  renderProgress({ total: totalItems, completed: 0, failed: 0, processing: 0 });
+  await yieldToUi();
+
+  try {
+    const result = await runJob({
+      ...credentials,
+      signal: controller.signal,
+      onJobSubmitted: ({ jobId }) => {
+        state.activeExportJobs[resultId] = {
+          jobId,
+          region: credentials.region,
+          token: credentials.token,
+        };
+      },
+      onProgress: renderProgress,
+    });
+    clearState();
+    return result;
+  } catch (error) {
+    clearState();
+    throw error;
+  } finally {
+    delete state.activeExports[resultId];
+    delete state.activeExportJobs[resultId];
+  }
+};
+
 const createRoleAssignmentEntry = (roleOptions, divisionOptions, roleId, divisionId) => {
   const role = (roleOptions || []).find((option) => option.value === roleId);
   const division = (divisionOptions || []).find((option) => option.value === divisionId);
@@ -26,14 +131,31 @@ const summarizeBulkStatuses = (rows) => {
   const successCount = rows.filter((row) => row.status === "success").length;
   const failedCount = rows.filter((row) => row.status === "failed").length;
   const unknownCount = rows.length - successCount - failedCount;
+  const failureDetail =
+    failedCount > 0 || unknownCount > 0
+      ? `, ${failedCount} failed${unknownCount > 0 ? `, ${unknownCount} unknown` : ""}`
+      : "";
 
-  if (failedCount > 0 || unknownCount > 0) {
-    return `${successCount}/${rows.length} succeeded, ${failedCount} failed${
-      unknownCount > 0 ? `, ${unknownCount} unknown` : ""
-    }`;
+  return `${successCount}/${rows.length} succeeded${failureDetail}`;
+};
+
+const formatElapsedSuffix = (elapsedMs) => {
+  const safeElapsedMs = Number(elapsedMs) || 0;
+  if (safeElapsedMs <= 0) {
+    return "";
   }
 
-  return `Updated ${successCount} records`;
+  return ` in ${Math.round(safeElapsedMs / 1000)}s`;
+};
+
+const buildBulkCompletionStatus = (rows, { job = null, elapsedMs = 0 } = {}) => {
+  const baseStatus = summarizeBulkStatuses(rows);
+  const metrics = job?.metrics;
+  const durationMs =
+    Number(metrics?.durationMs) > 0 ? Number(metrics.durationMs) : Number(elapsedMs) || 0;
+  const elapsedSuffix = formatElapsedSuffix(durationMs);
+
+  return elapsedSuffix ? `${baseStatus}${elapsedSuffix}` : baseStatus;
 };
 
 const filterUsers = (users, filterText) => {
@@ -170,11 +292,16 @@ const restoreFocusedField = (root, snapshot) => {
 };
 
 export {
+  buildBulkCompletionStatus,
+  buildJobSnapshotProgress,
   captureBulkUserListScroll,
   captureFocusedField,
   createRoleAssignmentEntry,
   createSkillAssignmentEntry,
+  executeBulkJobWithProgress,
   filterUsers,
+  formatBulkProgressGuidance,
+  formatElapsedSuffix,
   getSelectedUsers,
   mapNamedOptions,
   restoreBulkUserListScroll,

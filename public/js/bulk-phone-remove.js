@@ -1,4 +1,4 @@
-import { summarizeBulkStatuses } from "./bulk-utils.js";
+import { buildBulkCompletionStatus, executeBulkJobWithProgress } from "./bulk-utils.js";
 import {
   createPhoneSelectionHandlers,
   escapeHtml,
@@ -7,7 +7,6 @@ import {
   mergeManualPhoneIds,
   normalizePhoneRecord,
   renderPhoneSelectionPanel,
-  runPhoneDeleteWithProgress,
 } from "./bulk-phone-utils.js";
 
 const CLASS_PREFIX = "bulk-phone-remove";
@@ -42,7 +41,7 @@ const renderBulkPhoneRemoveBody = (resultId, exportMeta) =>
 const createBulkPhoneRemoveFeature = ({
   state,
   getCachedPhones,
-  deletePhones,
+  deletePhonesViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
@@ -116,16 +115,25 @@ const createBulkPhoneRemoveFeature = ({
     }
 
     try {
-      const results = await runPhoneDeleteWithProgress({
-        resultEl,
-        phones: selectedPhones,
-        deletePhones,
+      const { job, results } = await executeBulkJobWithProgress({
+        resultId,
+        exportMeta,
+        state,
+        totalItems: selectedPhones.length,
+        actionMessage: `Deleting ${selectedPhones.length} phone(s)...`,
+        cancelLabel: "Cancel Delete",
+        unitLabel: "phones",
         credentials,
-        actionLabel: "Deleting phones",
+        renderProgressBody: renderBulkPhoneRemoveBody,
+        runJob: (jobOptions) =>
+          deletePhonesViaJob({
+            ...jobOptions,
+            phoneIds: selectedPhones.map((phone) => phone.id),
+          }),
       });
 
       const resultRows = mapPhoneDeleteResultsToRows(selectedPhones, results);
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
 
       invalidatePhoneResourceCache();
 
@@ -137,6 +145,16 @@ const createBulkPhoneRemoveFeature = ({
         createBulkPhoneRemoveResultsMeta(resultId, resultRows, "Phone Remover", status)
       );
     } catch (error) {
+      if (error?.name === "AbortError") {
+        finishExportResult(
+          resultId,
+          "Phone Remover",
+          "Delete cancelled.",
+          '<p class="muted">Phone delete was cancelled before completion.</p>'
+        );
+        return;
+      }
+
       finishExportResult(
         resultId,
         "Phone Remover",

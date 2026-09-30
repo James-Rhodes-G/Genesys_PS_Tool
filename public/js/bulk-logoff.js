@@ -1,5 +1,5 @@
 import { appendUserCacheStatus, loadSessionUsers } from "./session-store.js";
-import { summarizeBulkStatuses, updateBulkUserSelectionUi } from "./bulk-utils.js";
+import { buildBulkCompletionStatus, executeBulkJobWithProgress, updateBulkUserSelectionUi } from "./bulk-utils.js";
 import { renderLogoffConfirmBody } from "./bulk-confirm.js";
 import {
   createBulkUserSelectionHandlers,
@@ -49,7 +49,7 @@ const renderBulkLogoffBody = (resultId, exportMeta) => {
 const createBulkLogoffFeature = ({
   state,
   loadSessionUsers: loadUsers = loadSessionUsers,
-  logoffUsers,
+  logoffUsersViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
@@ -146,14 +146,22 @@ const createBulkLogoffFeature = ({
       return;
     }
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Logging off ${selectedUsers.length} users...`
-    );
-
     try {
-      const results = await logoffUsers({
-        ...credentials,
-        userIds: selectedUsers.map((user) => user.id),
+      const { job, results } = await executeBulkJobWithProgress({
+        resultId,
+        exportMeta,
+        state,
+        totalItems: selectedUsers.length,
+        actionMessage: `Logging off ${selectedUsers.length} user(s)...`,
+        cancelLabel: "Cancel Logoff",
+        unitLabel: "users",
+        credentials,
+        renderProgressBody: renderBulkLogoffBody,
+        runJob: (jobOptions) =>
+          logoffUsersViaJob({
+            ...jobOptions,
+            userIds: selectedUsers.map((user) => user.id),
+          }),
       });
 
       const resultRows = selectedUsers.map((user) => {
@@ -166,7 +174,7 @@ const createBulkLogoffFeature = ({
           error: logoffResult?.error || "",
         };
       });
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
 
       finishExportResult(
         resultId,
@@ -176,6 +184,16 @@ const createBulkLogoffFeature = ({
         createBulkLogoffResultsMeta(resultId, resultRows, "User Logoff", status)
       );
     } catch (error) {
+      if (error?.name === "AbortError") {
+        finishExportResult(
+          resultId,
+          "User Logoff",
+          "Logoff cancelled.",
+          '<p class="muted">User logoff was cancelled before completion.</p>'
+        );
+        return;
+      }
+
       finishExportResult(
         resultId,
         "User Logoff",

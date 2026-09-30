@@ -289,6 +289,38 @@ const getCachedUsers = async (db, { sessionId, orgId }) => {
   return rows.map((entry) => JSON.parse(entry.rowJson));
 };
 
+const getCachedUsersPaginated = async (db, { sessionId, orgId, offset = 0, limit = 100 }) => {
+  const totalRow = await db.get(
+    `SELECT COUNT(*) AS total
+     FROM cached_users
+     WHERE session_id = ? AND org_id = ?`,
+    sessionId,
+    orgId
+  );
+
+  const safeOffset = Math.max(0, Number(offset) || 0);
+  const safeLimit = Math.min(Math.max(1, Number(limit) || 100), 1000);
+
+  const rows = await db.all(
+    `SELECT row_json AS rowJson
+     FROM cached_users
+     WHERE session_id = ? AND org_id = ?
+     ORDER BY user_id ASC
+     LIMIT ? OFFSET ?`,
+    sessionId,
+    orgId,
+    safeLimit,
+    safeOffset
+  );
+
+  return {
+    total: Number(totalRow?.total) || 0,
+    offset: safeOffset,
+    limit: safeLimit,
+    users: rows.map((entry) => JSON.parse(entry.rowJson)),
+  };
+};
+
 const saveExportResult = async (
   db,
   { sessionId, orgId, exportId, exportType, title, status, meta, rows = [] }
@@ -343,6 +375,82 @@ const saveExportResult = async (
   }
 
   return { exportId, rowCount: rowList.length };
+};
+
+const initExportResult = async (
+  db,
+  { sessionId, orgId, exportId, exportType, title, status, meta }
+) => {
+  const now = Date.now();
+  const metaJson = JSON.stringify(meta ?? {});
+
+  await db.run(
+    `INSERT INTO export_results (id, session_id, org_id, export_type, title, status, meta_json, row_count, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       session_id = excluded.session_id,
+       org_id = excluded.org_id,
+       export_type = excluded.export_type,
+       title = excluded.title,
+       status = excluded.status,
+       meta_json = excluded.meta_json,
+       updated_at = excluded.updated_at`,
+    exportId,
+    sessionId,
+    orgId,
+    exportType ?? null,
+    title ?? null,
+    status ?? null,
+    metaJson,
+    now,
+    now
+  );
+
+  return { exportId, rowCount: 0 };
+};
+
+const appendExportRows = async (db, { sessionId, orgId, exportId, rows = [] }) => {
+  const exportResult = await db.get(
+    `SELECT id, row_count AS rowCount
+     FROM export_results
+     WHERE id = ? AND session_id = ? AND org_id = ?`,
+    exportId,
+    sessionId,
+    orgId
+  );
+
+  if (!exportResult) {
+    return null;
+  }
+
+  const rowList = Array.isArray(rows) ? rows : [];
+  if (rowList.length === 0) {
+    return { exportId, rowCount: exportResult.rowCount, appended: 0 };
+  }
+
+  const startIndex = Number(exportResult.rowCount) || 0;
+  const now = Date.now();
+
+  await db.run("BEGIN");
+  try {
+    for (let index = 0; index < rowList.length; index += 1) {
+      await db.run(
+        `INSERT INTO export_rows (export_id, row_index, row_json) VALUES (?, ?, ?)`,
+        exportId,
+        startIndex + index,
+        JSON.stringify(rowList[index])
+      );
+    }
+
+    const nextRowCount = startIndex + rowList.length;
+    await db.run(`UPDATE export_results SET row_count = ?, updated_at = ? WHERE id = ?`, nextRowCount, now, exportId);
+    await db.run("COMMIT");
+  } catch (error) {
+    await db.run("ROLLBACK");
+    throw error;
+  }
+
+  return { exportId, rowCount: startIndex + rowList.length, appended: rowList.length };
 };
 
 const getExportRows = async (db, { exportId, sessionId, orgId, offset = 0, limit = 100 }) => {
@@ -702,8 +810,11 @@ export {
   clearSessionData,
   consumeLaunchCode,
   createLaunchCode,
+  appendExportRows,
   getAllExportRows,
   getCachedUsers,
+  getCachedUsersPaginated,
+  initExportResult,
   getConnectedUsers,
   getCredentialVault,
   getExportRows,

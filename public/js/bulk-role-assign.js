@@ -2,7 +2,8 @@ import { appendUserCacheStatus, loadSessionUsers } from "./session-store.js";
 import {
   createRoleAssignmentEntry,
   filterUsers,
-  summarizeBulkStatuses,
+  buildBulkCompletionStatus,
+  executeBulkJobWithProgress,
   updateBulkUserSelectionUi,
 } from "./bulk-utils.js";
 import { renderRoleAssignConfirmBody } from "./bulk-confirm.js";
@@ -183,7 +184,7 @@ const createBulkRoleAssignFeature = ({
   getRoles,
   getDivisions,
   loadSessionUsers: loadUsers = loadSessionUsers,
-  assignUsersToRoleDivision,
+  assignUsersToRoleDivisionViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
@@ -265,23 +266,39 @@ const createBulkRoleAssignFeature = ({
       return;
     }
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Assigning ${exportMeta.roleAssignments.length} role assignments to ${selectedUsers.length} users...`
-    );
+    const totalItems = selectedUsers.length * exportMeta.roleAssignments.length;
 
     try {
+      const { job, results: assignmentResults } = await executeBulkJobWithProgress({
+        resultId,
+        exportMeta,
+        state,
+        totalItems,
+        actionMessage: `Assigning ${exportMeta.roleAssignments.length} role assignment(s) to ${selectedUsers.length} user(s)...`,
+        cancelLabel: "Cancel Assignment",
+        unitLabel: "assignments",
+        credentials,
+        renderProgressBody: renderBulkRoleAssignBody,
+        runJob: (jobOptions) =>
+          assignUsersToRoleDivisionViaJob({
+            ...jobOptions,
+            userIds: selectedUsers.map((user) => user.id),
+            roleAssignments: exportMeta.roleAssignments.map((assignment) => ({
+              roleId: assignment.roleId,
+              divisionId: assignment.divisionId,
+            })),
+          }),
+      });
+
       const resultRows = [];
-
-      for (const assignment of exportMeta.roleAssignments) {
-        const assignmentResults = await assignUsersToRoleDivision({
-          ...credentials,
-          userIds: selectedUsers.map((user) => user.id),
-          roleId: assignment.roleId,
-          divisionId: assignment.divisionId,
-        });
-
-        selectedUsers.forEach((user) => {
-          const assignmentResult = assignmentResults.find((entry) => entry.userId === user.id);
+      selectedUsers.forEach((user) => {
+        exportMeta.roleAssignments.forEach((assignment) => {
+          const assignmentResult = assignmentResults.find(
+            (entry) =>
+              entry.userId === user.id &&
+              entry.roleId === assignment.roleId &&
+              entry.divisionId === assignment.divisionId
+          );
           resultRows.push({
             name: user.name || "",
             userName: user.userName || user.username || "",
@@ -292,9 +309,9 @@ const createBulkRoleAssignFeature = ({
             error: assignmentResult?.error || "",
           });
         });
-      }
+      });
 
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
       finishExportResult(
         resultId,
         "Bulk Role Assign",
@@ -303,6 +320,16 @@ const createBulkRoleAssignFeature = ({
         createBulkRoleAssignResultsMeta(resultId, resultRows, "Bulk Role Assign", status)
       );
     } catch (error) {
+      if (error?.name === "AbortError") {
+        finishExportResult(
+          resultId,
+          "Bulk Role Assign",
+          "Assignment cancelled.",
+          '<p class="muted">Role assignment was cancelled before completion.</p>'
+        );
+        return;
+      }
+
       finishExportResult(
         resultId,
         "Bulk Role Assign",

@@ -1,7 +1,8 @@
 import { renderGuxFieldCheckbox, renderGuxFieldText, renderGuxFieldTextarea } from "./gux-ui.js";
-import { mapNamedOptions } from "./bulk-utils.js";
+import { formatBulkProgressGuidance, mapNamedOptions } from "./bulk-utils.js";
 import { clearCachedPhones } from "./resource-cache.js";
 
+import { applyExportProgress, yieldToUi } from "./export-progress.js";
 import { renderLoadingState, updateLoadingProgress } from "./loading-message.js";
 
 const BULK_PHONE_BATCH_SIZE = 1;
@@ -288,16 +289,108 @@ const createPhoneSelectionHandlers = ({
   };
 };
 
-const formatBulkProgressGuidance = ({ completed, total, successCount, failedCount, unitLabel = "items" }) => {
-  const safeTotal = Math.max(0, Number(total) || 0);
-  const safeCompleted = Math.max(0, Math.min(Number(completed) || 0, safeTotal));
-  const percent = safeTotal > 0 ? Math.round((safeCompleted / safeTotal) * 100) : 0;
-
-  return `${safeCompleted} / ${safeTotal} ${unitLabel} (${percent}%) — ${successCount} succeeded, ${failedCount} failed`;
-};
-
 const formatPhoneMoveProgressGuidance = (progress) =>
   formatBulkProgressGuidance({ ...progress, unitLabel: "phones" });
+
+const renderPhoneMoveJobProgressGuidance = (job, totalPhones) => {
+  const total = Number(job?.total) || totalPhones || 0;
+  const successCount = Number(job?.completed) || 0;
+  const failedCount = Number(job?.failed) || 0;
+  const processed = successCount + failedCount;
+  const processing = Number(job?.processing) || 0;
+
+  let guidance = formatBulkProgressGuidance({
+    completed: processed,
+    total,
+    successCount,
+    failedCount,
+    unitLabel: "phones",
+  });
+
+  if (processing > 0) {
+    guidance += ` — ${processing} in progress`;
+  }
+
+  return guidance;
+};
+
+const buildPhoneMoveJobProgress = (jobSnapshot, totalPhones, actionLabel) => ({
+  message: actionLabel,
+  current: (Number(jobSnapshot?.completed) || 0) + (Number(jobSnapshot?.failed) || 0),
+  total: Number(jobSnapshot?.total) || totalPhones,
+  detail: renderPhoneMoveJobProgressGuidance(jobSnapshot, totalPhones),
+});
+
+const executePhoneMoveViaJob = async ({
+  resultId,
+  exportMeta,
+  state,
+  phones,
+  siteId,
+  siteName,
+  movePhonesToSiteViaJob,
+  credentials,
+  actionLabel,
+  cancelLabel = "Cancel Move",
+  renderProgressBody,
+}) => {
+  const totalPhones = phones.length;
+  const controller = new AbortController();
+  state.activeExports[resultId] = controller;
+
+  const previousRenderBody = exportMeta.renderBody;
+  const clearMoveUiState = () => {
+    exportMeta.moveInProgress = false;
+    exportMeta.moveProgressHtml = null;
+    exportMeta.renderBody = previousRenderBody;
+  };
+
+  exportMeta.moveInProgress = true;
+  if (typeof renderProgressBody === "function") {
+    exportMeta.renderBody = () =>
+      exportMeta.moveProgressHtml || renderProgressBody(resultId, state.exportData[resultId] || exportMeta);
+  }
+
+  const progressOptions = { cancellable: true, cancelLabel };
+
+  const renderProgress = (jobSnapshot) => {
+    applyExportProgress(resultId, buildPhoneMoveJobProgress(jobSnapshot, totalPhones, actionLabel), progressOptions);
+    exportMeta.moveProgressHtml = document
+      .getElementById(resultId)
+      ?.querySelector(".export-results__body")
+      ?.innerHTML;
+  };
+
+  renderProgress({ total: totalPhones, completed: 0, failed: 0, processing: 0 });
+  await yieldToUi();
+
+  try {
+    const { job, results } = await movePhonesToSiteViaJob({
+      ...credentials,
+      phoneIds: phones.map((phone) => phone.id),
+      siteId,
+      siteName,
+      signal: controller.signal,
+      onJobSubmitted: ({ jobId }) => {
+        state.activeExportJobs[resultId] = {
+          jobId,
+          region: credentials.region,
+          token: credentials.token,
+        };
+      },
+      onProgress: renderProgress,
+    });
+
+    clearMoveUiState();
+    return { job, results };
+  } catch (error) {
+    clearMoveUiState();
+    throw error;
+  } finally {
+    delete state.activeExports[resultId];
+    delete state.activeExportJobs[resultId];
+  }
+};
 
 const runBulkItemsWithProgress = async ({
   resultEl,
@@ -310,9 +403,10 @@ const runBulkItemsWithProgress = async ({
   buildFailureResult,
 }) => {
   if (!resultEl || !items?.length) {
-    return [];
+    return { results: [], elapsedMs: 0 };
   }
 
+  const startedAt = Date.now();
   const total = items.length;
   const allResults = [];
   let successCount = 0;
@@ -320,7 +414,7 @@ const runBulkItemsWithProgress = async ({
 
   const bodyEl = resultEl.querySelector(".export-results__body");
   if (!bodyEl) {
-    return [];
+    return { results: [], elapsedMs: 0 };
   }
 
   bodyEl.innerHTML = renderLoadingState({
@@ -378,7 +472,10 @@ const runBulkItemsWithProgress = async ({
     });
   }
 
-  return allResults;
+  return {
+    results: allResults,
+    elapsedMs: Date.now() - startedAt,
+  };
 };
 
 const runPhoneMoveWithProgress = async ({
@@ -501,6 +598,7 @@ const runPhoneBuildWithProgress = async ({
 export {
   createPhoneSelectionHandlers,
   escapeHtml,
+  executePhoneMoveViaJob,
   filterPhones,
   filterUsersWithoutWebRtcPhone,
   formatBulkProgressGuidance,
@@ -518,6 +616,7 @@ export {
   normalizePhoneRecord,
   parseDelimitedIds,
   renderPhoneSelectionPanel,
+  renderPhoneMoveJobProgressGuidance,
   renderSelectedPhonesSummary,
   runBulkItemsWithProgress,
   runPhoneBuildWithProgress,

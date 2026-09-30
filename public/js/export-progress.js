@@ -10,14 +10,21 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const renderExportProgressState = ({ message, current, total, resultId, cancellable = false }) => {
+const renderExportProgressState = ({
+  message,
+  current,
+  total,
+  resultId,
+  cancellable = false,
+  detail,
+  cancelLabel = "Cancel Export",
+}) => {
   const safeTotal = Math.max(0, Number(total) || 0);
   const safeCurrent = Math.max(0, Math.min(Number(current) || 0, safeTotal || Number(current) || 0));
   const percent = safeTotal > 0 ? Math.round((safeCurrent / safeTotal) * 100) : 0;
-  const detail =
-    safeTotal > 0
-      ? `${safeCurrent} / ${safeTotal} users (${percent}%)`
-      : "Preparing user data...";
+  const resolvedDetail =
+    detail ||
+    (safeTotal > 0 ? `${safeCurrent} / ${safeTotal} users (${percent}%)` : "Preparing user data...");
 
   const cancelButtonHtml =
     cancellable && resultId
@@ -27,14 +34,14 @@ const renderExportProgressState = ({ message, current, total, resultId, cancella
             type="button"
             accent="secondary"
             data-result-id="${escapeHtml(resultId)}"
-          >Cancel Export</gux-button>
+          >${escapeHtml(cancelLabel)}</gux-button>
         </div>`
       : "";
 
   return `<div class="export-progress">
     ${renderLoadingState({
       primaryMessage: message || "Loading...",
-      additionalGuidance: detail,
+      additionalGuidance: resolvedDetail,
       value: safeTotal > 0 ? safeCurrent : undefined,
       max: safeTotal > 0 ? safeTotal : undefined,
     })}
@@ -80,13 +87,42 @@ const renderUserCacheRefreshLink = (resultId, userCache) => {
 };
 
 const renderExportSummaryStatus = (resultId, exportMeta) => {
-  const baseStatus = exportMeta?.statusBase || exportMeta?.status || "";
+  const baseStatus = exportMeta?.status || exportMeta?.statusBase || "";
   if (!exportMeta?.userCache?.syncedAt) {
     return escapeHtml(baseStatus);
   }
 
   return `${escapeHtml(baseStatus)} — ${renderUserCacheRefreshLink(resultId, exportMeta.userCache)}`;
 };
+
+const applyExportProgress = (resultId, progress, { cancellable = false, cancelLabel } = {}) => {
+  const resultEl = document.getElementById(resultId);
+  const body = resultEl?.querySelector(".export-results__body");
+  if (body) {
+    body.innerHTML = renderExportProgressState({
+      ...progress,
+      resultId,
+      cancellable,
+      cancelLabel,
+    });
+  }
+
+  const statusEl =
+    resultEl?.querySelector(".export-results__summary > .export-results__status") ||
+    resultEl?.querySelector(".export-results__summary > .muted");
+  if (statusEl && progress.total > 0) {
+    statusEl.textContent = progress.detail || `${progress.current} / ${progress.total} users`;
+  }
+
+  return Boolean(body);
+};
+
+const yieldToUi = () =>
+  new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(resolve);
+    });
+  });
 
 const findClickControl = (event, className) => {
   if (typeof event.composedPath === "function") {
@@ -102,9 +138,11 @@ const findClickControl = (event, className) => {
 };
 
 export {
+  applyExportProgress,
   buildProgressiveExportStatus,
   buildProgressiveExportStatusParts,
   findClickControl,
   renderExportProgressState,
   renderExportSummaryStatus,
+  yieldToUi,
 };

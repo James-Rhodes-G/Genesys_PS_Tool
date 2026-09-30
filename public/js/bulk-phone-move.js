@@ -1,15 +1,15 @@
 import { renderGuxFieldSelect, resolveDropdownChange } from "./gux-ui.js";
-import { summarizeBulkStatuses } from "./bulk-utils.js";
+import { buildBulkCompletionStatus } from "./bulk-utils.js";
 import {
   createPhoneSelectionHandlers,
   escapeHtml,
+  executePhoneMoveViaJob,
   mapNamedOptions,
   mergeManualPhoneIds,
   mapPhoneMoveResultsToRows,
   normalizePhoneRecord,
   invalidatePhoneResourceCache,
   renderPhoneSelectionPanel,
-  runPhoneMoveWithProgress,
 } from "./bulk-phone-utils.js";
 
 const CLASS_PREFIX = "bulk-phone-move";
@@ -65,7 +65,7 @@ const createBulkPhoneMoveFeature = ({
   state,
   getCachedPhones,
   getCachedSites,
-  movePhonesToSite,
+  movePhonesToSiteViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
@@ -151,18 +151,22 @@ const createBulkPhoneMoveFeature = ({
     }
 
     try {
-      const results = await runPhoneMoveWithProgress({
-        resultEl,
+      const { job, results } = await executePhoneMoveViaJob({
+        resultId,
+        exportMeta,
+        state,
         phones: selectedPhones,
         siteId,
         siteName,
-        movePhonesToSite,
+        movePhonesToSiteViaJob,
         credentials,
-        actionLabel: "Moving phones",
+        actionLabel: "Moving phones...",
+        cancelLabel: "Cancel Move",
+        renderProgressBody: renderBulkPhoneMoveBody,
       });
 
       const resultRows = mapPhoneMoveResultsToRows(selectedPhones, results);
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
 
       invalidatePhoneResourceCache();
 
@@ -174,12 +178,21 @@ const createBulkPhoneMoveFeature = ({
         createBulkPhoneMoveResultsMeta(resultId, resultRows, "Phone Mover", status)
       );
     } catch (error) {
-      finishExportResult(
-        resultId,
-        "Phone Mover",
-        error.message || "Phone move failed",
-        renderJsonBlock(error.payload || { error: error.message || "Phone move failed" })
-      );
+      if (error?.name === "AbortError") {
+        finishExportResult(
+          resultId,
+          "Phone Mover",
+          "Move cancelled.",
+          '<p class="muted">Phone move was cancelled before completion.</p>'
+        );
+      } else {
+        finishExportResult(
+          resultId,
+          "Phone Mover",
+          error.message || "Phone move failed",
+          renderJsonBlock(error.payload || { error: error.message || "Phone move failed" })
+        );
+      }
     }
   };
 

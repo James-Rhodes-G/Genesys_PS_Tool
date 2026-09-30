@@ -1,5 +1,5 @@
 import { appendUserCacheStatus, loadSessionUsers } from "./session-store.js";
-import { summarizeBulkStatuses, updateBulkUserSelectionUi } from "./bulk-utils.js";
+import { updateBulkUserSelectionUi } from "./bulk-utils.js";
 import { renderPhoneBuildConfirmBody } from "./bulk-confirm.js";
 import { renderGuxFieldSelect, renderGuxFieldText, resolveDropdownChange } from "./gux-ui.js";
 import {
@@ -9,7 +9,8 @@ import {
   mapNamedOptions,
   renderBulkActionGrid,
 } from "./bulk-user-picker.js";
-import { filterUsersWithoutWebRtcPhone, invalidatePhoneResourceCache, mapPhoneBuildResultsToRows, runPhoneBuildWithProgress } from "./bulk-phone-utils.js";
+import { buildBulkCompletionStatus, executeBulkJobWithProgress } from "./bulk-utils.js";
+import { filterUsersWithoutWebRtcPhone, invalidatePhoneResourceCache, mapPhoneBuildResultsToRows } from "./bulk-phone-utils.js";
 
 const BULK_KIND = "phone-build";
 const USER_CHECKBOX_CLASS = "bulk-phone-build-user-checkbox";
@@ -84,7 +85,7 @@ const createBulkPhoneBuildFeature = ({
   state,
   loadSessionUsers: loadUsers = loadSessionUsers,
   getPhones,
-  buildPhones,
+  buildPhonesViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
@@ -194,17 +195,30 @@ const createBulkPhoneBuildFeature = ({
     }
 
     try {
-      const results = await runPhoneBuildWithProgress({
-        resultEl,
-        users: selectedUsers,
-        templatePhoneId,
-        buildPhones,
+      const { job, results } = await executeBulkJobWithProgress({
+        resultId,
+        exportMeta,
+        state,
+        totalItems: selectedUsers.length,
+        actionMessage: `Building phones for ${selectedUsers.length} user(s)...`,
+        cancelLabel: "Cancel Build",
+        unitLabel: "phones",
         credentials,
-        actionLabel: "Building phones",
+        renderProgressBody: renderBulkPhoneBuildBody,
+        runJob: (jobOptions) =>
+          buildPhonesViaJob({
+            ...jobOptions,
+            users: selectedUsers.map((user) => ({
+              id: user.id,
+              name: user.name || "",
+              userName: user.userName || user.username || "",
+            })),
+            templatePhoneId,
+          }),
       });
 
       const resultRows = mapPhoneBuildResultsToRows(selectedUsers, results);
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
 
       invalidatePhoneResourceCache();
 
@@ -216,6 +230,16 @@ const createBulkPhoneBuildFeature = ({
         createBulkPhoneBuildResultsMeta(resultId, resultRows, "Phone Build", status)
       );
     } catch (error) {
+      if (error?.name === "AbortError") {
+        finishExportResult(
+          resultId,
+          "Phone Build",
+          "Build cancelled.",
+          '<p class="muted">Phone build was cancelled before completion.</p>'
+        );
+        return;
+      }
+
       finishExportResult(
         resultId,
         "Phone Build",

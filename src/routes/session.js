@@ -1,11 +1,14 @@
 import { Router } from "express";
 import {
+  appendExportRows,
   bindSessionConnection,
   clearSessionData,
   getAllExportRows,
+  getCachedUsersPaginated,
   getExportRows,
   getSessionConnection,
   getUserSyncState,
+  initExportResult,
   saveExportResult,
 } from "../data/session-db.js";
 import { readCachedSessionUsers, syncSessionUsers, USERS_CACHE_EXPAND } from "../lib/user-cache.js";
@@ -166,9 +169,75 @@ const createSessionRouter = ({ sessionDb }) => {
         return;
       }
 
-      res.status(200).json({ users, sync });
+      const hasPagination = req.query?.offset != null || req.query?.limit != null;
+      if (!hasPagination) {
+        res.status(200).json({ users, sync });
+        return;
+      }
+
+      const paginated = await getCachedUsersPaginated(sessionDb, {
+        sessionId: bound.sessionId,
+        orgId: bound.orgId,
+        offset: req.query.offset,
+        limit: req.query.limit,
+      });
+
+      res.status(200).json({ ...paginated, sync });
     } catch (error) {
       res.status(500).json({ error: error.message || "Failed to load cached users." });
+    }
+  });
+
+  router.post("/api/session/exports/init", async (req, res) => {
+    const bound = await requireBoundSession(req, res);
+    if (!bound) {
+      return;
+    }
+
+    const exportId = String(req.body?.exportId || req.body?.resultId || "").trim();
+    if (!exportId) {
+      res.status(400).json({ error: "exportId is required." });
+      return;
+    }
+
+    try {
+      const payload = await initExportResult(sessionDb, {
+        sessionId: bound.sessionId,
+        orgId: bound.orgId,
+        exportId,
+        exportType: req.body?.exportType || "",
+        title: req.body?.title || "",
+        status: req.body?.status || "Running",
+        meta: req.body?.meta || {},
+      });
+      res.status(200).json(payload);
+    } catch (error) {
+      res.status(500).json({ error: error.message || "Failed to initialize export." });
+    }
+  });
+
+  router.post("/api/session/exports/:exportId/rows", async (req, res) => {
+    const bound = await requireBoundSession(req, res);
+    if (!bound) {
+      return;
+    }
+
+    try {
+      const payload = await appendExportRows(sessionDb, {
+        sessionId: bound.sessionId,
+        orgId: bound.orgId,
+        exportId: req.params.exportId,
+        rows: req.body?.rows || [],
+      });
+
+      if (!payload) {
+        res.status(404).json({ error: "Export not found for this session and organization." });
+        return;
+      }
+
+      res.status(200).json(payload);
+    } catch (error) {
+      res.status(500).json({ error: error.message || "Failed to append export rows." });
     }
   });
 

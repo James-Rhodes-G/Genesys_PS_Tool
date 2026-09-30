@@ -1,3 +1,5 @@
+process.env.GENESYS_API_CONCURRENCY = "1";
+
 import assert from "node:assert/strict";
 import {
   parseRetryAfterMs,

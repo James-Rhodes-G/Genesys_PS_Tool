@@ -1,14 +1,14 @@
 import { renderGuxFieldSelect, resolveDropdownChange } from "./gux-ui.js";
-import { summarizeBulkStatuses } from "./bulk-utils.js";
+import { buildBulkCompletionStatus } from "./bulk-utils.js";
 import {
   escapeHtml,
+  executePhoneMoveViaJob,
   getPhonesForSite,
   invalidatePhoneResourceCache,
   mapNamedOptions,
   mapPhoneMoveResultsToRows,
   normalizePhoneRecord,
   renderSelectedPhonesSummary,
-  runPhoneMoveWithProgress,
 } from "./bulk-phone-utils.js";
 
 const CLASS_PREFIX = "bulk-phone-site-migrate";
@@ -89,7 +89,7 @@ const createBulkPhoneSiteMigrateFeature = ({
   state,
   getCachedPhones,
   getCachedSites,
-  movePhonesToSite,
+  movePhonesToSiteViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
@@ -171,18 +171,22 @@ const createBulkPhoneSiteMigrateFeature = ({
     }
 
     try {
-      const results = await runPhoneMoveWithProgress({
-        resultEl,
+      const { job, results } = await executePhoneMoveViaJob({
+        resultId,
+        exportMeta,
+        state,
         phones: phonesToMove,
         siteId: destinationSiteId,
         siteName: destinationSiteName,
-        movePhonesToSite,
+        movePhonesToSiteViaJob,
         credentials,
-        actionLabel: "Migrating phones",
+        actionLabel: "Migrating phones...",
+        cancelLabel: "Cancel Migration",
+        renderProgressBody: renderBulkPhoneSiteMigrateBody,
       });
 
       const resultRows = mapPhoneMoveResultsToRows(phonesToMove, results);
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
 
       invalidatePhoneResourceCache();
 
@@ -194,12 +198,21 @@ const createBulkPhoneSiteMigrateFeature = ({
         createBulkPhoneSiteMigrateResultsMeta(resultId, resultRows, "Phone Site Migrator", status)
       );
     } catch (error) {
-      finishExportResult(
-        resultId,
-        "Phone Site Migrator",
-        error.message || "Phone site migration failed",
-        renderJsonBlock(error.payload || { error: error.message || "Phone site migration failed" })
-      );
+      if (error?.name === "AbortError") {
+        finishExportResult(
+          resultId,
+          "Phone Site Migrator",
+          "Migration cancelled.",
+          '<p class="muted">Phone site migration was cancelled before completion.</p>'
+        );
+      } else {
+        finishExportResult(
+          resultId,
+          "Phone Site Migrator",
+          error.message || "Phone site migration failed",
+          renderJsonBlock(error.payload || { error: error.message || "Phone site migration failed" })
+        );
+      }
     }
   };
 

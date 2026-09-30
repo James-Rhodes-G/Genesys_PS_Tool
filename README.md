@@ -53,6 +53,15 @@ Copy `.env.example` to `.env` and configure:
 | `LAUNCH_BASE_URL` | Public base URL for launch redirects (defaults to request host) |
 | `LAUNCH_VAULT_TTL_MS` | Vault entry lifetime (default 8 hours) |
 | `LAUNCH_CODE_TTL_MS` | One-time launch code lifetime (default 60 seconds) |
+| `WORKER_COUNT` | Max concurrent work items per job (default `4`) |
+| `GENESYS_API_CONCURRENCY` | Max concurrent in-flight Genesys HTTP requests (default `4`) |
+| `MAX_RETRIES` | Per work-item retry budget (default `5`) |
+| `MAX_HTTP_RETRIES` | HTTP-layer retries for 429/5xx before surfacing failure (default `5`) |
+| `RETRY_BASE_DELAY_MS` | Exponential backoff base delay (default `1000`) |
+| `JOB_TTL_MS` | In-memory job retention after completion (default `86400000` — 24 hours) |
+| `JOB_MAX_ITEMS` | Maximum work items per submitted job (default `50000`) |
+| `GENESYS_MIN_REQUEST_INTERVAL_MS` | Minimum spacing between Genesys API requests (default `250`) |
+| `GENESYS_RATE_LIMIT_MAX_DELAY_MS` | Max backoff delay for rate-limit retries (default `30000`) |
 
 **Security:** Manual OAuth login still keeps tokens in browser `localStorage`. Extension launch uses a server-side encrypted vault bound to the `ps_tool_session` cookie — the Genesys token is sent once at pair time and not repeated on handoff. Never commit `.env`, access tokens, or SQLite database files.
 
@@ -379,6 +388,59 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 | `scripts/test-mock-api.mjs` | Mock API slug normalization, redaction, lifecycle, validation |
 | `scripts/test-flow-execution-parser.mjs` | Execution parser timeline, variables, search, and error navigation |
 | `scripts/test-launch-security.mjs` | Launch schema validation, HMAC verification, vault encryption, rate limiting |
+
+## Concurrent job processing
+
+Long-running bulk operations can be submitted as background jobs. The server returns a job ID immediately; clients poll for progress.
+
+### Submit a job
+
+```bash
+curl -X POST http://localhost:3000/api/jobs \
+  -H "Content-Type: application/json" \
+  -H "x-genesys-region: us-east-1" \
+  -H "x-genesys-token: $TOKEN" \
+  -d '{
+    "type": "bulk-skill-assign",
+    "payload": {
+      "userIds": ["user-id-1", "user-id-2"],
+      "skills": [{ "id": "skill-id", "proficiency": 5.0 }]
+    }
+  }'
+```
+
+Response:
+
+```json
+{ "jobId": "abc123", "status": "queued" }
+```
+
+### Poll job status
+
+```bash
+curl http://localhost:3000/api/jobs/{jobId} \
+  -H "x-genesys-region: us-east-1" \
+  -H "x-genesys-token: $TOKEN"
+```
+
+### Fetch results (after completion)
+
+```bash
+curl "http://localhost:3000/api/jobs/{jobId}/results?offset=0&limit=100" \
+  -H "x-genesys-region: us-east-1" \
+  -H "x-genesys-token: $TOKEN"
+```
+
+Existing synchronous endpoints (for example `POST /api/genesys/users/bulk-skill-assign`) remain unchanged. See [`docs/concurrent-processing.md`](docs/concurrent-processing.md) for architecture details and migration guidance.
+
+### Testing concurrency locally
+
+```bash
+WORKER_COUNT=4 GENESYS_API_CONCURRENCY=4 npm test
+WORKER_COUNT=4 GENESYS_API_CONCURRENCY=4 npm run dev
+```
+
+Compare `metrics.itemsPerSecond` and `metrics.durationMs` in completed job responses across different `WORKER_COUNT` values.
 
 ## Preparing for GitHub
 

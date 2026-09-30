@@ -1,5 +1,5 @@
 import { appendUserCacheStatus, loadSessionUsers } from "./session-store.js";
-import { summarizeBulkStatuses, updateBulkUserSelectionUi } from "./bulk-utils.js";
+import { buildBulkCompletionStatus, executeBulkJobWithProgress, updateBulkUserSelectionUi } from "./bulk-utils.js";
 import { renderPasswordResetConfirmBody } from "./bulk-confirm.js";
 import {
   renderGuxFieldCheckbox,
@@ -123,7 +123,7 @@ const createBulkPasswordResetFeature = ({
   state,
   loadSessionUsers: loadUsers = loadSessionUsers,
   getPasswordPolicy,
-  resetUsersPasswords,
+  resetUsersPasswordsViaJob,
   passwordResetWorkflow,
   requireCredentials,
   startExportResult,
@@ -224,17 +224,25 @@ const createBulkPasswordResetFeature = ({
       return;
     }
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Resetting passwords for ${plan.passwordResets.length} users...`
-    );
-
     try {
-      const results = await resetUsersPasswords({
-        ...credentials,
-        passwordResets: plan.passwordResets.map((entry) => ({
-          userId: entry.userId,
-          newPassword: entry.newPassword,
-        })),
+      const { job, results } = await executeBulkJobWithProgress({
+        resultId,
+        exportMeta,
+        state,
+        totalItems: plan.passwordResets.length,
+        actionMessage: `Resetting passwords for ${plan.passwordResets.length} user(s)...`,
+        cancelLabel: "Cancel Reset",
+        unitLabel: "users",
+        credentials,
+        renderProgressBody: renderBulkPasswordResetBody,
+        runJob: (jobOptions) =>
+          resetUsersPasswordsViaJob({
+            ...jobOptions,
+            passwordResets: plan.passwordResets.map((entry) => ({
+              userId: entry.userId,
+              newPassword: entry.newPassword,
+            })),
+          }),
       });
 
       const resultRows = plan.resultRows.map((row) => {
@@ -245,7 +253,7 @@ const createBulkPasswordResetFeature = ({
           error: resetResult?.error || "",
         };
       });
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
 
       finishExportResult(
         resultId,
@@ -257,6 +265,16 @@ const createBulkPasswordResetFeature = ({
         })
       );
     } catch (error) {
+      if (error?.name === "AbortError") {
+        finishExportResult(
+          resultId,
+          "Bulk Password Reset",
+          "Reset cancelled.",
+          '<p class="muted">Password reset was cancelled before completion.</p>'
+        );
+        return;
+      }
+
       finishExportResult(
         resultId,
         "Bulk Password Reset",

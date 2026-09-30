@@ -2,9 +2,11 @@ import { appendUserCacheStatus, loadSessionUsers } from "./session-store.js";
 import {
   createSkillAssignmentEntry,
   filterUsers,
-  summarizeBulkStatuses,
+  buildBulkCompletionStatus,
   updateBulkUserSelectionUi,
 } from "./bulk-utils.js";
+import { formatBulkProgressGuidance } from "./bulk-utils.js";
+import { applyExportProgress, yieldToUi } from "./export-progress.js";
 import { renderSkillAssignConfirmBody } from "./bulk-confirm.js";
 import {
   renderGuxFieldCheckbox,
@@ -12,6 +14,7 @@ import {
   renderGuxFieldText,
   resolveDropdownChange,
 } from "./gux-ui.js";
+import { renderLoadingState } from "./loading-message.js";
 
 const escapeHtml = (value) =>
   String(value == null ? "" : value)
@@ -178,17 +181,49 @@ const createBulkSkillAssignResultsMeta = (resultId, rows, title, status) => ({
   selectedColumnKeys: ["name", "userName", "id", "skillName", "proficiency", "status", "error"],
 });
 
+const renderSkillAssignProgressGuidance = (job, totalUsers) => {
+  const total = Number(job?.total) || totalUsers || 0;
+  const successCount = Number(job?.completed) || 0;
+  const failedCount = Number(job?.failed) || 0;
+  const processed = successCount + failedCount;
+  const processing = Number(job?.processing) || 0;
+
+  let guidance = formatBulkProgressGuidance({
+    completed: processed,
+    total,
+    successCount,
+    failedCount,
+    unitLabel: "users",
+  });
+
+  if (processing > 0) {
+    guidance += ` — ${processing} in progress`;
+  }
+
+  return guidance;
+};
+
+const buildAssignmentProgress = (jobSnapshot, totalUsers) => {
+  const processed = (Number(jobSnapshot?.completed) || 0) + (Number(jobSnapshot?.failed) || 0);
+
+  return {
+    message: `Assigning skills to ${totalUsers} users...`,
+    current: processed,
+    total: Number(jobSnapshot?.total) || totalUsers,
+    detail: renderSkillAssignProgressGuidance(jobSnapshot, totalUsers),
+  };
+};
+
 const createBulkSkillAssignFeature = ({
   state,
   getSkills,
   loadSessionUsers: loadUsers = loadSessionUsers,
-  assignRoutingSkillsToUsers,
+  assignRoutingSkillsToUsersViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
   rerenderExportSection,
   prependExportResult,
-  renderLoadingState,
   renderJsonBlock,
   confirmModal,
 }) => {
@@ -262,18 +297,53 @@ const createBulkSkillAssignFeature = ({
       return;
     }
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Assigning ${exportMeta.skillAssignments.length} skills to ${selectedUsers.length} users...`
-    );
+    const totalUsers = selectedUsers.length;
+    const controller = new AbortController();
+    state.activeExports[resultId] = controller;
+
+    const previousRenderBody = exportMeta.renderBody;
+    const clearAssignmentUiState = () => {
+      exportMeta.assignmentInProgress = false;
+      exportMeta.assignmentProgressHtml = null;
+      exportMeta.renderBody = previousRenderBody;
+    };
+
+    exportMeta.assignmentInProgress = true;
+    exportMeta.renderBody = () =>
+      exportMeta.assignmentProgressHtml ||
+      renderBulkSkillAssignBody(resultId, state.exportData[resultId] || exportMeta);
+
+    const progressOptions = { cancellable: true, cancelLabel: "Cancel Assignment" };
+
+    const renderProgress = (jobSnapshot) => {
+      const progress = buildAssignmentProgress(jobSnapshot, totalUsers);
+      applyExportProgress(resultId, progress, progressOptions);
+      exportMeta.assignmentProgressHtml = document
+        .getElementById(resultId)
+        ?.querySelector(".export-results__body")
+        ?.innerHTML;
+    };
+
+    renderProgress({ total: totalUsers, completed: 0, failed: 0, processing: 0 });
+    await yieldToUi();
 
     try {
-      const assignmentResults = await assignRoutingSkillsToUsers({
+      const { job, results: assignmentResults } = await assignRoutingSkillsToUsersViaJob({
         ...credentials,
         userIds: selectedUsers.map((user) => user.id),
         skills: exportMeta.skillAssignments.map((assignment) => ({
           id: assignment.skillId,
           proficiency: assignment.proficiency,
         })),
+        signal: controller.signal,
+        onJobSubmitted: ({ jobId }) => {
+          state.activeExportJobs[resultId] = {
+            jobId,
+            region: credentials.region,
+            token: credentials.token,
+          };
+        },
+        onProgress: renderProgress,
       });
 
       const resultRows = [];
@@ -291,8 +361,9 @@ const createBulkSkillAssignFeature = ({
           });
         });
       });
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
 
+      clearAssignmentUiState();
       finishExportResult(
         resultId,
         "Bulk Skill Assign",
@@ -301,12 +372,25 @@ const createBulkSkillAssignFeature = ({
         createBulkSkillAssignResultsMeta(resultId, resultRows, "Bulk Skill Assign", status)
       );
     } catch (error) {
-      finishExportResult(
-        resultId,
-        "Bulk Skill Assign",
-        error.message || "Bulk skill assignment failed",
-        renderJsonBlock(error.payload || { error: error.message || "Bulk skill assignment failed" })
-      );
+      clearAssignmentUiState();
+      if (error?.name === "AbortError" || controller.signal.aborted) {
+        finishExportResult(
+          resultId,
+          "Bulk Skill Assign",
+          "Assignment cancelled.",
+          '<p class="muted">Skill assignment was cancelled before completion.</p>'
+        );
+      } else {
+        finishExportResult(
+          resultId,
+          "Bulk Skill Assign",
+          error.message || "Bulk skill assignment failed",
+          renderJsonBlock(error.payload || { error: error.message || "Bulk skill assignment failed" })
+        );
+      }
+    } finally {
+      delete state.activeExports[resultId];
+      delete state.activeExportJobs[resultId];
     }
   };
 
