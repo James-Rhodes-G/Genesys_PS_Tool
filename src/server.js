@@ -3,6 +3,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createGenesysRouter } from "./routes/genesys.js";
+import { createJobsRouter } from "./routes/jobs.js";
 import { createLogsRouter } from "./routes/logs.js";
 import { createSessionRouter } from "./routes/session.js";
 import {
@@ -228,6 +229,7 @@ const start = async () => {
   );
   app.use("/", createSessionRouter({ sessionDb }));
   app.use("/", createGenesysRouter());
+  app.use("/", createJobsRouter({ sessionDb }));
   app.use(
     "/",
     createMockApiManagementRouter({

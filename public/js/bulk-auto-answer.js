@@ -1,6 +1,6 @@
 import { appendUserCacheStatus, loadSessionUsers } from "./session-store.js";
 import { renderGuxFieldSelect, resolveDropdownChange, readControlValue } from "./gux-ui.js";
-import { summarizeBulkStatuses, updateBulkUserSelectionUi } from "./bulk-utils.js";
+import { buildBulkCompletionStatus, executeBulkJobWithProgress, updateBulkUserSelectionUi } from "./bulk-utils.js";
 import { renderAutoAnswerConfirmBody } from "./bulk-confirm.js";
 import {
   createBulkUserSelectionHandlers,
@@ -61,7 +61,7 @@ const renderBulkAutoAnswerBody = (resultId, exportMeta) => {
 const createBulkAutoAnswerFeature = ({
   state,
   loadSessionUsers: loadUsers = loadSessionUsers,
-  setUsersAutoAnswer,
+  setUsersAutoAnswerViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
@@ -159,19 +159,27 @@ const createBulkAutoAnswerFeature = ({
       return;
     }
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Updating auto answer for ${selectedUsers.length} users...`
-    );
-
     try {
-      const updateResults = await setUsersAutoAnswer({
-        ...credentials,
-        userIds: selectedUsers.map((user) => user.id),
-        acdAutoAnswer,
+      const { job, results: updateResults } = await executeBulkJobWithProgress({
+        resultId,
+        exportMeta,
+        state,
+        totalItems: selectedUsers.length,
+        actionMessage: `Updating auto answer for ${selectedUsers.length} user(s)...`,
+        cancelLabel: "Cancel Update",
+        unitLabel: "users",
+        credentials,
+        renderProgressBody: renderBulkAutoAnswerBody,
+        runJob: (jobOptions) =>
+          setUsersAutoAnswerViaJob({
+            ...jobOptions,
+            userIds: selectedUsers.map((user) => user.id),
+            acdAutoAnswer,
+          }),
       });
 
       const resultRows = selectedUsers.map((user) => {
-        const updateResult = updateResults.find((entry) => entry.id === user.id);
+        const updateResult = updateResults.find((entry) => entry.userId === user.id);
         return {
           name: user.name || "",
           userName: user.userName || user.username || "",
@@ -182,7 +190,7 @@ const createBulkAutoAnswerFeature = ({
           error: updateResult?.error || "",
         };
       });
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
 
       finishExportResult(
         resultId,
@@ -192,6 +200,16 @@ const createBulkAutoAnswerFeature = ({
         createBulkAutoAnswerResultsMeta(resultId, resultRows, "Bulk Auto Answer", status)
       );
     } catch (error) {
+      if (error?.name === "AbortError") {
+        finishExportResult(
+          resultId,
+          "Bulk Auto Answer",
+          "Update cancelled.",
+          '<p class="muted">Auto answer update was cancelled before completion.</p>'
+        );
+        return;
+      }
+
       finishExportResult(
         resultId,
         "Bulk Auto Answer",

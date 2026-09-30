@@ -12,6 +12,8 @@ import {
   resolveScheduleNamingTemplate,
 } from "./schedule-naming-template.js";
 
+import { buildBulkCompletionStatus, executeBulkJobWithProgress } from "./bulk-utils.js";
+
 const escapeHtml = (value) =>
   String(value == null ? "" : value)
     .replace(/&/g, "&amp;")
@@ -25,14 +27,13 @@ const createLoadSchedulesFeature = ({
   mapNamedOptions,
   getDivisions,
   getScheduleTemplates,
-  loadSchedules,
+  loadSchedulesViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
   rerenderExportSection,
   renderLoadingState,
   renderJsonBlock,
-  summarizeBulkStatuses,
   createLoadSchedulesResultsMeta,
   confirmModal,
 }) => {
@@ -441,15 +442,24 @@ const createLoadSchedulesFeature = ({
         }
 
         close();
-        resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-          `Loading ${schedulesToCreate.length} schedules...`
-        );
 
         try {
-          const results = await loadSchedules({
-            ...credentials,
-            schedules: schedulesToCreate,
+          const { job, results } = await executeBulkJobWithProgress({
+            resultId,
+            exportMeta,
+            state,
+            totalItems: schedulesToCreate.length,
+            actionMessage: `Loading ${schedulesToCreate.length} schedule(s)...`,
+            cancelLabel: "Cancel Load",
+            unitLabel: "schedules",
+            credentials,
+            runJob: (jobOptions) =>
+              loadSchedulesViaJob({
+                ...jobOptions,
+                schedules: schedulesToCreate,
+              }),
           });
+
           const resultRows = schedulesToCreate.map((schedule) => {
             const scheduleResult = results.find((entry) => entry.scheduleKey === schedule.scheduleKey);
             return {
@@ -462,7 +472,7 @@ const createLoadSchedulesFeature = ({
               error: scheduleResult?.error || "",
             };
           });
-          const status = summarizeBulkStatuses(resultRows);
+          const status = buildBulkCompletionStatus(resultRows, { job });
 
           finishExportResult(
             resultId,
@@ -472,6 +482,16 @@ const createLoadSchedulesFeature = ({
             createLoadSchedulesResultsMeta(resultId, resultRows, "Load Schedules", status)
           );
         } catch (error) {
+          if (error?.name === "AbortError") {
+            finishExportResult(
+              resultId,
+              "Load Schedules",
+              "Load cancelled.",
+              '<p class="muted">Schedule load was cancelled before completion.</p>'
+            );
+            return;
+          }
+
           finishExportResult(
             resultId,
             "Load Schedules",

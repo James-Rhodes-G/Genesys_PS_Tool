@@ -37,29 +37,33 @@ import {
   startPrimaryOrgLogin,
 } from "./genesys-oauth-pkce.js";
 import {
+  applyExportProgress,
   buildProgressiveExportStatusParts,
   findClickControl,
   renderExportProgressState,
   renderExportSummaryStatus,
 } from "./export-progress.js";
-import { collectUserRoleMappings } from "./user-role-export.js";
-import { collectUserSkillMappings, formatUserSkillAssignments, getSkillsFromUser } from "./user-skill-export.js";
+import {
+  collectUserRoleMappingsViaJob,
+  collectUserSkillMappingsViaJob,
+} from "./user-export-job.js";
+import { formatUserSkillAssignments, getSkillsFromUser } from "./user-skill-export.js";
 import {
   connect,
   connectFromVault,
-  assignRoutingSkillsToUsers,
-  assignUsersToRoleDivision,
-  buildPhones,
+  assignRoutingSkillsToUsersViaJob,
+  assignUsersToRoleDivisionViaJob,
+  buildPhonesViaJob,
+  cancelJob,
   createMasterAdminRole,
-  disconnectConversations,
+  deletePhonesViaJob,
+  disconnectConversationsViaJob,
   getAccessibleOrganizations,
-  getAuthorizationSubject,
   getBotFlows,
   getBotUtterances,
   createAuditQuery,
   createNotificationChannel,
   deleteNotificationChannel,
-  deletePhones,
   exportDataTables,
   getAuditQueryResults,
   getAuditQueryStatus,
@@ -70,6 +74,8 @@ import {
   getDataTables,
   getGroupMembers,
   getGroups,
+  getJob,
+  getJobResults,
   getDivisions,
   getIntentHealth,
   getOrganizationLimits,
@@ -86,16 +92,17 @@ import {
   getTelephonyCallMetrics,
   getUser,
   loadGenesysRegions,
-  loadSchedules,
-  logoffUsers,
-  movePhonesToSite,
+  loadSchedulesViaJob,
+  logoffUsersViaJob,
+  movePhonesToSiteViaJob,
   queryOpenQueueInteractions,
-  resetUsersPasswords,
-  setUsersAutoAnswer,
+  resetUsersPasswordsViaJob,
+  setUsersAutoAnswerViaJob,
   spoofInboundCall,
   spoofOutboundCall,
+  submitJob,
   subscribeNotificationTopics,
-  updateConversationPriorities,
+  updateConversationPrioritiesViaJob,
 } from "./genesys-client.js";
 import { createBulkSkillAssignFeature } from "./bulk-skill-assign.js";
 import { createBulkRoleAssignFeature } from "./bulk-role-assign.js";
@@ -168,6 +175,7 @@ import { createNotificationMessageParserFeature } from "./notification-message-p
 import {
   SESSION_OFFLOAD_THRESHOLD,
   SESSION_ROW_PAGE_SIZE,
+  appendExportRowsInSession,
   bindSession,
   clearSession,
   fetchAllExportRows,
@@ -175,6 +183,7 @@ import {
   fetchExportRows,
   fetchSessionStatus,
   fetchUserSyncStatus,
+  initExportInSession,
   loadSessionUsers,
   saveExportToSession,
   syncSessionUsers,
@@ -183,10 +192,7 @@ import { formatPipeSeparatedDisplay, joinPipeSeparatedCsv } from "./export-forma
 import { wireExportTableResize } from "./export-table-layout.js";
 import { getSelectedBotFlow, mapBotFlowOptions, validatePublishedBotFlow } from "./bot-flow-utils.js";
 import { createPasswordResetWorkflow } from "./bulk-password-reset.js";
-import {
-  mapNamedOptions,
-  summarizeBulkStatuses,
-} from "./bulk-utils.js";
+import { mapNamedOptions } from "./bulk-utils.js";
 import {
   createRandomPassword,
   describePasswordPolicy,
@@ -364,6 +370,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     regions: [],
     exportData: {},
     activeExports: {},
+    activeExportJobs: {},
     exportRefreshConfigs: {},
     exportRefreshInFlight: new Set(),
     hasConnection: false,
@@ -963,6 +970,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         return;
       }
 
+      if (exportMeta.sessionStored) {
+        return;
+      }
+
       try {
         await saveExportToSession({
           exportId: resultId,
@@ -1390,6 +1401,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       dashboardFeatureRef?.disposeDashboard();
       Object.values(state.activeExports).forEach((controller) => controller?.abort());
       state.activeExports = {};
+      state.activeExportJobs = {};
       state.exportRefreshConfigs = {};
       state.exportRefreshInFlight.clear();
       clearExportResults();
@@ -1618,6 +1630,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       }
 
       if (exportMeta) {
+        exportMeta.status = status;
+        exportMeta.statusBase = status;
         state.exportData[resultId] = exportMeta;
       } else {
         delete state.exportData[resultId];
@@ -1761,21 +1775,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       });
     };
 
-    const updateExportProgress = (resultId, progress, { cancellable = false } = {}) => {
-      const resultEl = document.getElementById(resultId);
-      const body = resultEl?.querySelector(".export-results__body");
-      if (body) {
-        body.innerHTML = renderExportProgressState({
-          ...progress,
-          resultId,
-          cancellable,
-        });
-      }
-
-      const statusEl = resultEl?.querySelector(".export-results__summary > .export-results__status");
-      if (statusEl && progress.total > 0) {
-        statusEl.textContent = `${progress.current} / ${progress.total} users`;
-      }
+    const updateExportProgress = (resultId, progress, options = {}) => {
+      applyExportProgress(resultId, progress, options);
     };
 
     const runProgressiveExport = async (resultId, config, { forceRefresh = false } = {}) => {
@@ -1793,8 +1794,38 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           current: 0,
           total: 0,
         },
-        { cancellable: !forceRefresh }
+        { cancellable: !forceRefresh, cancelLabel: config.cancelLabel || "Cancel Export" }
       );
+
+      let streamedRowCount = 0;
+      let displayRows = [];
+      let sessionStreamInitialized = false;
+
+      const onResultsPage =
+        config.useJobExport && config.streamToSession
+          ? async ({ rows: pageRows }) => {
+              if (!pageRows?.length || !getOrganizationId() || !isConnected()) {
+                return;
+              }
+
+              if (!sessionStreamInitialized) {
+                const draftMeta = config.createExportMeta(resultId, [], config.title, "Running...");
+                await initExportInSession({
+                  exportId: resultId,
+                  exportMeta: { ...draftMeta, resultId },
+                  status: "Running",
+                });
+                sessionStreamInitialized = true;
+              }
+
+              await appendExportRowsInSession({ exportId: resultId, rows: pageRows });
+              streamedRowCount += pageRows.length;
+
+              if (displayRows.length < SESSION_ROW_PAGE_SIZE) {
+                displayRows = displayRows.concat(pageRows).slice(0, SESSION_ROW_PAGE_SIZE);
+              }
+            }
+          : undefined;
 
       try {
         const { rows, cancelled, totalUsers, userCache } = await config.collector({
@@ -1802,14 +1833,39 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           signal: controller.signal,
           forceRefresh,
           onProgress: (progress) => updateExportProgress(resultId, progress, { cancellable: !forceRefresh }),
+          ...(config.useJobExport
+            ? {
+                submitJob,
+                getJob,
+                getJobResults,
+                onResultsPage,
+                onJobSubmitted: ({ jobId }) => {
+                  state.activeExportJobs[resultId] = {
+                    jobId,
+                    region: credentials.region,
+                    token: credentials.token,
+                  };
+                },
+              }
+            : {}),
         });
-        const statusBase = buildProgressiveExportStatusParts(rows, { cancelled, totalUsers });
+
+        const resolvedRows =
+          config.streamToSession && streamedRowCount >= SESSION_OFFLOAD_THRESHOLD ? displayRows : rows;
+
+        const statusBase = buildProgressiveExportStatusParts(resolvedRows, { cancelled, totalUsers });
         const exportMeta = {
-          ...config.createExportMeta(resultId, rows, config.title, statusBase),
+          ...config.createExportMeta(resultId, resolvedRows, config.title, statusBase),
           userCache,
           statusBase,
           status: statusBase,
         };
+
+        if (config.streamToSession && streamedRowCount >= SESSION_OFFLOAD_THRESHOLD) {
+          exportMeta.sessionStored = true;
+          exportMeta.sessionRowCount = streamedRowCount;
+          exportMeta.sessionRowsLoaded = resolvedRows.length;
+        }
 
         state.exportRefreshConfigs[resultId] = config;
         await finishExportResult(resultId, config.title, statusBase, "", exportMeta);
@@ -1838,6 +1894,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         );
       } finally {
         delete state.activeExports[resultId];
+        delete state.activeExportJobs[resultId];
       }
     };
 
@@ -2338,13 +2395,12 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       state,
       getSkills: loadCachedSkillsForSession,
       loadSessionUsers,
-      assignRoutingSkillsToUsers,
+      assignRoutingSkillsToUsersViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
       rerenderExportSection,
       prependExportResult,
-      renderLoadingState,
       renderJsonBlock,
       confirmModal,
     });
@@ -2354,7 +2410,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       getRoles: loadCachedRolesForSession,
       getDivisions,
       loadSessionUsers,
-      assignUsersToRoleDivision,
+      assignUsersToRoleDivisionViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
@@ -2375,7 +2431,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const bulkAutoAnswerFeature = createBulkAutoAnswerFeature({
       state,
       loadSessionUsers,
-      setUsersAutoAnswer,
+      setUsersAutoAnswerViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
@@ -2390,7 +2446,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       state,
       loadSessionUsers,
       getPasswordPolicy,
-      resetUsersPasswords,
+      resetUsersPasswordsViaJob,
       passwordResetWorkflow,
       requireCredentials,
       startExportResult,
@@ -2405,7 +2461,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const bulkLogoffFeature = createBulkLogoffFeature({
       state,
       loadSessionUsers,
-      logoffUsers,
+      logoffUsersViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
@@ -2420,7 +2476,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       state,
       getQueues: loadCachedQueuesForSession,
       queryOpenQueueInteractions,
-      disconnectConversations,
+      disconnectConversationsViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
@@ -2437,7 +2493,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       state,
       loadSessionUsers,
       getPhones,
-      buildPhones,
+      buildPhonesViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
@@ -2466,7 +2522,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       state,
       getCachedPhones: loadCachedPhonesForSession,
       getCachedSites: loadCachedSitesForSession,
-      movePhonesToSite,
+      movePhonesToSiteViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
@@ -2480,7 +2536,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const bulkPhoneRemoveFeature = createBulkPhoneRemoveFeature({
       state,
       getCachedPhones: loadCachedPhonesForSession,
-      deletePhones,
+      deletePhonesViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
@@ -2495,7 +2551,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       state,
       getCachedPhones: loadCachedPhonesForSession,
       getCachedSites: loadCachedSitesForSession,
-      movePhonesToSite,
+      movePhonesToSiteViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
@@ -2510,7 +2566,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       state,
       getQueues: loadCachedQueuesForSession,
       queryOpenQueueInteractions,
-      updateConversationPriorities,
+      updateConversationPrioritiesViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
@@ -2574,14 +2630,13 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       mapNamedOptions,
       getDivisions,
       getScheduleTemplates,
-      loadSchedules,
+      loadSchedulesViaJob,
       requireCredentials,
       startExportResult,
       finishExportResult,
       rerenderExportSection,
       renderLoadingState,
       renderJsonBlock,
-      summarizeBulkStatuses,
       createLoadSchedulesResultsMeta,
       confirmModal,
     });
@@ -2865,18 +2920,27 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
           const resultId = cancelExportButton.getAttribute("data-result-id");
           const controller = resultId ? state.activeExports[resultId] : null;
+          const jobMeta = resultId ? state.activeExportJobs[resultId] : null;
           if (controller) {
             controller.abort();
-            updateExportProgress(
-              resultId,
-              {
-                message: "Cancelling export...",
-                current: 0,
-                total: 0,
-              },
-              { cancellable: false }
-            );
           }
+          if (jobMeta?.jobId) {
+            cancelJob({
+              region: jobMeta.region,
+              token: jobMeta.token,
+              jobId: jobMeta.jobId,
+            }).catch(() => {});
+            delete state.activeExportJobs[resultId];
+          }
+          updateExportProgress(
+            resultId,
+            {
+              message: jobMeta?.jobId ? "Cancelling assignment..." : "Cancelling export...",
+              current: 0,
+              total: 0,
+            },
+            { cancellable: false }
+          );
           return;
         }
 
@@ -3253,11 +3317,13 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       loadingStatus: "Loading user role mappings...",
       initialMessage: 'Fetching "/api/v2/users"...',
       failureMessage: "User role mappings export failed",
+      cancelLabel: "Cancel Export",
+      useJobExport: true,
+      streamToSession: true,
       collector: (options) =>
-        collectUserRoleMappings({
+        collectUserRoleMappingsViaJob({
           ...options,
           loadSessionUsers,
-          getAuthorizationSubject,
         }),
       createExportMeta: createUserRoleMappingsExportMeta,
     });
@@ -3267,8 +3333,11 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       loadingStatus: "Loading user skill mappings...",
       initialMessage: 'Fetching "/api/v2/users"...',
       failureMessage: "User skill mappings export failed",
+      cancelLabel: "Cancel Export",
+      useJobExport: true,
+      streamToSession: true,
       collector: (options) =>
-        collectUserSkillMappings({
+        collectUserSkillMappingsViaJob({
           ...options,
           loadSessionUsers,
         }),

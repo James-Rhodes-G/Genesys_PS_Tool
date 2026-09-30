@@ -10,7 +10,7 @@
     "seed:logs": "node scripts/seed_logs.js",
     "sw:build": "node scripts/build_sw.js",
     "clean": "node scripts/clean.js",
-    "test": "node scripts/test-resource-cache.mjs && node scripts/test-phone-site-move.mjs && node scripts/test-open-interactions-query.mjs && node scripts/test-dashboard-limits.mjs && node scripts/test-health-check-reports.mjs && node scripts/test-queue-members-cache.mjs && node scripts/test-genesys-rate-limit.mjs && node scripts/test-admin-prevention.mjs && node scripts/test-notification-topics.mjs && node scripts/test-notification-subscription.mjs && node scripts/test-notification-message-store.mjs && node scripts/test-mock-api.mjs && node scripts/test-flow-execution-parser.mjs && node scripts/test-launch-security.mjs && node scripts/test-admin.mjs"
+    "test": "node scripts/test-resource-cache.mjs && node scripts/test-phone-site-move.mjs && node scripts/test-open-interactions-query.mjs && node scripts/test-dashboard-limits.mjs && node scripts/test-health-check-reports.mjs && node scripts/test-queue-members-cache.mjs && node scripts/test-genesys-rate-limit.mjs && node scripts/test-worker-pool.mjs && node scripts/test-genesys-api-client.mjs && node scripts/test-job-manager.mjs && node scripts/test-admin-prevention.mjs && node scripts/test-notification-topics.mjs && node scripts/test-notification-subscription.mjs && node scripts/test-notification-message-store.mjs && node scripts/test-mock-api.mjs && node scripts/test-flow-execution-parser.mjs && node scripts/test-launch-security.mjs && node scripts/test-admin.mjs"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

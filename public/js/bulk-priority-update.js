@@ -5,6 +5,7 @@ import {
   resolveDropdownChange,
 } from "./gux-ui.js";
 import { formatInteractionDuration } from "./bulk-disconnect.js";
+import { buildBulkCompletionStatus, executeBulkJobWithProgress } from "./bulk-utils.js";
 
 const escapeHtml = (value) =>
   String(value == null ? "" : value)
@@ -259,7 +260,7 @@ const createBulkPriorityUpdateFeature = ({
   state,
   getQueues,
   queryOpenQueueInteractions,
-  updateConversationPriorities,
+  updateConversationPrioritiesViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
@@ -437,16 +438,27 @@ ${tableHtml}
       return entry;
     });
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Updating priority for ${selectedInteractions.length} interaction(s)...`
-    );
-
     try {
-      const results = await updateConversationPriorities({ ...credentials, updates });
+      const { job, results } = await executeBulkJobWithProgress({
+        resultId,
+        exportMeta,
+        state,
+        totalItems: selectedInteractions.length,
+        actionMessage: `Updating priority for ${selectedInteractions.length} interaction(s)...`,
+        cancelLabel: "Cancel Update",
+        unitLabel: "interactions",
+        credentials,
+        renderProgressBody: renderBulkPriorityBody,
+        runJob: (jobOptions) =>
+          updateConversationPrioritiesViaJob({
+            ...jobOptions,
+            updates,
+          }),
+      });
 
       const resultRows = updates.map((update, index) => {
         const interaction = selectedInteractions[index];
-        const updateResult = results.find((entry) => entry.id === update.conversationId);
+        const updateResult = results.find((entry) => entry.conversationId === update.conversationId);
         return {
           conversationId: update.conversationId,
           priority: update.priority,
@@ -456,7 +468,7 @@ ${tableHtml}
           error: updateResult?.error || "",
         };
       });
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
 
       finishExportResult(
         resultId,
@@ -466,6 +478,16 @@ ${tableHtml}
         createBulkPriorityResultsMeta(resultId, resultRows, "Interaction Priority Updater", status)
       );
     } catch (error) {
+      if (error?.name === "AbortError") {
+        finishExportResult(
+          resultId,
+          "Interaction Priority Updater",
+          "Update cancelled.",
+          '<p class="muted">Priority update was cancelled before completion.</p>'
+        );
+        return;
+      }
+
       finishExportResult(
         resultId,
         "Interaction Priority Updater",

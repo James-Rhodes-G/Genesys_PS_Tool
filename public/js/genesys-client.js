@@ -434,6 +434,240 @@ const assignRoutingSkillsToUsers = async ({ region, token, userIds, skills }) =>
   return payload.results || [];
 };
 
+const TERMINAL_JOB_STATUSES = new Set(["completed", "completed_with_errors", "failed", "cancelled"]);
+
+const buildGenesysAuthHeaders = (region, token, extra = {}) => ({
+  ...(region ? { "x-genesys-region": region } : {}),
+  ...(token ? { "x-genesys-token": token } : {}),
+  ...extra,
+});
+
+const submitJob = async ({ region, token, type, payload }) =>
+  requestGenesysJson(
+    "/api/jobs",
+    {
+      method: "POST",
+      headers: buildGenesysAuthHeaders(region, token, { "Content-Type": "application/json" }),
+      body: JSON.stringify({ type, payload }),
+    },
+    "Job submission failed"
+  );
+
+const getJob = async ({ region, token, jobId }) =>
+  requestGenesysJson(
+    `/api/jobs/${encodeURIComponent(jobId)}`,
+    {
+      method: "GET",
+      headers: buildGenesysAuthHeaders(region, token),
+    },
+    "Job status request failed"
+  );
+
+const getJobResults = async ({ region, token, jobId, offset = 0, limit = 1000, userId = null }) => {
+  const params = new URLSearchParams({
+    offset: String(offset),
+    limit: String(limit),
+  });
+
+  if (userId) {
+    params.set("userId", String(userId));
+  }
+
+  return requestGenesysJson(
+    `/api/jobs/${encodeURIComponent(jobId)}/results?${params.toString()}`,
+    {
+      method: "GET",
+      headers: buildGenesysAuthHeaders(region, token),
+    },
+    "Job results request failed"
+  );
+};
+
+const waitForJob = async ({
+  region,
+  token,
+  jobId,
+  onProgress,
+  pollIntervalMs = 750,
+  signal,
+} = {}) => {
+  while (true) {
+    if (signal?.aborted) {
+      const error = new Error("Job polling cancelled.");
+      error.name = "AbortError";
+      throw error;
+    }
+
+    const job = await getJob({ region, token, jobId });
+    if (typeof onProgress === "function") {
+      onProgress(job);
+    }
+
+    if (TERMINAL_JOB_STATUSES.has(job.status)) {
+      return job;
+    }
+
+    await wait(pollIntervalMs);
+  }
+};
+
+const cancelJob = async ({ region, token, jobId }) =>
+  requestGenesysJson(
+    `/api/jobs/${encodeURIComponent(jobId)}/cancel`,
+    {
+      method: "POST",
+      headers: buildGenesysAuthHeaders(region, token, { "Content-Type": "application/json" }),
+    },
+    "Job cancel request failed"
+  );
+
+const runBulkJobViaJob = async ({
+  region,
+  token,
+  type,
+  payload,
+  itemCount = 0,
+  onProgress,
+  onJobSubmitted,
+  signal,
+}) => {
+  const submission = await submitJob({
+    region,
+    token,
+    type,
+    payload,
+  });
+
+  if (typeof onJobSubmitted === "function") {
+    onJobSubmitted(submission);
+  }
+
+  const job = await waitForJob({
+    region,
+    token,
+    jobId: submission.jobId,
+    onProgress,
+    signal,
+  });
+
+  const resultsPayload = await getJobResults({
+    region,
+    token,
+    jobId: submission.jobId,
+    offset: 0,
+    limit: Math.max(itemCount, 1000),
+  });
+
+  return {
+    job,
+    results: resultsPayload.results || [],
+  };
+};
+
+const assignRoutingSkillsToUsersViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-skill-assign",
+    payload: {
+      userIds: options.userIds,
+      skills: options.skills,
+    },
+    itemCount: options.userIds?.length || 0,
+  });
+
+const assignUsersToRoleDivisionViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-role-assign",
+    payload: {
+      userIds: options.userIds,
+      roleAssignments: options.roleAssignments,
+    },
+    itemCount: (options.userIds?.length || 0) * (options.roleAssignments?.length || 0),
+  });
+
+const setUsersAutoAnswerViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-auto-answer",
+    payload: {
+      userIds: options.userIds,
+      acdAutoAnswer: options.acdAutoAnswer,
+    },
+    itemCount: options.userIds?.length || 0,
+  });
+
+const resetUsersPasswordsViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-password-reset",
+    payload: {
+      passwordResets: options.passwordResets,
+    },
+    itemCount: options.passwordResets?.length || 0,
+  });
+
+const logoffUsersViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-logoff",
+    payload: {
+      userIds: options.userIds,
+    },
+    itemCount: options.userIds?.length || 0,
+  });
+
+const disconnectConversationsViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-disconnect",
+    payload: {
+      conversationIds: options.conversationIds,
+    },
+    itemCount: options.conversationIds?.length || 0,
+  });
+
+const updateConversationPrioritiesViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-priority-update",
+    payload: {
+      updates: options.updates,
+    },
+    itemCount: options.updates?.length || 0,
+  });
+
+const buildPhonesViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-phone-build",
+    payload: {
+      users: options.users,
+      templatePhoneId: options.templatePhoneId,
+    },
+    itemCount: options.users?.length || 0,
+  });
+
+const deletePhonesViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-phone-delete",
+    payload: {
+      phoneIds: options.phoneIds,
+    },
+    itemCount: options.phoneIds?.length || 0,
+  });
+
+const loadSchedulesViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-load-schedules",
+    payload: {
+      schedules: options.schedules,
+    },
+    itemCount: options.schedules?.length || 0,
+  });
+
 const getPasswordPolicy = async ({ region, token }) => {
   return requestGenesysJson(
     "/api/genesys/password-policy",
@@ -1000,6 +1234,18 @@ const movePhonesToSite = async ({ region, token, phoneIds, siteId, siteName = ""
   return payload.results || [];
 };
 
+const movePhonesToSiteViaJob = async (options) =>
+  runBulkJobViaJob({
+    ...options,
+    type: "bulk-phone-move",
+    payload: {
+      phoneIds: options.phoneIds,
+      siteId: options.siteId,
+      siteName: options.siteName || "",
+    },
+    itemCount: options.phoneIds?.length || 0,
+  });
+
 const deletePhones = async ({ region, token, phoneIds }) => {
   const payload = await requestGenesysJson(
     "/api/genesys/phones/bulk-delete",
@@ -1078,7 +1324,17 @@ const loadGenesysRegions = async () => {
 
 export {
   assignRoutingSkillsToUsers,
+  assignRoutingSkillsToUsersViaJob,
   assignUsersToRoleDivision,
+  assignUsersToRoleDivisionViaJob,
+  buildPhonesViaJob,
+  cancelJob,
+  deletePhonesViaJob,
+  disconnectConversationsViaJob,
+  getJob,
+  getJobResults,
+  submitJob,
+  waitForJob,
   buildPhones,
   connect,
   connectFromVault,
@@ -1127,7 +1383,14 @@ export {
   loadGenesysRegions,
   loadSchedules,
   logoffUsers,
+  loadSchedulesViaJob,
+  logoffUsersViaJob,
   movePhonesToSite,
+  movePhonesToSiteViaJob,
+  resetUsersPasswordsViaJob,
+  runBulkJobViaJob,
+  setUsersAutoAnswerViaJob,
+  updateConversationPrioritiesViaJob,
   previewBulkSkillAssignment,
   queryOpenQueueInteractions,
   resetUsersPasswords,

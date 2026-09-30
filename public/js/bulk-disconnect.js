@@ -5,7 +5,7 @@ import {
   resolveDropdownChange,
 } from "./gux-ui.js";
 import { renderDisconnectConfirmBody } from "./bulk-confirm.js";
-import { summarizeBulkStatuses } from "./bulk-utils.js";
+import { buildBulkCompletionStatus, executeBulkJobWithProgress } from "./bulk-utils.js";
 
 const escapeHtml = (value) =>
   String(value == null ? "" : value)
@@ -288,7 +288,7 @@ const createBulkDisconnectFeature = ({
   state,
   getQueues,
   queryOpenQueueInteractions,
-  disconnectConversations,
+  disconnectConversationsViaJob,
   requireCredentials,
   startExportResult,
   finishExportResult,
@@ -454,18 +454,26 @@ ${tableHtml}
       return;
     }
 
-    resultEl.querySelector(".export-results__body").innerHTML = renderLoadingState(
-      `Disconnecting ${selectedInteractions.length} interaction(s)...`
-    );
-
     try {
-      const results = await disconnectConversations({
-        ...credentials,
-        conversationIds: selectedInteractions.map((interaction) => interaction.conversationId),
+      const { job, results } = await executeBulkJobWithProgress({
+        resultId,
+        exportMeta,
+        state,
+        totalItems: selectedInteractions.length,
+        actionMessage: `Disconnecting ${selectedInteractions.length} interaction(s)...`,
+        cancelLabel: "Cancel Disconnect",
+        unitLabel: "interactions",
+        credentials,
+        renderProgressBody: renderBulkDisconnectBody,
+        runJob: (jobOptions) =>
+          disconnectConversationsViaJob({
+            ...jobOptions,
+            conversationIds: selectedInteractions.map((interaction) => interaction.conversationId),
+          }),
       });
 
       const resultRows = selectedInteractions.map((interaction) => {
-        const disconnectResult = results.find((entry) => entry.id === interaction.conversationId);
+        const disconnectResult = results.find((entry) => entry.conversationId === interaction.conversationId);
         return {
           conversationId: interaction.conversationId,
           startTime: interaction.startTime,
@@ -477,7 +485,7 @@ ${tableHtml}
           error: disconnectResult?.error || "",
         };
       });
-      const status = summarizeBulkStatuses(resultRows);
+      const status = buildBulkCompletionStatus(resultRows, { job });
 
       finishExportResult(
         resultId,
@@ -487,6 +495,16 @@ ${tableHtml}
         createBulkDisconnectResultsMeta(resultId, resultRows, "Bulk Disconnect", status)
       );
     } catch (error) {
+      if (error?.name === "AbortError") {
+        finishExportResult(
+          resultId,
+          "Bulk Disconnect",
+          "Disconnect cancelled.",
+          '<p class="muted">Bulk disconnect was cancelled before completion.</p>'
+        );
+        return;
+      }
+
       finishExportResult(
         resultId,
         "Bulk Disconnect",

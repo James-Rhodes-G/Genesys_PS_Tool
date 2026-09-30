@@ -51,6 +51,53 @@ const serializeExportMeta = (exportMeta) => ({
   })),
 });
 
+const initExportInSession = async ({ exportId, exportMeta, status = "Running" }) =>
+  parseJsonResponse(
+    await fetch("/api/session/exports/init", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        exportId,
+        exportType: exportMeta?.exportType || "",
+        title: exportMeta?.title || "",
+        status,
+        meta: serializeExportMeta(exportMeta),
+      }),
+    }),
+    "Failed to initialize export in session."
+  );
+
+const appendExportRowsInSession = async ({ exportId, rows }) =>
+  parseJsonResponse(
+    await fetch(`/api/session/exports/${encodeURIComponent(exportId)}/rows`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ rows }),
+    }),
+    "Failed to append export rows."
+  );
+
+const fetchCachedUsersPage = async ({ offset = 0, limit = SESSION_ROW_PAGE_SIZE } = {}) => {
+  const params = new URLSearchParams({
+    offset: String(offset),
+    limit: String(limit),
+  });
+
+  return parseJsonResponse(
+    await fetch(`/api/session/users?${params.toString()}`, {
+      method: "GET",
+      credentials: "same-origin",
+    }),
+    "Failed to load cached users page."
+  );
+};
+
 const saveExportToSession = async ({ exportId, exportMeta, rows }) =>
   parseJsonResponse(
     await fetch("/api/session/exports", {
@@ -281,16 +328,19 @@ const loadSessionUsers = async ({
 export {
   SESSION_OFFLOAD_THRESHOLD,
   SESSION_ROW_PAGE_SIZE,
+  appendExportRowsInSession,
   appendUserCacheStatus,
   bindSession,
   clearSession,
   ensureSessionUsersSynced,
   fetchAllExportRows,
   fetchCachedUsers,
+  fetchCachedUsersPage,
   fetchExportRows,
   fetchSessionStatus,
   fetchUserSyncStatus,
   formatUserCacheTimestamp,
+  initExportInSession,
   loadSessionUsers,
   saveExportToSession,
   serializeExportMeta,
