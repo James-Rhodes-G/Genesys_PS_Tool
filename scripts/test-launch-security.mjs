@@ -12,6 +12,7 @@ import {
   createRateLimiter,
   validateHandoffBody,
   validatePairBody,
+  validateStartBody,
   validateUnpairBody,
   verifyLaunchSignature,
 } from "../src/lib/launch-validation.js";
@@ -38,6 +39,26 @@ const unknownField = await validatePairBody({
   extra: true,
 });
 assert.match(unknownField.error, /Unknown field/);
+
+const startBody = await validateStartBody({
+  region: "us-east-1",
+  token: "test-token",
+  orgId: validUuid,
+  userId: validUuid2,
+  feature: "genesys-users",
+  params: { conversationId: "abc" },
+});
+assert.equal(startBody.error, undefined);
+assert.equal(startBody.value.feature, "genesys-users");
+
+const badStartFeature = await validateStartBody({
+  region: "us-east-1",
+  token: "test-token",
+  orgId: validUuid,
+  userId: validUuid2,
+  feature: "not-valid",
+});
+assert.match(badStartFeature.error, /feature is invalid/);
 
 const badRegion = await validatePairBody({
   region: "invalid-region",

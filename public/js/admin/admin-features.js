@@ -94,7 +94,13 @@ const renderPagination = (page, pageSize, total, prefix) => {
 const renderActionButton = (label, action, attrs = "", danger = false) =>
   `<button type="button" class="admin-action${danger ? " admin-action--danger" : ""}" data-admin-action="${action}" ${attrs}>${escapeHtml(label)}</button>`;
 
-const createAdminFeatures = ({ startExportResult, finishExportResult, renderLoadingState, confirmModal }) => {
+const createAdminFeatures = ({
+  startExportResult,
+  finishExportResult,
+  renderLoadingState,
+  confirmModal,
+  requireAdmin,
+}) => {
   const buttonMap = new Map();
   const featureState = {
     audit: { page: 0, userName: "", orgId: "" },
@@ -107,6 +113,9 @@ const createAdminFeatures = ({ startExportResult, finishExportResult, renderLoad
     buttonMap.set(button.id, handler);
     button.addEventListener("click", async () => {
       if (button.disabled) return;
+      if (requireAdmin && !(await requireAdmin())) {
+        return;
+      }
       await handler();
     });
   };

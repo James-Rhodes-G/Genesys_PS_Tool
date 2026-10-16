@@ -97,6 +97,37 @@ const validateHandoffBody = (body) => {
   };
 };
 
+const validateStartBody = async (body) => {
+  const allowed = new Set(["region", "token", "orgId", "userId", "feature", "params"]);
+  const unknown = rejectUnknownKeys(body, allowed);
+  if (unknown) {
+    return { error: unknown };
+  }
+
+  const pair = await validatePairBody({
+    region: body.region,
+    token: body.token,
+    orgId: body.orgId,
+    userId: body.userId,
+  });
+  if (pair.error) {
+    return { error: pair.error };
+  }
+
+  const feature = String(body.feature || "").trim();
+  if (!feature || !isLaunchFeature(feature)) {
+    return { error: "feature is invalid." };
+  }
+
+  return {
+    value: {
+      ...pair.value,
+      feature,
+      params: sanitizeLaunchParams(body.params),
+    },
+  };
+};
+
 const validateUnpairBody = (body) => {
   const allowed = new Set(["linkToken"]);
   const unknown = rejectUnknownKeys(body, allowed);
@@ -185,6 +216,7 @@ export {
   escapeHtml,
   validateHandoffBody,
   validatePairBody,
+  validateStartBody,
   validateUnpairBody,
   verifyLaunchSignature,
 };

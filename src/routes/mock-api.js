@@ -2,6 +2,7 @@ import { Router } from "express";
 import express from "express";
 import { getCurrentUser } from "../lib/genesys.js";
 import { getSessionConnection } from "../data/session-db.js";
+import { requireGenesysCredentials } from "../lib/genesys-request-credentials.js";
 import { MOCK_API_CONFIG } from "../lib/mock-api-config.js";
 import { HTTP_STATUS_PRESETS } from "../lib/mock-api.js";
 
@@ -38,24 +39,13 @@ const createMockApiPublicRouter = ({ mockApiService, requestBodyLimit }) => {
 const createMockApiManagementRouter = ({ mockApiService, sessionDb }) => {
   const router = Router();
 
-  const getCredentials = (req) => {
-    if (req.genesysCredentials?.region && req.genesysCredentials?.token) {
-      return req.genesysCredentials;
-    }
-
-    return {
-      region: req.body?.region || req.query?.region || req.get("x-genesys-region"),
-      token: req.body?.token || req.query?.token || req.get("x-genesys-token"),
-    };
-  };
-
   const resolveOwner = async (req, res) => {
-    const { region, token } = getCredentials(req);
-    if (!region || !token) {
-      res.status(400).json({ error: "Genesys credentials are required." });
+    const credentials = requireGenesysCredentials(req, res);
+    if (!credentials) {
       return null;
     }
 
+    const { region, token } = credentials;
     const sessionId = req.sessionId;
     if (!sessionId) {
       res.status(400).json({ error: "Session is required." });

@@ -1,3 +1,25 @@
+.admin-operator-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.25rem 0 0.75rem;
+}
+
+.admin-login-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-login-error {
+  color: var(--gux-alert-red-60, #b00020);
+  min-height: 1.25rem;
+}
+
+.nav-admin-gated[hidden] {
+  display: none !important;
+}
+
 .admin-panel {
   display: flex;
   flex-direction: column;

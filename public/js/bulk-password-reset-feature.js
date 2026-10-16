@@ -45,7 +45,7 @@ const createBulkPasswordResetResultsMeta = (resultId, rows, title, status, { inc
   ],
 });
 
-const renderBulkPasswordResetBody = (resultId, exportMeta) => {
+const renderBulkPasswordResetBody = (resultId, exportMeta, allowPasswordExport = false) => {
   const selectedCount = Object.keys(exportMeta.selectedUsersById || {}).length;
   const mode = exportMeta.passwordMode || "manual";
   const showGeneratedPasswords = Boolean(exportMeta.includeGeneratedPasswords);
@@ -92,13 +92,15 @@ const renderBulkPasswordResetBody = (resultId, exportMeta) => {
             clearable: false,
             attrs: `data-result-id="${escapeHtml(resultId)}"`,
           })}`
-        : renderGuxFieldCheckbox({
-            escapeHtml,
-            className: "bulk-password-include-generated",
-            label: "Include generated passwords in results/CSV",
-            checked: showGeneratedPasswords,
-            attrs: `data-result-id="${escapeHtml(resultId)}"`,
-          })
+        : allowPasswordExport
+          ? renderGuxFieldCheckbox({
+              escapeHtml,
+              className: "bulk-password-include-generated",
+              label: "Include generated passwords in results/CSV",
+              checked: showGeneratedPasswords,
+              attrs: `data-result-id="${escapeHtml(resultId)}"`,
+            })
+          : `<p class="muted">Generated passwords are not written to results or CSV unless an operator enables PS_TOOL_ALLOW_PASSWORD_EXPORT on the server.</p>`
     }
     <p class="muted">Policy: ${escapeHtml(policySummary)}</p>
     ${policyWarning}
@@ -133,7 +135,10 @@ const createBulkPasswordResetFeature = ({
   renderLoadingState,
   renderJsonBlock,
   confirmModal,
+  allowPasswordExport = () => false,
 }) => {
+  const canExportPasswords = () =>
+    typeof allowPasswordExport === "function" ? allowPasswordExport() : false;
   const refreshSelectionUi = (resultId, exportMeta) => {
     updateBulkUserSelectionUi({
       resultId,
@@ -197,7 +202,12 @@ const createBulkPasswordResetFeature = ({
           users: users.slice().sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""))),
           userFilter: "",
           selectedUsersById: {},
-          renderBody: () => renderBulkPasswordResetBody(loadingResultId, state.exportData[loadingResultId]),
+          renderBody: () =>
+            renderBulkPasswordResetBody(
+              loadingResultId,
+              state.exportData[loadingResultId],
+              canExportPasswords()
+            ),
         };
 
         state.exportData[loadingResultId] = exportMeta;
@@ -234,7 +244,8 @@ const createBulkPasswordResetFeature = ({
         cancelLabel: "Cancel Reset",
         unitLabel: "users",
         credentials,
-        renderProgressBody: renderBulkPasswordResetBody,
+        renderProgressBody: (resultId, exportMeta) =>
+          renderBulkPasswordResetBody(resultId, exportMeta, canExportPasswords()),
         runJob: (jobOptions) =>
           resetUsersPasswordsViaJob({
             ...jobOptions,
@@ -312,6 +323,10 @@ const createBulkPasswordResetFeature = ({
         '<p class="muted">Select at least one user before resetting passwords.</p>'
       );
       return true;
+    }
+
+    if (!canExportPasswords()) {
+      exportMeta.includeGeneratedPasswords = false;
     }
 
     let plan;
@@ -395,7 +410,7 @@ const createBulkPasswordResetFeature = ({
       const resultId = target.getAttribute("data-result-id");
       const exportMeta = resultId ? state.exportData[resultId] : null;
       if (exportMeta) {
-        exportMeta.includeGeneratedPasswords = target.checked;
+        exportMeta.includeGeneratedPasswords = canExportPasswords() ? target.checked : false;
       }
       return true;
     }

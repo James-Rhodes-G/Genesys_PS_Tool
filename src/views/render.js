@@ -21,8 +21,10 @@ const renderRegionPicker = (regions) => `<div class="field-container region-pick
           </gux-dropdown>
         </div>`;
 
-const navSubmenuItem = (id, label) =>
-  `<li class="menu-item-container sublink-title-container">
+const navSubmenuItem = (id, label, { adminGated = false } = {}) =>
+  `<li class="menu-item-container sublink-title-container${adminGated ? " nav-admin-gated" : ""}"${
+    adminGated ? ' data-admin-gated="true"' : ""
+  }${adminGated ? ' hidden' : ""}>
   <button type="button" class="nav-item nav-link sublink-title" id="${escapeHtml(id)}" disabled>${escapeHtml(label)}</button>
 </li>`;
 
@@ -131,21 +133,31 @@ ${navSubmenuItem("genesys-load-schedules", "Load Schedules")}
 <li class="menu-item-container"><p id="bulk-actions-status" class="command-nav__status">Connect to an organization to run bulk changes.</p></li>`,
     }),
     navGroupDefinition({
+      id: "mock-api-tools",
+      label: "Mock API",
+      icon: "link",
+      bodyHtml: `${navSubmenuItem("genesys-mock-api", "Mock API")}
+<li class="menu-item-container"><p id="mock-api-status" class="command-nav__status">Connect to an organization to manage mock endpoints.</p></li>`,
+    }),
+    navGroupDefinition({
       id: "ps-tool-admin",
       label: "PS Tool Admin",
       icon: "settings",
-      bodyHtml: `${navSubmenuItem("genesys-admin-operations", "Operations Dashboard")}
-${navSubmenuItem("genesys-mock-api", "Mock API")}
-<li class="menu-item-container"><p id="mock-api-status" class="command-nav__status">Connect to an organization to manage mock endpoints.</p></li>
-${navSubmenuItem("genesys-admin-endpoint-registry", "API Endpoint Registry")}
-${navSubmenuItem("genesys-admin-audit-log", "PS Tool Audit Log")}
-${navSubmenuItem("genesys-admin-activity", "Activity Timeline")}
-${navSubmenuItem("genesys-admin-dangerous", "Dangerous Actions")}
-${navSubmenuItem("genesys-admin-server-health", "Server Health")}
-${navSubmenuItem("genesys-admin-launch-monitor", "Launch Monitor")}
-${navSubmenuItem("genesys-admin-sessions", "Sessions & Vault")}
-${navSubmenuItem("genesys-admin-usage", "Usage Analytics")}
-${navSubmenuItem("genesys-admin-storage", "Storage Detail")}
+      bodyHtml: `<li class="menu-item-container admin-operator-controls">
+  <gux-button id="ps-tool-admin-login" type="button" accent="primary">Administrator login</gux-button>
+  <gux-button id="ps-tool-admin-logout" type="button" accent="secondary" hidden>Sign out admin</gux-button>
+  <p id="ps-tool-admin-login-status" class="command-nav__status muted">Server tools require a local operator login.</p>
+</li>
+${navSubmenuItem("genesys-admin-operations", "Operations Dashboard", { adminGated: true })}
+${navSubmenuItem("genesys-admin-endpoint-registry", "API Endpoint Registry", { adminGated: true })}
+${navSubmenuItem("genesys-admin-audit-log", "PS Tool Audit Log", { adminGated: true })}
+${navSubmenuItem("genesys-admin-activity", "Activity Timeline", { adminGated: true })}
+${navSubmenuItem("genesys-admin-dangerous", "Dangerous Actions", { adminGated: true })}
+${navSubmenuItem("genesys-admin-server-health", "Server Health", { adminGated: true })}
+${navSubmenuItem("genesys-admin-launch-monitor", "Launch Monitor", { adminGated: true })}
+${navSubmenuItem("genesys-admin-sessions", "Sessions & Vault", { adminGated: true })}
+${navSubmenuItem("genesys-admin-usage", "Usage Analytics", { adminGated: true })}
+${navSubmenuItem("genesys-admin-storage", "Storage Detail", { adminGated: true })}
 <li class="menu-item-container"><p id="admin-status" class="command-nav__status">Server administration tools.</p></li>`,
     }),
     navGroupDefinition({
@@ -340,6 +352,23 @@ const layout = ({ title, body, updatedAt, regions = [], vaultLaunch = false }) =
     </div>
     <gux-button slot="end-align-buttons" id="genesys-confirm-modal-cancel" type="button" accent="secondary">Cancel</gux-button>
     <gux-button slot="end-align-buttons" id="genesys-confirm-modal-confirm" type="button" accent="primary">Confirm</gux-button>
+  </gux-modal>
+  <gux-modal id="ps-tool-admin-login-modal" size="small">
+    <span slot="title">Administrator login</span>
+    <div slot="content" class="admin-login-modal">
+      <p class="muted">Sign in to access PS Tool server administration. This is separate from your Genesys organization connection.</p>
+      <gux-form-field-text-like label-position="above">
+        <input slot="input" id="ps-tool-admin-login-username" type="text" autocomplete="username" aria-label="Operator username" />
+        <label slot="label">Username</label>
+      </gux-form-field-text-like>
+      <gux-form-field-text-like label-position="above">
+        <input slot="input" id="ps-tool-admin-login-password" type="password" autocomplete="current-password" aria-label="Operator password" />
+        <label slot="label">Password</label>
+      </gux-form-field-text-like>
+      <p id="ps-tool-admin-login-error" class="admin-login-error muted" aria-live="polite"></p>
+    </div>
+    <gux-button slot="end-align-buttons" id="ps-tool-admin-login-cancel" type="button" accent="secondary">Cancel</gux-button>
+    <gux-button slot="end-align-buttons" id="ps-tool-admin-login-submit" type="button" accent="primary">Sign in</gux-button>
   </gux-modal>
   <script type="module" src="/js/bootstrap.js"></script>
 </body>

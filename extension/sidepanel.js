@@ -1,4 +1,4 @@
-import { maskToken, readAuthFromTab } from "./js/auth.js";
+import { readAuthFromTab } from "./js/auth.js";
 import { isAppsSubdomainUrl } from "./js/apps-url.js";
 import { CONVERSATION_FEATURES, FEATURE_MAP } from "./js/constants.js";
 import { launchWebFeature } from "./js/launch.js";
@@ -11,7 +11,6 @@ const orgNameEl = document.getElementById("org-name");
 const userNameEl = document.getElementById("user-name");
 const orgIdEl = document.getElementById("org-id");
 const regionLabelEl = document.getElementById("region-label");
-const tokenMaskEl = document.getElementById("token-mask");
 const conversationInput = document.getElementById("conversation-id");
 
 let authContext = null;
@@ -41,7 +40,7 @@ const copyText = async (value, element) => {
 
   await navigator.clipboard.writeText(value);
   element.classList.add("copied");
-  const label = element.id === "token-mask" ? "Token" : element.id === "org-id" ? "Org ID" : "Region";
+  const label = element.id === "org-id" ? "Org ID" : "Region";
   setStatus(`${label} copied.`);
 
   if (copyResetTimer) {
@@ -57,7 +56,7 @@ const copyText = async (value, element) => {
 };
 
 const wireCopyableFields = () => {
-  [orgIdEl, regionLabelEl, tokenMaskEl].forEach((element) => {
+  [orgIdEl, regionLabelEl].forEach((element) => {
     element.addEventListener("click", async () => {
       const value = element.dataset.copy || "";
       if (!value) {
@@ -167,7 +166,6 @@ const refreshAuth = async () => {
     userNameEl.textContent = authContext.userDisplayName || authContext.userName || "";
     setCopyableValue(orgIdEl, authContext.orgId, authContext.orgId);
     setCopyableValue(regionLabelEl, authContext.regionLabel, authContext.regionId);
-    setCopyableValue(tokenMaskEl, maskToken(authContext.token), authContext.token);
     setStatus("");
   } catch (error) {
     authContext = null;
@@ -175,7 +173,6 @@ const refreshAuth = async () => {
     userNameEl.textContent = "";
     setCopyableValue(orgIdEl, "—", "");
     setCopyableValue(regionLabelEl, "—", "");
-    setCopyableValue(tokenMaskEl, "—", "");
     setStatus(error.message || "Unable to read Genesys auth.", true);
   }
 };

@@ -149,6 +149,25 @@ const initAdminDb = async () => {
         );
 
         INSERT OR IGNORE INTO admin_maintenance (id, mode, updated_at) VALUES (1, 'off', 0);
+
+        CREATE TABLE IF NOT EXISTS admin_operators (
+          id TEXT PRIMARY KEY,
+          username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+          password_hash TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS admin_operator_sessions (
+          token_hash TEXT PRIMARY KEY,
+          operator_id TEXT NOT NULL,
+          username TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,
+          last_seen_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_admin_operator_sessions_expires
+          ON admin_operator_sessions (expires_at);
       `);
       return db;
     });
@@ -510,6 +529,75 @@ const setMaintenanceMode = async (db, { mode, updatedBy }) => {
   );
 };
 
+const getOperatorByUsername = async (db, username) => {
+  const row = await db.get(
+    `SELECT id, username, password_hash AS passwordHash, created_at AS createdAt, updated_at AS updatedAt
+     FROM admin_operators WHERE username = ? COLLATE NOCASE`,
+    String(username || "").trim()
+  );
+  return row || null;
+};
+
+const upsertOperator = async (db, { id, username, passwordHash }) => {
+  const now = Date.now();
+  const operatorId = id || `${now}-${Math.random().toString(36).slice(2, 10)}`;
+  await db.run(
+    `INSERT INTO admin_operators (id, username, password_hash, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(username) DO UPDATE SET
+       password_hash = excluded.password_hash,
+       updated_at = excluded.updated_at`,
+    operatorId,
+    String(username).trim(),
+    passwordHash,
+    now,
+    now
+  );
+  return operatorId;
+};
+
+const countOperators = async (db) => {
+  const row = await db.get(`SELECT COUNT(*) AS count FROM admin_operators`);
+  return row?.count || 0;
+};
+
+const createOperatorSession = async (db, { tokenHash, operatorId, username, expiresAt }) => {
+  const now = Date.now();
+  await db.run(
+    `INSERT INTO admin_operator_sessions (token_hash, operator_id, username, created_at, expires_at, last_seen_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    tokenHash,
+    operatorId,
+    username,
+    now,
+    expiresAt,
+    now
+  );
+};
+
+const getOperatorSession = async (db, tokenHash) => {
+  const row = await db.get(
+    `SELECT token_hash AS tokenHash, operator_id AS operatorId, username, created_at AS createdAt,
+            expires_at AS expiresAt, last_seen_at AS lastSeenAt
+     FROM admin_operator_sessions WHERE token_hash = ?`,
+    tokenHash
+  );
+  return row || null;
+};
+
+const touchOperatorSession = async (db, tokenHash) => {
+  await db.run(`UPDATE admin_operator_sessions SET last_seen_at = ? WHERE token_hash = ?`, Date.now(), tokenHash);
+};
+
+const deleteOperatorSession = async (db, tokenHash) => {
+  await db.run(`DELETE FROM admin_operator_sessions WHERE token_hash = ?`, tokenHash);
+};
+
+const purgeExpiredOperatorSessions = async (db) => {
+  const result = await db.run(`DELETE FROM admin_operator_sessions WHERE expires_at <= ?`, Date.now());
+  return result.changes || 0;
+};
+
 export {
   initAdminDb,
   insertAdminEvent,
@@ -535,4 +623,12 @@ export {
   getMaintenanceMode,
   setMaintenanceMode,
   mapEventRow,
+  countOperators,
+  createOperatorSession,
+  deleteOperatorSession,
+  getOperatorByUsername,
+  getOperatorSession,
+  purgeExpiredOperatorSessions,
+  touchOperatorSession,
+  upsertOperator,
 };

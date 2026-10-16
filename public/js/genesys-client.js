@@ -1,3 +1,4 @@
+import { isVaultSessionRequiredPayload, showVaultSessionRequiredModal } from "./api-error-modal.js";
 import { ensureSessionUsersSynced, fetchCachedUsers, loadSessionUsers } from "./session-store.js";
 import { isVaultMode } from "./genesys-auth.js";
 
@@ -48,6 +49,9 @@ const parseJsonResponse = async (response, fallbackMessage) => {
   const payload = await response.json();
 
   if (!response.ok) {
+    if (response.status === 401 && isVaultSessionRequiredPayload(payload)) {
+      showVaultSessionRequiredModal(payload.error);
+    }
     const error = new Error(payload.error || fallbackMessage);
     error.status = response.status;
     error.payload = payload;

@@ -13,7 +13,7 @@ import {
 } from "../data/session-db.js";
 import { readCachedSessionUsers, syncSessionUsers, USERS_CACHE_EXPAND } from "../lib/user-cache.js";
 
-const createSessionRouter = ({ sessionDb }) => {
+const createSessionRouter = ({ sessionDb, recordEvent }) => {
   const router = Router();
 
   const requireSession = (req, res) => {
@@ -294,6 +294,29 @@ const createSessionRouter = ({ sessionDb }) => {
     } catch (error) {
       res.status(500).json({ error: error.message || "Failed to load export rows." });
     }
+  });
+
+  router.post("/api/session/export-audit", async (req, res) => {
+    const bound = await requireBoundSession(req, res);
+    if (!bound) {
+      return;
+    }
+
+    const exportType = String(req.body?.exportType || "").slice(0, 64);
+    const rowCount = Math.max(0, Number(req.body?.rowCount) || 0);
+    const includesPasswordColumn = Boolean(req.body?.includesPasswordColumn);
+
+    if (recordEvent) {
+      recordEvent(req, {
+        action: "csv_export",
+        feature: "export",
+        status: "success",
+        orgId: bound.orgId,
+        metadata: { exportType, rowCount, includesPasswordColumn },
+      }).catch(() => {});
+    }
+
+    res.status(200).json({ logged: true });
   });
 
   router.get("/api/session/exports/:exportId/rows/all", async (req, res) => {

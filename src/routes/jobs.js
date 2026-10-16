@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireGenesysCredentials } from "../lib/genesys-request-credentials.js";
 import { getJobManager } from "../lib/jobs/job-manager.js";
 import { listJobTypes } from "../lib/jobs/handlers/index.js";
 import { JOB_STATUS } from "../lib/jobs/types.js";
@@ -14,27 +15,7 @@ const createJobsRouter = ({ sessionDb } = {}) => {
   const router = Router();
   const jobManager = getJobManager({ sessionDb });
 
-  const getCredentials = (req) => {
-    if (req.genesysCredentials?.region && req.genesysCredentials?.token) {
-      return req.genesysCredentials;
-    }
-
-    const region = req.body?.region || req.query?.region || req.get("x-genesys-region");
-    const token = req.body?.token || req.query?.token || req.get("x-genesys-token");
-
-    return { region, token };
-  };
-
-  const requireCredentials = (req, res) => {
-    const { region, token } = getCredentials(req);
-
-    if (!region || !token) {
-      res.status(400).json({ error: "Both region and token are required." });
-      return null;
-    }
-
-    return { region, token };
-  };
+  const requireCredentials = (req, res) => requireGenesysCredentials(req, res);
 
   router.post("/api/jobs", async (req, res) => {
     const credentials = requireCredentials(req, res);

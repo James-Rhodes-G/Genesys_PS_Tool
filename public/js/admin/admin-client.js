@@ -1,3 +1,9 @@
+let adminLoginRequiredHandler = null;
+
+const setAdminLoginRequiredHandler = (handler) => {
+  adminLoginRequiredHandler = typeof handler === "function" ? handler : null;
+};
+
 const adminFetch = async (path, options = {}) => {
   const response = await fetch(path, {
     credentials: "same-origin",
@@ -6,7 +12,13 @@ const adminFetch = async (path, options = {}) => {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || `Request failed (${response.status})`);
+    if (response.status === 403 && data.code === "ADMIN_LOGIN_REQUIRED" && adminLoginRequiredHandler) {
+      adminLoginRequiredHandler(data);
+    }
+    const error = new Error(data.error || `Request failed (${response.status})`);
+    error.status = response.status;
+    error.payload = data;
+    throw error;
   }
   return data;
 };
@@ -77,4 +89,5 @@ export {
   fetchActivity,
   runBackup,
   runSnapshots,
+  setAdminLoginRequiredHandler,
 };

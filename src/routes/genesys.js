@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireGenesysCredentials } from "../lib/genesys-request-credentials.js";
 import { readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -71,27 +72,7 @@ const scheduleTemplatesPath = path.join(projectRoot, "public", "data", "global_h
 const createGenesysRouter = () => {
   const router = Router();
 
-  const getCredentials = (req) => {
-    if (req.genesysCredentials?.region && req.genesysCredentials?.token) {
-      return req.genesysCredentials;
-    }
-
-    const region = req.body?.region || req.query?.region || req.get("x-genesys-region");
-    const token = req.body?.token || req.query?.token || req.get("x-genesys-token");
-
-    return { region, token };
-  };
-
-  const requireCredentials = (req, res) => {
-    const { region, token } = getCredentials(req);
-
-    if (!region || !token) {
-      res.status(400).json({ error: "Both region and token are required." });
-      return null;
-    }
-
-    return { region, token };
-  };
+  const requireCredentials = (req, res) => requireGenesysCredentials(req, res);
 
   const registerExportRoute = ({ routePath, label, field, handler }) => {
     router.get(routePath, async (req, res) => {
@@ -132,20 +113,21 @@ const createGenesysRouter = () => {
   };
 
   router.post("/api/genesys/organization", async (req, res) => {
-    const { region, token } = getCredentials(req);
+    const credentials = requireCredentials(req, res);
     console.log("[genesys] POST /api/genesys/organization", {
-      region,
-      hasToken: Boolean(token),
+      region: credentials?.region,
+      hasToken: Boolean(credentials?.token),
     });
 
-    if (!region || !token) {
+    if (!credentials) {
       console.warn("[genesys] missing organization credentials", {
-        hasRegion: Boolean(region),
-        hasToken: Boolean(token),
+        hasRegion: Boolean(req.query?.region || req.get("x-genesys-region") || req.genesysCredentials?.region),
+        hasToken: Boolean(req.query?.token || req.get("x-genesys-token") || req.genesysCredentials?.token),
       });
-      res.status(400).json({ error: "Both region and token are required." });
       return;
     }
+
+    const { region, token } = credentials;
 
     try {
       const organization = await getOrganizationMe({ region, token });

@@ -29,7 +29,7 @@ Quick Navigation buttons (Roles, People, Queues, etc.) are configured per-button
 
 The side panel closes automatically when the active tab leaves the Genesys `apps.*` subdomain.
 
-On first launch (or after credentials change), the extension silently calls `POST /api/launch/pair`. Subsequent launches send only the stored `linkToken`.
+Each feature launch calls `POST /api/launch/start` with the current Genesys session token (in memory only). The server returns a one-time launch URL; the extension does not store bearer tokens or link tokens in `chrome.storage`.
 
 ## Quick Navigation vs Launch
 

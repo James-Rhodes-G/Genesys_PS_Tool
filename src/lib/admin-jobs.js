@@ -5,7 +5,10 @@ import { getPlatformSnapshot, getDbSizes, dataDir } from "./platform-metrics.js"
 
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(dataDir, "backups");
 const BACKUP_RETENTION_DAYS = Number(process.env.BACKUP_RETENTION_DAYS || 7);
-const DB_FILES = ["session.db", "mock-api.db", "logs.db", "admin.db"];
+const includeSessionDbInBackup = () => process.env.BACKUP_INCLUDE_SESSION_DB === "1";
+const DB_FILES = ["mock-api.db", "logs.db", "admin.db"];
+const backupDbFiles = () =>
+  includeSessionDbInBackup() ? ["session.db", ...DB_FILES] : DB_FILES;
 
 const runBackup = async ({ insertBackupRun, adminDb }) => {
   const id = crypto.randomUUID();
@@ -18,7 +21,7 @@ const runBackup = async ({ insertBackupRun, adminDb }) => {
 
     const files = [];
     let totalBytes = 0;
-    for (const file of DB_FILES) {
+    for (const file of backupDbFiles()) {
       const src = path.join(dataDir, file);
       if (!fs.existsSync(src)) continue;
       const dest = path.join(backupFolder, file);

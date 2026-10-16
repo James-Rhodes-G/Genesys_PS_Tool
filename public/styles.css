@@ -1518,3 +1518,38 @@ pre {
     grid-template-columns: 1fr;
   }
 }
+
+.ps-tool-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ps-tool-modal.hidden {
+  display: none;
+}
+
+.ps-tool-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.ps-tool-modal__panel {
+  position: relative;
+  max-width: 28rem;
+  margin: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+.ps-tool-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
