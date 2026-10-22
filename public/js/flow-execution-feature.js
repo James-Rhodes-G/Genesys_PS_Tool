@@ -180,6 +180,7 @@ const createFlowExecutionFeature = ({
       columns,
       rows: featureState.executions,
       escapeHtml,
+      exportId: resultId,
       className: "flow-exec-selection-table",
       emptyMessage: "No flow executions found for this conversation.",
       renderCell: (column, row) => {

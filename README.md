@@ -116,8 +116,8 @@ Copy `.env.example` to `.env` and configure:
 
 | Tool | Description |
 | --- | --- |
-| Conversation Data | Returns the JSON of the conversationId|
-| Attributes | Returns the attributes of a participants in the conversationId|
+| Conversation Data | Conversation JSON in a collapsible tree (root expanded; nested sections fold); Expand all / Collapse all |
+| Attributes | Conversation and participant attributes table (click column headers to sort; CSV matches sort order) |
 | Flow Execution | Query flow instances by conversation ID, then open in Genesys or the PS Tool Architect Execution Timeline Viewer |
 | Interaction Details | Takes you to the Genesys UI interaction details page |
 | Intent Health | selector driven intent health for selected flow |
@@ -343,7 +343,7 @@ Session-scoped in-memory cache in `public/js/resource-cache.js`. First request h
 
 ## Export tables
 
-Exports render as collapsible result panels with GUX tables, column picker, and CSV download.
+Exports render as collapsible result panels with GUX tables, column picker, click-to-sort column headers, and CSV download (sort order matches the table).
 
 - Multi-value cells use pipe-separated format (` \| ` in CSV, line breaks in HTML)
 - Large exports (≥ 200 rows) offload row storage to the session DB

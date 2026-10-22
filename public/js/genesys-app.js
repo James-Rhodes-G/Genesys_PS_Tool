@@ -170,6 +170,16 @@ import { setAdminLoginRequiredHandler } from "./admin/admin-client.js";
 import { bindAdminOperatorUi, openAdminLoginModal } from "./admin/admin-operator-ui.js";
 import { isAdminAuthenticated } from "./admin/admin-operator-session.js";
 import { wireColumnEditorDragDrop } from "./column-editor-dnd.js";
+import {
+  handleConversationJsonToolbarClick,
+  renderConversationJsonPanelHtml,
+} from "./conversation-json-view.js";
+import { getValuesForPath } from "./export-column-values.js";
+import {
+  ensureExportTableSort,
+  getExportDisplayRows,
+  wireExportTableSort,
+} from "./export-table-sort.js";
 import { createFlowExecutionFeature } from "./flow-execution-feature.js";
 import { clearFlowExecutionModelCache } from "./flow-execution-client.js";
 import { createUserNotificationsFeature } from "./user-notifications.js";
@@ -274,33 +284,6 @@ const collectLeafPaths = (value, prefix, paths) => {
   if (prefix) {
     paths.add(prefix);
   }
-};
-
-const getValuesForPath = (source, path) => {
-  const segments = String(path || "").split(".");
-
-  const visit = (current, index) => {
-    if (index >= segments.length) {
-      return [current];
-    }
-
-    const segment = segments[index];
-    const isArraySegment = segment.endsWith("[]");
-    const key = isArraySegment ? segment.slice(0, -2) : segment;
-    const next = key ? current && current[key] : current;
-
-    if (isArraySegment) {
-      if (!Array.isArray(next)) {
-        return [];
-      }
-
-      return next.flatMap((item) => visit(item, index + 1));
-    }
-
-    return visit(next, index + 1);
-  };
-
-  return visit(source, 0).filter((value) => value != null && value !== "");
 };
 
 const formatCellValue = (value) => {
@@ -1040,10 +1023,12 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         };
       }
 
+      const displayRows = getExportDisplayRows(exportMeta);
+
       return {
         shellHtml: renderGuxTable({
           columns: selectedColumns,
-          rows: exportMeta.rows,
+          rows: displayRows,
           renderCell: (column, row) => {
             if (typeof column.renderCell === "function") {
               return column.renderCell(row, exportMeta);
@@ -1058,6 +1043,9 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           wrapCells: true,
           columnWidths: exportMeta.columnWidths || {},
           emptyMessage: "No rows to display.",
+          sortableColumns: exportMeta.sortableColumns !== false,
+          sortState: exportMeta.tableSort || null,
+          exportId,
         }),
         footerHtml: renderSessionRowsFooter(exportId, exportMeta),
       };
@@ -1221,6 +1209,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         console.warn("Failed to load all session rows for CSV export:", error);
       }
     }
+
+    rows = getExportDisplayRows(exportMeta, rows);
 
     const lines = [selectedColumns.map((column) => escapeCsv(column.header)).join(",")];
 
@@ -1755,6 +1745,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       if (exportMeta) {
         exportMeta.status = status;
         exportMeta.statusBase = status;
+        ensureExportTableSort(exportMeta);
         state.exportData[resultId] = exportMeta;
       } else {
         delete state.exportData[resultId];
@@ -2926,6 +2917,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
     if (resultsListEl) {
       resultsListEl.addEventListener("click", async (event) => {
+        if (handleConversationJsonToolbarClick(event)) {
+          return;
+        }
+
         if (await bulkSkillAssignFeature.handleClick(event)) {
           return;
         }
@@ -3658,14 +3653,18 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
             loadingResultId,
             "Report: Conversation Data",
             `Loaded ${request.conversationId}`,
-            renderJsonBlock(conversation)
+            renderConversationJsonPanelHtml(conversation, { resultId: loadingResultId, escapeHtml })
           );
         } catch (error) {
           finishExportResult(
             loadingResultId,
             "Report: Conversation Data",
             error.message || "Conversation report failed",
-            renderJsonBlock(error.payload || { error: error.message || "Conversation report failed" })
+            renderConversationJsonPanelHtml(error.payload || { error: error.message || "Conversation report failed" }, {
+              resultId: loadingResultId,
+              maxOpenDepth: 1,
+              escapeHtml,
+            })
           );
         }
       });
@@ -3836,6 +3835,11 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           }
         }
       });
+
+    wireExportTableSort({
+      getExportMeta: (exportId) => state.exportData[exportId],
+      rerenderExportSection,
+    });
 
     if (isConnected() && (getToken() || isVaultMode())) {
       queueMicrotask(async () => {
