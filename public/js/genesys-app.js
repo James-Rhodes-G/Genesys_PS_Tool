@@ -1038,14 +1038,14 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
               const canMoveDown =
                 selectedIndex !== -1 && selectedIndex < exportMeta.selectedColumnKeys.length - 1;
 
-              return `<div class="column-editor__option">${renderGuxFieldCheckbox({
+              return `<div class="column-editor__option"><div class="column-editor__label">${renderGuxFieldCheckbox({
                 escapeHtml,
                 className: "column-toggle",
                 label: column.header,
                 checked,
                 attrs: `data-export-id="${escapeHtml(exportId)}" data-column-key="${escapeHtml(column.key)}"`,
                 labelPosition: "beside",
-              })}<span class="column-editor__order">${renderGuxColumnMoveButton({
+              })}</div><span class="column-editor__order" aria-label="Reorder ${escapeHtml(column.header)}">${renderGuxColumnMoveButton({
                 escapeHtml,
                 exportId,
                 columnKey: column.key,
