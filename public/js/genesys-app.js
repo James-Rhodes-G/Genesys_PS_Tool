@@ -174,6 +174,7 @@ import {
   handleConversationJsonToolbarClick,
   renderConversationJsonPanelHtml,
 } from "./conversation-json-view.js";
+import { getValuesForPath } from "./export-column-values.js";
 import {
   ensureExportTableSort,
   getExportDisplayRows,
@@ -283,33 +284,6 @@ const collectLeafPaths = (value, prefix, paths) => {
   if (prefix) {
     paths.add(prefix);
   }
-};
-
-const getValuesForPath = (source, path) => {
-  const segments = String(path || "").split(".");
-
-  const visit = (current, index) => {
-    if (index >= segments.length) {
-      return [current];
-    }
-
-    const segment = segments[index];
-    const isArraySegment = segment.endsWith("[]");
-    const key = isArraySegment ? segment.slice(0, -2) : segment;
-    const next = key ? current && current[key] : current;
-
-    if (isArraySegment) {
-      if (!Array.isArray(next)) {
-        return [];
-      }
-
-      return next.flatMap((item) => visit(item, index + 1));
-    }
-
-    return visit(next, index + 1);
-  };
-
-  return visit(source, 0).filter((value) => value != null && value !== "");
 };
 
 const formatCellValue = (value) => {

@@ -1,6 +1,8 @@
-const compareExportRowValues = (left, right, columnKey) => {
-  const leftValue = String(left?.[columnKey] ?? "");
-  const rightValue = String(right?.[columnKey] ?? "");
+import { getRowSortValue } from "./export-column-values.js";
+
+const compareExportRowValues = (left, right, columnKey, exportMeta) => {
+  const leftValue = getRowSortValue(left, columnKey, exportMeta);
+  const rightValue = getRowSortValue(right, columnKey, exportMeta);
 
   if (!leftValue && !rightValue) {
     return 0;
@@ -52,7 +54,7 @@ const getExportDisplayRows = (exportMeta, rows = exportMeta?.rows) => {
   }
 
   const { columnKey, direction } = exportMeta.tableSort;
-  const sorted = [...sourceRows].sort((left, right) => compareExportRowValues(left, right, columnKey));
+  const sorted = [...sourceRows].sort((left, right) => compareExportRowValues(left, right, columnKey, exportMeta));
   return direction === "desc" ? sorted.reverse() : sorted;
 };
 
