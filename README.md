@@ -116,8 +116,8 @@ Copy `.env.example` to `.env` and configure:
 
 | Tool | Description |
 | --- | --- |
-| Conversation Data | Returns the JSON of the conversationId|
-| Attributes | Returns the attributes of a participants in the conversationId|
+| Conversation Data | Conversation JSON in a collapsible tree (root expanded; nested sections fold); Expand all / Collapse all |
+| Attributes | Conversation and participant attributes in a sortable table (click column headers); CSV matches sort order |
 | Flow Execution | Query flow instances by conversation ID, then open in Genesys or the PS Tool Architect Execution Timeline Viewer |
 | Interaction Details | Takes you to the Genesys UI interaction details page |
 | Intent Health | selector driven intent health for selected flow |

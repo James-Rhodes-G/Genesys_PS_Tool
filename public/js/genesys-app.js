@@ -170,6 +170,11 @@ import { setAdminLoginRequiredHandler } from "./admin/admin-client.js";
 import { bindAdminOperatorUi, openAdminLoginModal } from "./admin/admin-operator-ui.js";
 import { isAdminAuthenticated } from "./admin/admin-operator-session.js";
 import { wireColumnEditorDragDrop } from "./column-editor-dnd.js";
+import {
+  handleConversationJsonToolbarClick,
+  renderConversationJsonPanelHtml,
+} from "./conversation-json-view.js";
+import { getExportDisplayRows, handleExportTableSortClick } from "./export-table-sort.js";
 import { createFlowExecutionFeature } from "./flow-execution-feature.js";
 import { clearFlowExecutionModelCache } from "./flow-execution-client.js";
 import { createUserNotificationsFeature } from "./user-notifications.js";
@@ -676,6 +681,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         { key: "value", header: "Value" },
       ],
       selectedColumnKeys: ["scope", "participantName", "participantPurpose", "key", "value"],
+      sortableColumns: true,
+      tableSort: { columnKey: null, direction: "asc" },
       emptyHtml: `<p class="muted">No conversation or participant attributes found for ${escapeHtml(conversationId)}.</p>`,
     };
   };
@@ -1040,10 +1047,12 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         };
       }
 
+      const displayRows = getExportDisplayRows(exportMeta);
+
       return {
         shellHtml: renderGuxTable({
           columns: selectedColumns,
-          rows: exportMeta.rows,
+          rows: displayRows,
           renderCell: (column, row) => {
             if (typeof column.renderCell === "function") {
               return column.renderCell(row, exportMeta);
@@ -1058,6 +1067,9 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           wrapCells: true,
           columnWidths: exportMeta.columnWidths || {},
           emptyMessage: "No rows to display.",
+          sortableColumns: Boolean(exportMeta.sortableColumns),
+          sortState: exportMeta.tableSort || null,
+          exportId,
         }),
         footerHtml: renderSessionRowsFooter(exportId, exportMeta),
       };
@@ -1221,6 +1233,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         console.warn("Failed to load all session rows for CSV export:", error);
       }
     }
+
+    rows = getExportDisplayRows(exportMeta, rows);
 
     const lines = [selectedColumns.map((column) => escapeCsv(column.header)).join(",")];
 
@@ -2926,6 +2940,19 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
     if (resultsListEl) {
       resultsListEl.addEventListener("click", async (event) => {
+        if (handleConversationJsonToolbarClick(event)) {
+          return;
+        }
+
+        if (
+          handleExportTableSortClick(event, {
+            getExportMeta: (exportId) => state.exportData[exportId],
+            rerenderExportSection,
+          })
+        ) {
+          return;
+        }
+
         if (await bulkSkillAssignFeature.handleClick(event)) {
           return;
         }
@@ -3658,14 +3685,18 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
             loadingResultId,
             "Report: Conversation Data",
             `Loaded ${request.conversationId}`,
-            renderJsonBlock(conversation)
+            renderConversationJsonPanelHtml(conversation, { resultId: loadingResultId, escapeHtml })
           );
         } catch (error) {
           finishExportResult(
             loadingResultId,
             "Report: Conversation Data",
             error.message || "Conversation report failed",
-            renderJsonBlock(error.payload || { error: error.message || "Conversation report failed" })
+            renderConversationJsonPanelHtml(error.payload || { error: error.message || "Conversation report failed" }, {
+              resultId: loadingResultId,
+              maxOpenDepth: 1,
+              escapeHtml,
+            })
           );
         }
       });

@@ -34,6 +34,14 @@ const formatPrimitive = (value) => {
   return escapeHtml(String(value));
 };
 
+const shouldNodeOpen = (depth, options) => {
+  if (options?.maxOpenDepth != null && Number.isFinite(options.maxOpenDepth)) {
+    return depth <= options.maxOpenDepth;
+  }
+
+  return options?.expand !== false;
+};
+
 const renderPrimitiveLine = (key, value) => {
   const line = document.createElement("div");
   line.className = "json-line json-leaf";
@@ -50,7 +58,7 @@ const renderPrimitiveLine = (key, value) => {
   return line;
 };
 
-const renderCollection = (key, value, options) => {
+const renderCollection = (key, value, options, depth = 0) => {
   const isArray = Array.isArray(value);
   const entries = isArray
     ? value.map((entry, index) => [index, entry])
@@ -58,9 +66,7 @@ const renderCollection = (key, value, options) => {
 
   const details = document.createElement("details");
   details.className = "json-node";
-  if (options?.expand !== false) {
-    details.open = true;
-  }
+  details.open = shouldNodeOpen(depth, options);
 
   const summary = document.createElement("summary");
   summary.className = "json-summary";
@@ -82,7 +88,7 @@ const renderCollection = (key, value, options) => {
   children.className = "json-children";
 
   entries.forEach(([entryKey, entryValue]) => {
-    children.appendChild(renderNode(entryKey, entryValue, options));
+    children.appendChild(renderNode(entryKey, entryValue, options, depth + 1));
   });
 
   if (!entries.length) {
@@ -96,12 +102,12 @@ const renderCollection = (key, value, options) => {
   return details;
 };
 
-const renderNode = (key, value, options) => {
+const renderNode = (key, value, options, depth = 0) => {
   if (value === null || typeof value !== "object") {
     return renderPrimitiveLine(key, value);
   }
 
-  return renderCollection(key, value, options);
+  return renderCollection(key, value, options, depth);
 };
 
 const renderJsonTree = (value, options = {}) => {
@@ -113,7 +119,7 @@ const renderJsonTree = (value, options = {}) => {
     return root;
   }
 
-  root.appendChild(renderCollection(null, value, options));
+  root.appendChild(renderCollection(null, value, options, 0));
   return root;
 };
 

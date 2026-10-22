@@ -525,6 +525,50 @@ html.vault-mode .region-picker,
   background: rgba(11, 92, 171, 0.15);
 }
 
+.gux-table-shell table.export-data-table .export-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  max-width: calc(100% - 8px);
+}
+
+.gux-table-shell table.export-data-table .export-table-sort:hover {
+  color: #0b5cab;
+}
+
+.gux-table-shell table.export-data-table .export-table-sort:focus-visible {
+  outline: 2px solid #2f6fed;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.gux-table-shell table.export-data-table .export-table-sort__indicator {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: #0b5cab;
+  min-width: 0.85rem;
+}
+
+.conversation-json-view__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.conversation-json-view__action {
+  font-size: 0.8rem;
+}
+
 body.export-table-col-resizing {
   cursor: col-resize;
   user-select: none;
