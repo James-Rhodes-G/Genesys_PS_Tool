@@ -155,7 +155,6 @@ import {
   getRegionControlValue,
   populateRegionControl,
   readControlValue,
-  renderGuxColumnMoveButton,
   renderGuxExportToolbar,
   renderGuxFieldCheckbox,
   renderGuxFieldSelect,
@@ -170,6 +169,7 @@ import { createAdminFeatures } from "./admin/admin-features.js";
 import { setAdminLoginRequiredHandler } from "./admin/admin-client.js";
 import { bindAdminOperatorUi, openAdminLoginModal } from "./admin/admin-operator-ui.js";
 import { isAdminAuthenticated } from "./admin/admin-operator-session.js";
+import { wireColumnEditorDragDrop } from "./column-editor-dnd.js";
 import { createFlowExecutionFeature } from "./flow-execution-feature.js";
 import { clearFlowExecutionModelCache } from "./flow-execution-client.js";
 import { createUserNotificationsFeature } from "./user-notifications.js";
@@ -1017,85 +1017,164 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       </div>`;
     };
 
+    const getExportSelectedColumns = (exportMeta) => {
+      const leadingColumns = (exportMeta.leadingColumns || []).filter(Boolean);
+      const dataColumns = exportMeta.selectedColumnKeys
+        .map((key) => exportMeta.availableColumns.find((column) => column.key === key))
+        .filter(Boolean);
+      return [...leadingColumns, ...dataColumns];
+    };
+
+    const renderExportDataTableMarkup = (exportId, exportMeta) => {
+      const selectedColumns = getExportSelectedColumns(exportMeta);
+      const exportToolbarHtml = renderGuxExportToolbar({
+        escapeHtml,
+        exportId,
+        showEdit: exportMeta.editable !== false,
+      });
+
+      if (selectedColumns.length === 0) {
+        return {
+          shellHtml: `<div class="gux-table-shell">${exportToolbarHtml}<p class="muted">Select at least one column.</p></div>`,
+          footerHtml: "",
+        };
+      }
+
+      return {
+        shellHtml: renderGuxTable({
+          columns: selectedColumns,
+          rows: exportMeta.rows,
+          renderCell: (column, row) => {
+            if (typeof column.renderCell === "function") {
+              return column.renderCell(row, exportMeta);
+            }
+
+            return renderColumnCell(column, row);
+          },
+          escapeHtml,
+          toolbarHtml: exportToolbarHtml,
+          shell: true,
+          resizable: true,
+          wrapCells: true,
+          columnWidths: exportMeta.columnWidths || {},
+          emptyMessage: "No rows to display.",
+        }),
+        footerHtml: renderSessionRowsFooter(exportId, exportMeta),
+      };
+    };
+
+    const rerenderExportTableOnly = (exportId) => {
+      const exportMeta = state.exportData[exportId];
+      const resultEl = document.getElementById(exportId);
+      const body = resultEl?.querySelector(".export-results__body");
+      if (!exportMeta || !body) {
+        return;
+      }
+
+      const { shellHtml, footerHtml } = renderExportDataTableMarkup(exportId, exportMeta);
+
+      const existingShell = body.querySelector(".gux-table-shell");
+      if (existingShell) {
+        existingShell.outerHTML = shellHtml;
+      } else {
+        body.insertAdjacentHTML("beforeend", shellHtml);
+      }
+
+      const existingFooter = body.querySelector(".export-session-footer");
+      if (footerHtml) {
+        if (existingFooter) {
+          existingFooter.outerHTML = footerHtml;
+        } else {
+          body.querySelector(".gux-table-shell")?.insertAdjacentHTML("afterend", footerHtml);
+        }
+      } else if (existingFooter) {
+        existingFooter.remove();
+      }
+
+      wireExportTableResize(exportId, {
+        getExportMeta: () => state.exportData[exportId],
+      });
+    };
+
     const renderEditableTableContent = (exportId) => {
       const exportMeta = state.exportData[exportId];
       if (!exportMeta) {
         return '<p class="muted">No export data available.</p>';
       }
 
-      const leadingColumns = (exportMeta.leadingColumns || []).filter(Boolean);
-      const dataColumns = exportMeta.selectedColumnKeys
-        .map((key) => exportMeta.availableColumns.find((column) => column.key === key))
-        .filter(Boolean);
-      const selectedColumns = [...leadingColumns, ...dataColumns];
-
       const editorHtml = exportMeta.editMode
-        ? `<div class="column-editor"><div class="column-editor__header">Edit columns</div><div class="column-editor__grid">${exportMeta.availableColumns
-            .map((column) => {
-              const checked = exportMeta.selectedColumnKeys.includes(column.key);
-              const selectedIndex = exportMeta.selectedColumnKeys.indexOf(column.key);
-              const canMoveUp = selectedIndex > 0;
-              const canMoveDown =
-                selectedIndex !== -1 && selectedIndex < exportMeta.selectedColumnKeys.length - 1;
+        ? (() => {
+            const columnByKey = new Map(exportMeta.availableColumns.map((column) => [column.key, column]));
+            const selectedColumns = exportMeta.selectedColumnKeys
+              .map((key) => columnByKey.get(key))
+              .filter(Boolean);
+            const unselectedColumns = exportMeta.availableColumns.filter(
+              (column) => !exportMeta.selectedColumnKeys.includes(column.key)
+            );
 
-              return `<div class="column-editor__option">${renderGuxFieldCheckbox({
-                escapeHtml,
-                className: "column-toggle",
-                label: column.header,
-                checked,
-                attrs: `data-export-id="${escapeHtml(exportId)}" data-column-key="${escapeHtml(column.key)}"`,
-                labelPosition: "beside",
-              })}<span class="column-editor__order">${renderGuxColumnMoveButton({
-                escapeHtml,
-                exportId,
-                columnKey: column.key,
-                direction: "up",
-                disabled: !canMoveUp,
-              })}${renderGuxColumnMoveButton({
-                escapeHtml,
-                exportId,
-                columnKey: column.key,
-                direction: "down",
-                disabled: !canMoveDown,
-              })}</span></div>`;
-            })
-            .join("")}</div></div>`
+            const orderListHtml = selectedColumns.length
+              ? selectedColumns
+                  .map(
+                    (column) =>
+                      `<div class="column-editor__draggable" data-export-id="${escapeHtml(
+                        exportId
+                      )}" data-column-key="${escapeHtml(column.key)}">
+                    <span class="column-editor__drag-handle" draggable="true" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+                    ${renderGuxFieldCheckbox({
+                      escapeHtml,
+                      className: "column-toggle column-toggle--selected",
+                      label: column.header,
+                      checked: true,
+                      attrs: `data-export-id="${escapeHtml(exportId)}" data-column-key="${escapeHtml(column.key)}"`,
+                      labelPosition: "beside",
+                    })}
+                  </div>`
+                  )
+                  .join("")
+              : `<p class="muted column-editor__empty">No columns selected. Add columns below.</p>`;
+
+            const availableHtml = unselectedColumns.length
+              ? unselectedColumns
+                  .map((column) =>
+                    renderGuxFieldCheckbox({
+                      escapeHtml,
+                      className: "column-toggle",
+                      label: column.header,
+                      checked: false,
+                      attrs: `data-export-id="${escapeHtml(exportId)}" data-column-key="${escapeHtml(column.key)}"`,
+                      labelPosition: "beside",
+                    })
+                  )
+                  .join("")
+              : `<p class="muted column-editor__empty">All columns are visible above.</p>`;
+
+            return `<div class="column-editor">
+              <div class="column-editor__header">Edit columns</div>
+              <p class="muted column-editor__hint">Drag rows to set export column order. Uncheck to remove from the export.</p>
+              <div class="column-editor__subheader">Column order</div>
+              <div class="column-editor__order-list">${orderListHtml}</div>
+              <div class="column-editor__subheader">Add columns</div>
+              <div class="column-editor__available">${availableHtml}</div>
+            </div>`;
+          })()
         : "";
 
-    const exportToolbarHtml = renderGuxExportToolbar({
-      escapeHtml,
-      exportId,
-      showEdit: exportMeta.editable !== false,
-    });
-
-    if (selectedColumns.length === 0) {
-      return `${editorHtml}<div class="gux-table-shell">${exportToolbarHtml}<p class="muted">Select at least one column.</p></div>`;
-    }
-
-    return `${editorHtml}${renderGuxTable({
-      columns: selectedColumns,
-      rows: exportMeta.rows,
-      renderCell: (column, row) => {
-        if (typeof column.renderCell === "function") {
-          return column.renderCell(row, exportMeta);
-        }
-
-        return renderColumnCell(column, row);
-      },
-      escapeHtml,
-      toolbarHtml: exportToolbarHtml,
-      shell: true,
-      resizable: true,
-      wrapCells: true,
-      columnWidths: exportMeta.columnWidths || {},
-      emptyMessage: "No rows to display.",
-    })}${renderSessionRowsFooter(exportId, exportMeta)}`;
+      const { shellHtml, footerHtml } = renderExportDataTableMarkup(exportId, exportMeta);
+      return `${editorHtml}${shellHtml}${footerHtml}`;
   };
 
   const afterExportTableRender = (exportId) => {
     wireExportTableResize(exportId, {
       getExportMeta: () => state.exportData[exportId],
     });
+
+    const exportMeta = state.exportData[exportId];
+    if (exportMeta?.editMode) {
+      wireColumnEditorDragDrop(exportId, {
+        getExportMeta: () => state.exportData[exportId],
+        onReorder: () => rerenderExportTableOnly(exportId),
+      });
+    }
   };
 
   const renderExportBody = (resultId, html, exportMeta) => {
@@ -1719,23 +1798,6 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         restoreFocusedField(nextEl, savedFocus);
         afterExportTableRender(exportId);
       }
-      };
-
-      const moveSelectedColumn = (exportMeta, columnKey, direction) => {
-        const currentIndex = exportMeta.selectedColumnKeys.indexOf(columnKey);
-        if (currentIndex === -1) {
-          return;
-        }
-
-        const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-        if (targetIndex < 0 || targetIndex >= exportMeta.selectedColumnKeys.length) {
-          return;
-        }
-
-        const nextKeys = exportMeta.selectedColumnKeys.slice();
-        const [movedKey] = nextKeys.splice(currentIndex, 1);
-        nextKeys.splice(targetIndex, 0, movedKey);
-        exportMeta.selectedColumnKeys = nextKeys;
       };
 
     const requireCredentials = (title) => {
@@ -3027,25 +3089,6 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           }
 
           state.exportData[exportId].editMode = !state.exportData[exportId].editMode;
-          rerenderExportSection(exportId);
-          return;
-        }
-
-        const moveButton = target.closest(".column-move-button");
-        if (moveButton) {
-          event.preventDefault();
-          event.stopPropagation();
-
-          const exportId = moveButton.getAttribute("data-export-id");
-          const columnKey = moveButton.getAttribute("data-column-key");
-          const direction = moveButton.getAttribute("data-direction");
-          const exportMeta = exportId ? state.exportData[exportId] : null;
-
-          if (!exportMeta || !columnKey || !direction) {
-            return;
-          }
-
-          moveSelectedColumn(exportMeta, columnKey, direction);
           rerenderExportSection(exportId);
           return;
         }
