@@ -1,3 +1,19 @@
+const getDragAfterElement = (container, pointerY) => {
+  const siblings = [...container.querySelectorAll(".column-editor__draggable:not(.is-dragging)")];
+
+  return siblings.reduce(
+    (closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = pointerY - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: child };
+      }
+      return closest;
+    },
+    { offset: Number.NEGATIVE_INFINITY, element: null }
+  ).element;
+};
+
 const wireColumnEditorDragDrop = (exportId, { getExportMeta, onReorder }) => {
   const root = document.getElementById(exportId);
   const list = root?.querySelector(".column-editor__order-list");
@@ -5,81 +21,79 @@ const wireColumnEditorDragDrop = (exportId, { getExportMeta, onReorder }) => {
     return;
   }
 
-  let draggedKey = null;
+  let activeRow = null;
 
-  const clearDropTarget = () => {
-    list.querySelectorAll(".column-editor__draggable.is-drop-target").forEach((element) => {
-      element.classList.remove("is-drop-target");
-    });
-  };
+  const readOrderFromDom = () =>
+    [...list.querySelectorAll(".column-editor__draggable")]
+      .map((row) => row.getAttribute("data-column-key"))
+      .filter(Boolean);
 
-  list.querySelectorAll(".column-editor__draggable").forEach((item) => {
-    item.querySelectorAll("input, label, gux-form-field-checkbox").forEach((control) => {
-      control.addEventListener("mousedown", () => {
-        item.draggable = false;
-      });
-      control.addEventListener("mouseup", () => {
-        item.draggable = true;
-      });
-    });
+  list.addEventListener("dragstart", (event) => {
+    const handle = event.target.closest(".column-editor__drag-handle");
+    if (!handle) {
+      return;
+    }
 
-    item.addEventListener("dragstart", (event) => {
-      draggedKey = item.getAttribute("data-column-key");
-      item.classList.add("is-dragging");
-      if (event.dataTransfer) {
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", draggedKey || "");
-      }
-    });
+    activeRow = handle.closest(".column-editor__draggable");
+    if (!activeRow) {
+      return;
+    }
 
-    item.addEventListener("dragend", () => {
-      item.classList.remove("is-dragging");
-      draggedKey = null;
-      clearDropTarget();
-    });
+    const columnKey = activeRow.getAttribute("data-column-key") || "";
+    activeRow.classList.add("is-dragging");
 
-    item.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = "move";
-      }
-      clearDropTarget();
-      if (item.getAttribute("data-column-key") !== draggedKey) {
-        item.classList.add("is-drop-target");
-      }
-    });
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", columnKey);
+      event.dataTransfer.setData("application/x-ps-tool-column-key", columnKey);
+    }
+  });
 
-    item.addEventListener("dragleave", () => {
-      item.classList.remove("is-drop-target");
-    });
-
-    item.addEventListener("drop", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      clearDropTarget();
-
-      const targetKey = item.getAttribute("data-column-key");
-      const exportMeta = getExportMeta();
-      if (!exportMeta || !draggedKey || !targetKey || draggedKey === targetKey) {
-        return;
-      }
-
-      const keys = exportMeta.selectedColumnKeys.filter((key) => key !== draggedKey);
-      const targetIndex = keys.indexOf(targetKey);
-      if (targetIndex === -1) {
-        keys.push(draggedKey);
-      } else {
-        keys.splice(targetIndex, 0, draggedKey);
-      }
-
-      exportMeta.selectedColumnKeys = keys;
-      draggedKey = null;
-      onReorder();
+  list.addEventListener("dragend", () => {
+    if (activeRow) {
+      activeRow.classList.remove("is-dragging");
+    }
+    activeRow = null;
+    list.querySelectorAll(".column-editor__draggable.is-drop-target").forEach((row) => {
+      row.classList.remove("is-drop-target");
     });
   });
 
   list.addEventListener("dragover", (event) => {
+    if (!activeRow) {
+      return;
+    }
+
     event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+
+    const afterElement = getDragAfterElement(list, event.clientY);
+    if (afterElement == null) {
+      list.appendChild(activeRow);
+    } else {
+      list.insertBefore(activeRow, afterElement);
+    }
+  });
+
+  list.addEventListener("drop", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const exportMeta = getExportMeta();
+    if (!exportMeta) {
+      return;
+    }
+
+    const keys = readOrderFromDom();
+    if (keys.length === 0) {
+      return;
+    }
+
+    exportMeta.selectedColumnKeys = keys;
+    activeRow = null;
+    onReorder();
   });
 };
 

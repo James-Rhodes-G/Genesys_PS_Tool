@@ -312,11 +312,10 @@ html.vault-mode .region-picker,
   border-radius: 6px;
   background: #fff;
   font-size: 0.85rem;
-  cursor: grab;
 }
 
 .column-editor__draggable:active {
-  cursor: grabbing;
+  cursor: default;
 }
 
 .column-editor__draggable.is-dragging {
@@ -336,6 +335,12 @@ html.vault-mode .region-picker,
   line-height: 1;
   letter-spacing: -0.08em;
   user-select: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.column-editor__drag-handle:active {
+  cursor: grabbing;
 }
 
 .column-editor__draggable gux-form-field-checkbox {

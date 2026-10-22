@@ -1043,10 +1043,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
               ? selectedColumns
                   .map(
                     (column) =>
-                      `<div class="column-editor__draggable" draggable="true" data-export-id="${escapeHtml(
+                      `<div class="column-editor__draggable" data-export-id="${escapeHtml(
                         exportId
                       )}" data-column-key="${escapeHtml(column.key)}">
-                    <span class="column-editor__drag-handle" aria-hidden="true">⋮⋮</span>
+                    <span class="column-editor__drag-handle" draggable="true" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
                     ${renderGuxFieldCheckbox({
                       escapeHtml,
                       className: "column-toggle column-toggle--selected",
