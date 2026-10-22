@@ -14,6 +14,8 @@ const getDragAfterElement = (container, pointerY) => {
   ).element;
 };
 
+const columnOrderKey = (keys) => keys.join("\0");
+
 const wireColumnEditorDragDrop = (exportId, { getExportMeta, onReorder }) => {
   const root = document.getElementById(exportId);
   const list = root?.querySelector(".column-editor__order-list");
@@ -22,13 +24,35 @@ const wireColumnEditorDragDrop = (exportId, { getExportMeta, onReorder }) => {
   }
 
   let activeRow = null;
+  let dropCommitted = false;
 
   const readOrderFromDom = () =>
     [...list.querySelectorAll(".column-editor__draggable")]
       .map((row) => row.getAttribute("data-column-key"))
       .filter(Boolean);
 
+  const commitOrderIfChanged = () => {
+    const exportMeta = getExportMeta();
+    if (!exportMeta) {
+      return false;
+    }
+
+    const keys = readOrderFromDom();
+    if (keys.length === 0) {
+      return false;
+    }
+
+    if (columnOrderKey(keys) === columnOrderKey(exportMeta.selectedColumnKeys)) {
+      return false;
+    }
+
+    exportMeta.selectedColumnKeys = keys;
+    onReorder();
+    return true;
+  };
+
   list.addEventListener("dragstart", (event) => {
+    dropCommitted = false;
     const handle = event.target.closest(".column-editor__drag-handle");
     if (!handle) {
       return;
@@ -50,10 +74,16 @@ const wireColumnEditorDragDrop = (exportId, { getExportMeta, onReorder }) => {
   });
 
   list.addEventListener("dragend", () => {
-    if (activeRow) {
-      activeRow.classList.remove("is-dragging");
+    list.querySelectorAll(".column-editor__draggable.is-dragging").forEach((row) => {
+      row.classList.remove("is-dragging");
+    });
+
+    if (!dropCommitted) {
+      commitOrderIfChanged();
     }
+
     activeRow = null;
+    dropCommitted = false;
     list.querySelectorAll(".column-editor__draggable.is-drop-target").forEach((row) => {
       row.classList.remove("is-drop-target");
     });
@@ -80,20 +110,8 @@ const wireColumnEditorDragDrop = (exportId, { getExportMeta, onReorder }) => {
   list.addEventListener("drop", (event) => {
     event.preventDefault();
     event.stopPropagation();
-
-    const exportMeta = getExportMeta();
-    if (!exportMeta) {
-      return;
-    }
-
-    const keys = readOrderFromDom();
-    if (keys.length === 0) {
-      return;
-    }
-
-    exportMeta.selectedColumnKeys = keys;
-    activeRow = null;
-    onReorder();
+    dropCommitted = true;
+    commitOrderIfChanged();
   });
 };
 

@@ -1017,17 +1017,90 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       </div>`;
     };
 
+    const getExportSelectedColumns = (exportMeta) => {
+      const leadingColumns = (exportMeta.leadingColumns || []).filter(Boolean);
+      const dataColumns = exportMeta.selectedColumnKeys
+        .map((key) => exportMeta.availableColumns.find((column) => column.key === key))
+        .filter(Boolean);
+      return [...leadingColumns, ...dataColumns];
+    };
+
+    const renderExportDataTableMarkup = (exportId, exportMeta) => {
+      const selectedColumns = getExportSelectedColumns(exportMeta);
+      const exportToolbarHtml = renderGuxExportToolbar({
+        escapeHtml,
+        exportId,
+        showEdit: exportMeta.editable !== false,
+      });
+
+      if (selectedColumns.length === 0) {
+        return {
+          shellHtml: `<div class="gux-table-shell">${exportToolbarHtml}<p class="muted">Select at least one column.</p></div>`,
+          footerHtml: "",
+        };
+      }
+
+      return {
+        shellHtml: renderGuxTable({
+          columns: selectedColumns,
+          rows: exportMeta.rows,
+          renderCell: (column, row) => {
+            if (typeof column.renderCell === "function") {
+              return column.renderCell(row, exportMeta);
+            }
+
+            return renderColumnCell(column, row);
+          },
+          escapeHtml,
+          toolbarHtml: exportToolbarHtml,
+          shell: true,
+          resizable: true,
+          wrapCells: true,
+          columnWidths: exportMeta.columnWidths || {},
+          emptyMessage: "No rows to display.",
+        }),
+        footerHtml: renderSessionRowsFooter(exportId, exportMeta),
+      };
+    };
+
+    const rerenderExportTableOnly = (exportId) => {
+      const exportMeta = state.exportData[exportId];
+      const resultEl = document.getElementById(exportId);
+      const body = resultEl?.querySelector(".export-results__body");
+      if (!exportMeta || !body) {
+        return;
+      }
+
+      const { shellHtml, footerHtml } = renderExportDataTableMarkup(exportId, exportMeta);
+
+      const existingShell = body.querySelector(".gux-table-shell");
+      if (existingShell) {
+        existingShell.outerHTML = shellHtml;
+      } else {
+        body.insertAdjacentHTML("beforeend", shellHtml);
+      }
+
+      const existingFooter = body.querySelector(".export-session-footer");
+      if (footerHtml) {
+        if (existingFooter) {
+          existingFooter.outerHTML = footerHtml;
+        } else {
+          body.querySelector(".gux-table-shell")?.insertAdjacentHTML("afterend", footerHtml);
+        }
+      } else if (existingFooter) {
+        existingFooter.remove();
+      }
+
+      wireExportTableResize(exportId, {
+        getExportMeta: () => state.exportData[exportId],
+      });
+    };
+
     const renderEditableTableContent = (exportId) => {
       const exportMeta = state.exportData[exportId];
       if (!exportMeta) {
         return '<p class="muted">No export data available.</p>';
       }
-
-      const leadingColumns = (exportMeta.leadingColumns || []).filter(Boolean);
-      const dataColumns = exportMeta.selectedColumnKeys
-        .map((key) => exportMeta.availableColumns.find((column) => column.key === key))
-        .filter(Boolean);
-      const selectedColumns = [...leadingColumns, ...dataColumns];
 
       const editorHtml = exportMeta.editMode
         ? (() => {
@@ -1086,34 +1159,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           })()
         : "";
 
-    const exportToolbarHtml = renderGuxExportToolbar({
-      escapeHtml,
-      exportId,
-      showEdit: exportMeta.editable !== false,
-    });
-
-    if (selectedColumns.length === 0) {
-      return `${editorHtml}<div class="gux-table-shell">${exportToolbarHtml}<p class="muted">Select at least one column.</p></div>`;
-    }
-
-    return `${editorHtml}${renderGuxTable({
-      columns: selectedColumns,
-      rows: exportMeta.rows,
-      renderCell: (column, row) => {
-        if (typeof column.renderCell === "function") {
-          return column.renderCell(row, exportMeta);
-        }
-
-        return renderColumnCell(column, row);
-      },
-      escapeHtml,
-      toolbarHtml: exportToolbarHtml,
-      shell: true,
-      resizable: true,
-      wrapCells: true,
-      columnWidths: exportMeta.columnWidths || {},
-      emptyMessage: "No rows to display.",
-    })}${renderSessionRowsFooter(exportId, exportMeta)}`;
+      const { shellHtml, footerHtml } = renderExportDataTableMarkup(exportId, exportMeta);
+      return `${editorHtml}${shellHtml}${footerHtml}`;
   };
 
   const afterExportTableRender = (exportId) => {
@@ -1125,7 +1172,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     if (exportMeta?.editMode) {
       wireColumnEditorDragDrop(exportId, {
         getExportMeta: () => state.exportData[exportId],
-        onReorder: () => rerenderExportSection(exportId),
+        onReorder: () => rerenderExportTableOnly(exportId),
       });
     }
   };
