@@ -34,6 +34,10 @@ PSTool Action / API Client
 | Token manager | `src/lib/genesys/token-manager.js` | Cached token with refresh mutex |
 | Rate limiter | `src/lib/genesys-rate-limit.js` | Shared concurrency cap, 429/5xx/401 handling |
 
+## Authentication
+
+Job routes use the same Genesys credential resolution as `/api/genesys/*`: with default security policy, requests must include a vault session cookie (`ps_tool_session` after extension launch). Client `x-genesys-token` headers are accepted only when `PS_TOOL_ALLOW_MANUAL_AUTH=1`.
+
 ## Job API
 
 ### POST `/api/jobs`

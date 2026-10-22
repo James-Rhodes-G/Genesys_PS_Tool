@@ -680,38 +680,42 @@ const createTelephonyMetricsWidget = (deps) => {
   });
 };
 
-const createSessionActivityWidget = () =>
+const createSessionActivityWidget = (deps) =>
   createDashboardWidget({
     id: "session-activity",
     title: "Session Activity",
     className: "dashboard-widget--activity dashboard-widget--full",
     load: async ({ setState }) => {
       let activities = getSessionActivities();
-      try {
-        const response = await fetch("/api/admin/activity", { credentials: "same-origin" });
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data.activities) && data.activities.length) {
-            activities = data.activities;
+      if (deps?.isAdminAuthenticated?.()) {
+        try {
+          const response = await fetch("/api/admin/activity", { credentials: "same-origin" });
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data.activities) && data.activities.length) {
+              activities = data.activities;
+            }
           }
+        } catch (_error) {
+          // use local fallback
         }
-      } catch (_error) {
-        // use local fallback
       }
       setState({ status: "ready", activities });
     },
     refresh: async ({ setState }) => {
       let activities = getSessionActivities();
-      try {
-        const response = await fetch("/api/admin/activity", { credentials: "same-origin" });
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data.activities)) {
-            activities = data.activities;
+      if (deps?.isAdminAuthenticated?.()) {
+        try {
+          const response = await fetch("/api/admin/activity", { credentials: "same-origin" });
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data.activities)) {
+              activities = data.activities;
+            }
           }
+        } catch (_error) {
+          // use local fallback
         }
-      } catch (_error) {
-        // use local fallback
       }
       setState({ status: "ready", activities });
     },
@@ -745,7 +749,7 @@ const createDashboardWidgets = (deps) => [
   createHealthChecksWidget(deps),
   createOrganizationLimitsWidget(deps),
   createTelephonyMetricsWidget(deps),
-  createSessionActivityWidget(),
+  createSessionActivityWidget(deps),
 ];
 
 export {

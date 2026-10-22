@@ -1,3 +1,4 @@
+import { isVaultSessionRequiredPayload, showVaultSessionRequiredModal } from "./api-error-modal.js";
 import { ensureSessionUsersSynced, fetchCachedUsers, loadSessionUsers } from "./session-store.js";
 import { isVaultMode } from "./genesys-auth.js";
 
@@ -48,6 +49,9 @@ const parseJsonResponse = async (response, fallbackMessage) => {
   const payload = await response.json();
 
   if (!response.ok) {
+    if (response.status === 401 && isVaultSessionRequiredPayload(payload)) {
+      showVaultSessionRequiredModal(payload.error);
+    }
     const error = new Error(payload.error || fallbackMessage);
     error.status = response.status;
     error.payload = payload;
@@ -1083,15 +1087,16 @@ const getAuditQueryStatus = async ({ region, token, transactionId }) => {
   return payload.status;
 };
 
-const getAuditQueryResults = async ({ region, token, transactionId, cursor = "" }) => {
+const getAuditQueryResults = async ({ region, token, transactionId, cursor = "", pageSize = 100 }) => {
   const params = new URLSearchParams();
+  params.set("pageSize", String(Math.min(Math.max(Number(pageSize) || 100, 1), 500)));
   if (cursor) {
     params.set("cursor", cursor);
   }
 
   const query = params.toString();
   const payload = await requestGenesysJson(
-    `/api/genesys/audits/query/${encodeURIComponent(transactionId)}/results${query ? `?${query}` : ""}`,
+    `/api/genesys/audits/query/${encodeURIComponent(transactionId)}/results?${query}`,
     {
       method: "GET",
       headers: {

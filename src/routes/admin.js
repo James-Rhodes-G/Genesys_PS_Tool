@@ -1,5 +1,12 @@
 import { Router } from "express";
-import { requireOperator } from "../lib/admin-auth.js";
+import { createRateLimiter } from "../lib/launch-validation.js";
+import { requireAdminSession } from "../lib/admin-auth.js";
+import { verifyPassword } from "../lib/admin-operator-auth.js";
+import {
+  issueAdminSession,
+  revokeAdminSession,
+} from "../middleware/admin-session.js";
+import { countOperators, getOperatorByUsername } from "../data/admin-db.js";
 import { getAppInfo, getDbSizes, getPlatformSnapshot } from "../lib/platform-metrics.js";
 import { runBackup } from "../lib/admin-jobs.js";
 
@@ -59,7 +66,74 @@ const createAdminRouter = ({
   takePlatformSnapshot,
 }) => {
   const router = Router();
-  const op = [requireOperator];
+  const op = [requireAdminSession];
+
+  const adminLoginRateLimit = createRateLimiter({
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+    keyFn: (req) => req.ip || "unknown",
+  });
+
+  router.post("/api/admin/login", adminLoginRateLimit, async (req, res) => {
+    const username = String(req.body?.username || "").trim();
+    const password = String(req.body?.password || "");
+    if (!username || !password) {
+      res.status(400).json({ error: "username and password are required." });
+      return;
+    }
+
+    const operator = await getOperatorByUsername(adminDb, username);
+    if (!operator) {
+      res.status(401).json({ error: "Invalid username or password." });
+      return;
+    }
+
+    const valid = await verifyPassword(password, operator.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "Invalid username or password." });
+      return;
+    }
+
+    const session = await issueAdminSession(adminDb, res, {
+      operatorId: operator.id,
+      username: operator.username,
+    });
+
+    if (auditService?.recordEvent) {
+      auditService.recordEvent(req, {
+        action: "admin_login",
+        feature: "admin",
+        status: "success",
+        userName: operator.username,
+      }).catch(() => {});
+    }
+
+    res.status(200).json({ authenticated: true, username: session.username, expiresAt: session.expiresAt });
+  });
+
+  router.post("/api/admin/logout", async (req, res) => {
+    if (auditService?.recordEvent && req.adminOperator?.username) {
+      auditService.recordEvent(req, {
+        action: "admin_logout",
+        feature: "admin",
+        status: "success",
+        userName: req.adminOperator.username,
+      }).catch(() => {});
+    }
+    await revokeAdminSession(adminDb, req, res);
+    res.status(200).json({ authenticated: false });
+  });
+
+  router.get("/api/admin/session", async (req, res) => {
+    if (!req.adminOperator?.username) {
+      res.status(200).json({ authenticated: false });
+      return;
+    }
+    res.status(200).json({
+      authenticated: true,
+      username: req.adminOperator.username,
+    });
+  });
 
   router.get("/api/admin/events", ...op, async (req, res) => {
     const { from, to } = parseOptionalTimeRange(req);
@@ -80,9 +154,9 @@ const createAdminRouter = ({
     res.json({ events, total, limit, offset });
   });
 
-  router.get("/api/admin/activity", async (req, res) => {
+  router.get("/api/admin/activity", ...op, async (req, res) => {
     const activities = await listAdminActivity(adminDb, {
-      sessionId: req.sessionId,
+      sessionId: req.query.sessionId || req.sessionId,
       orgId: req.query.orgId,
       limit: Math.min(Number(req.query.limit) || 50, 200),
     });
@@ -270,11 +344,15 @@ const createAdminRouter = ({
   });
 
   router.get("/api/admin/compliance", ...op, async (_req, res) => {
+    const operatorCount = await countOperators(adminDb);
     const checks = [
       { name: "VAULT_ENCRYPTION_KEY", ok: Boolean(process.env.VAULT_ENCRYPTION_KEY?.length >= 32) },
       { name: "LAUNCH_HMAC_SECRET", ok: Boolean(process.env.LAUNCH_HMAC_SECRET) || process.env.NODE_ENV !== "production" },
       { name: "LAUNCH_BASE_URL_HTTPS", ok: !process.env.LAUNCH_BASE_URL || process.env.LAUNCH_BASE_URL.startsWith("https://") },
-      { name: "ADMIN_AUTH", ok: Boolean(process.env.PS_TOOL_ADMIN_KEY || process.env.PS_TOOL_ADMIN_EMAILS) },
+      {
+        name: "ADMIN_OPERATORS",
+        ok: operatorCount > 0 || (Boolean(process.env.PS_TOOL_ADMIN_USERNAME) && Boolean(process.env.PS_TOOL_ADMIN_PASSWORD)),
+      },
     ];
     res.json({ checks, allOk: checks.every((c) => c.ok) });
   });

@@ -19,6 +19,7 @@ import {
   setToken,
   setVaultMode,
 } from "./genesys-auth.js";
+import { isManualAuthAllowed, isPasswordExportAllowed, loadAppSecurityPolicy } from "./app-security-policy.js";
 import { applyLaunchContext, captureLaunchContext } from "./launch-context.js";
 import {
   clearOAuthAutoConnect,
@@ -166,6 +167,9 @@ import { createUtterancesFeature } from "./utterances.js";
 import { createAuditLogViewerFeature } from "./audit-log-viewer.js";
 import { createMockApiFeature } from "./mock-api-feature.js";
 import { createAdminFeatures } from "./admin/admin-features.js";
+import { setAdminLoginRequiredHandler } from "./admin/admin-client.js";
+import { bindAdminOperatorUi, openAdminLoginModal } from "./admin/admin-operator-ui.js";
+import { isAdminAuthenticated } from "./admin/admin-operator-session.js";
 import { createFlowExecutionFeature } from "./flow-execution-feature.js";
 import { clearFlowExecutionModelCache } from "./flow-execution-client.js";
 import { createUserNotificationsFeature } from "./user-notifications.js";
@@ -1154,6 +1158,18 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+
+    const includesPasswordColumn = selectedColumns.some((column) => column.key === "password");
+    fetch("/api/session/export-audit", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        exportType: exportMeta.exportType || "export",
+        rowCount: rows.length,
+        includesPasswordColumn,
+      }),
+    }).catch(() => {});
   };
 
     const initializeGenesysApp = () => {
@@ -1300,12 +1316,6 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           notificationMessageParserBtn.disabled = false;
         }
 
-        adminButtons.forEach((button) => {
-          if (button) {
-            button.disabled = false;
-          }
-        });
-
       if (exportsStatusEl) {
         exportsStatusEl.textContent = enabled
           ? "Exports enabled for the connected organization."
@@ -1419,6 +1429,35 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       syncConnectionUi();
     };
 
+    const applyManualAuthPolicyUi = () => {
+      const manualAllowed = isManualAuthAllowed();
+      const vaultMode = isVaultMode();
+      const regionPicker = document.querySelector(".region-picker");
+
+      if (regionPicker && !vaultMode && !manualAllowed) {
+        regionPicker.classList.add("hidden");
+      }
+
+      if (oauthLoginBtn && !manualAllowed) {
+        oauthLoginBtn.hidden = true;
+      }
+
+      if (tokenInput && !manualAllowed) {
+        const field = tokenInput.closest(".field-container");
+        if (field) {
+          field.hidden = true;
+        }
+      }
+
+      if (connectBtn && !manualAllowed && !vaultMode) {
+        connectBtn.hidden = true;
+      }
+
+      if (!vaultMode && !manualAllowed && !isConnected()) {
+        showStatus("Launch PS Tool from the Chrome extension while signed in to Genesys Cloud.");
+      }
+    };
+
     const connectOrganization = async ({
       token,
       region,
@@ -1428,6 +1467,11 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       const vaultMode = isVaultMode();
       const effectiveRegion = region || getRegion();
       const effectiveToken = vaultMode ? "" : token;
+
+      if (!vaultMode && !isManualAuthAllowed()) {
+        showStatus("Manual login is disabled. Re-launch from the PS Tool extension.");
+        return false;
+      }
 
       if (!vaultMode && !effectiveToken) {
         setExportsEnabled(false);
@@ -2071,6 +2115,13 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     });
     confirmModal.bind();
 
+    const adminOperatorUi = bindAdminOperatorUi({
+      onAuthChange: () => {
+        dashboardFeatureRef?.refreshSessionActivity?.();
+      },
+    });
+    setAdminLoginRequiredHandler(() => openAdminLoginModal());
+
     const orgPickerModal = createOrgPickerModal({
       modalEl: orgPickerModalEl,
       searchInputEl: orgPickerSearchEl,
@@ -2456,6 +2507,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       renderLoadingState,
       renderJsonBlock,
       confirmModal,
+      allowPasswordExport: isPasswordExportAllowed,
     });
 
     const bulkLogoffFeature = createBulkLogoffFeature({
@@ -2606,6 +2658,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       loadCachedDataTables: loadCachedDataTablesForSession,
       peekCachedPhones,
       syncSessionUsers,
+      isAdminAuthenticated,
     });
 
     const openDashboardAfterConnect = async (connected) => {
@@ -2615,6 +2668,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
       const launched = await applyLaunchContext({
         isConnected: true,
+        ensureAdminFeatureAccess: async () => adminOperatorUi.requireAdmin(),
         openDashboardAfterConnect: async () => {
           await dashboardFeatureRef?.openDashboard();
         },
@@ -2756,6 +2810,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       finishExportResult,
       renderLoadingState,
       confirmModal,
+      requireAdmin: () => adminOperatorUi.requireAdmin(),
     });
 
     const flowExecutionFeature = createFlowExecutionFeature({
@@ -3679,7 +3734,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         showStatus("Failed to load regions");
       })
       .finally(async () => {
+        await loadAppSecurityPolicy();
+        applyManualAuthPolicyUi();
         syncConnectionUi();
+        await adminOperatorUi.refresh();
 
         const oauthError = getOAuthError();
         if (oauthError) {

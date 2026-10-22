@@ -1,3 +1,5 @@
+import { isGatedAdminFeatureId } from "./admin/admin-feature-ids.js";
+
 const LAUNCH_FEATURE_KEY = "ps_tool_launch_feature";
 const LAUNCH_CONVERSATION_KEY = "ps_tool_launch_conversation_id";
 
@@ -85,10 +87,21 @@ const openNavGroupForFeature = (featureId) => {
   }
 };
 
-const applyLaunchContext = async ({ isConnected, openDashboardAfterConnect }) => {
+const applyLaunchContext = async ({ isConnected, openDashboardAfterConnect, ensureAdminFeatureAccess }) => {
   const context = readStoredLaunchContext();
   if (!context?.feature || !isConnected) {
     return false;
+  }
+
+  if (isGatedAdminFeatureId(context.feature)) {
+    const allowed =
+      typeof ensureAdminFeatureAccess === "function"
+        ? await ensureAdminFeatureAccess(context.feature)
+        : false;
+    if (!allowed) {
+      clearStoredLaunchContext();
+      return false;
+    }
   }
 
   clearStoredLaunchContext();

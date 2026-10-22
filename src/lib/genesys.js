@@ -1696,14 +1696,16 @@ const getAuditQueryStatus = ({ region, token, transactionId }) =>
     path: `/api/v2/audits/query/${encodeURIComponent(transactionId)}`,
   });
 
-const getAuditQueryResults = ({ region, token, transactionId, cursor = "" }) => {
+const getAuditQueryResults = ({ region, token, transactionId, cursor = "", pageSize = 100 }) => {
   const params = new URLSearchParams();
+  const safePageSize = Math.min(Math.max(Number(pageSize) || 100, 1), 500);
+  params.set("pageSize", String(safePageSize));
   if (cursor) {
     params.set("cursor", cursor);
   }
 
   const query = params.toString();
-  const path = `/api/v2/audits/query/${encodeURIComponent(transactionId)}/results${query ? `?${query}` : ""}`;
+  const path = `/api/v2/audits/query/${encodeURIComponent(transactionId)}/results?${query}`;
 
   return genesysRequest({
     region,

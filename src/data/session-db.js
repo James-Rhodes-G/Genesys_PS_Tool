@@ -724,6 +724,7 @@ const purgeExpiredSessionCredentials = async (db) => {
   );
   for (const row of expired) {
     await clearSessionCredentials(db, row.sessionId);
+    await clearSessionData(db, row.sessionId);
     await db.run(`DELETE FROM session_connections WHERE session_id = ?`, row.sessionId);
   }
 
@@ -785,7 +786,22 @@ const purgeConsumedLaunchCodes = async (db, { olderThanMs = 24 * 60 * 60 * 1000 
   return result.changes || 0;
 };
 
-const purgeOldExportData = async (db, { olderThanMs = 30 * 24 * 60 * 60 * 1000 } = {}) => {
+const purgeOrphanSessionCache = async (db) => {
+  const result = await db.run(
+    `DELETE FROM cached_users WHERE session_id NOT IN (SELECT session_id FROM session_connections)`
+  );
+  const exportCleanup = await db.run(
+    `DELETE FROM export_rows WHERE export_id IN (
+       SELECT id FROM export_results WHERE session_id NOT IN (SELECT session_id FROM session_connections)
+     )`
+  );
+  await db.run(
+    `DELETE FROM export_results WHERE session_id NOT IN (SELECT session_id FROM session_connections)`
+  );
+  return (result.changes || 0) + (exportCleanup.changes || 0);
+};
+
+const purgeOldExportData = async (db, { olderThanMs = 24 * 60 * 60 * 1000 } = {}) => {
   const cutoff = Date.now() - olderThanMs;
   const exports = await db.all(
     `SELECT id FROM export_results WHERE updated_at < ?`,
@@ -829,6 +845,7 @@ export {
   purgeConsumedLaunchCodes,
   purgeExpiredVaultEntries,
   purgeOldExportData,
+  purgeOrphanSessionCache,
   revokeCredentialVault,
   revokeSessionById,
   saveExportResult,

@@ -1,10 +1,12 @@
 # Launch Endpoint
 
-Secure handoff from the Chrome extension to the PS Tool web app using one-time pairing, opaque link tokens, and a server-side credential vault.
+Secure handoff from the Chrome extension to the PS Tool web app using signed requests, a server-side credential vault, and one-time launch codes.
 
 ## Overview
 
-The extension reads Genesys Cloud auth from the active tab once per session. On the first feature launch it silently pairs with the web app. After pairing, every launch sends only a `linkToken` — the Genesys bearer token is never repeated in handoff requests.
+The extension reads Genesys Cloud auth from the active tab **in memory only** (not stored in `chrome.storage`). Each feature launch calls **`POST /api/launch/start`**. The server validates the token against Genesys, stores an encrypted vault entry, returns a one-time **`launchUrl`**, and the browser tab consumes the launch code to bind credentials to the `ps_tool_session` cookie.
+
+Legacy **`POST /api/launch/pair`** + **`POST /api/launch/handoff`** (link token in extension storage) remain for compatibility but are **not** used by the current extension build.
 
 ```mermaid
 sequenceDiagram
@@ -13,12 +15,10 @@ sequenceDiagram
     participant Vault as Credential Vault
     participant Tab as Browser Tab
 
-    Ext->>API: POST /api/launch/pair (first launch)
+    Ext->>API: POST /api/launch/start { token, region, orgId, userId, feature }
     API->>Vault: Store encrypted token
-    API-->>Ext: linkToken
-    Ext->>API: POST /api/launch/handoff { linkToken, feature }
-    API-->>Ext: launchUrl
-    Ext->>Tab: Open /launch?code=...
+    API-->>Ext: launchUrl only
+    Ext->>Tab: Open launchUrl
     Tab->>API: GET /launch?code=...
     API->>Vault: Bind credentials to ps_tool_session cookie
     Tab->>Tab: Bootstrap identity, redirect /?feature=...
@@ -42,9 +42,34 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## API
 
-### `POST /api/launch/pair`
+### `POST /api/launch/start` (recommended)
 
-One-time pairing. Validates org and user against Genesys API before storing credentials.
+Single-hop launch used by the extension. Validates org and user against Genesys API, creates vault entry and launch code, returns URL only (no link token to the client).
+
+```json
+{
+  "region": "us-east-1",
+  "token": "<bearer>",
+  "orgId": "<uuid>",
+  "userId": "<uuid>",
+  "feature": "genesys-users",
+  "params": { "conversationId": "abc-123" }
+}
+```
+
+Response:
+
+```json
+{
+  "launchUrl": "http://localhost:3000/launch?code=a1b2c3d4"
+}
+```
+
+Rate limit: 30 requests / 15 minutes per IP (in addition to optional HMAC).
+
+### `POST /api/launch/pair` (legacy)
+
+One-time pairing for link-token handoff flow.
 
 ```json
 {
@@ -55,24 +80,15 @@ One-time pairing. Validates org and user against Genesys API before storing cred
 }
 ```
 
-Response:
+Response includes `linkToken` for subsequent handoff calls.
+
+### `POST /api/launch/handoff` (legacy)
+
+Feature launch after pairing.
 
 ```json
 {
   "linkToken": "<opaque>",
-  "org": { "id": "...", "name": "..." },
-  "user": { "id": "...", "username": "...", "name": "..." },
-  "expiresAt": 1234567890
-}
-```
-
-### `POST /api/launch/handoff`
-
-Every feature launch after pairing.
-
-```json
-{
-  "linkToken": "<from chrome.storage.local>",
   "feature": "genesys-users",
   "params": { "conversationId": "abc-123" }
 }
@@ -97,34 +113,36 @@ Consumes a one-time code, binds vault credentials to the `ps_tool_session` cooki
 
 ### `POST /api/launch/disconnect`
 
-Clears session-scoped vault credentials for the current browser session.
+Clears session-scoped vault credentials **and** session export/cache data for the current browser session.
 
 ## Security Model
 
 | Control | Detail |
 | --- | --- |
-| Token transit | Genesys bearer sent once at pair time over HTTPS |
+| Token transit | Genesys bearer sent per `start` (or once at legacy pair) over HTTPS; extension does not persist token |
 | Vault storage | AES-256-GCM encrypted token in SQLite; link tokens stored as SHA-256 hashes |
 | Session binding | Launch code binds vault entry to `ps_tool_session` cookie |
-| Web API calls | Vault mode uses session cookie only; `x-genesys-token` header stripped client-side |
-| Schema validation | Allowlisted fields; unknown keys rejected |
+| Web API calls | Production default: vault mode only (`PS_TOOL_ALLOW_MANUAL_AUTH=1` to allow token/PKCE UI) |
+| Schema validation | Allowlisted fields; unknown keys rejected (`validateStartBody`, pair, handoff) |
 | Feature allowlist | Only known `genesys-*` feature IDs accepted |
 | Body size limit | 4 KB on launch POST routes |
-| Rate limiting | pair 10/15min, handoff 60/15min, GET /launch 30/15min per IP |
+| Rate limiting | start 30/15min, pair 10/15min, handoff 60/15min, GET /launch 30/15min per IP |
 | HMAC signing | Optional `X-PS-Tool-Timestamp` + `X-PS-Tool-Signature` headers |
 | Bootstrap | Server-side JSON.stringify of escaped bootstrap payload; no reflected user input |
 | Logging | Tokens and link tokens are never logged |
 
 **HTTPS policy:** Required outside `localhost` / `127.0.0.1`.
 
+See also [`docs/security-audit-corporate-policy.md`](security-audit-corporate-policy.md) for corporate policy alignment and env flags (`PS_TOOL_ALLOW_MANUAL_AUTH`, export retention, backups).
+
 ## Extension Setup
 
 1. Load unpacked from `extension/` in Chrome.
 2. Open extension options and set PS Tool base URL (default `http://localhost:3000`).
-3. Optionally set `Launch HMAC secret` to match `LAUNCH_HMAC_SECRET` in `.env`.
+3. Optionally set **Launch HMAC secret** to match `LAUNCH_HMAC_SECRET` in `.env`.
 4. Open a Genesys Cloud tab with an active session.
 5. Click the extension icon to open the side panel.
-6. Click any export or bulk button — first click pairs silently, then opens the web app on the target feature.
+6. Click any export or bulk button — the web app opens on the target feature via launch URL.
 
 Quick Navigation buttons open Genesys admin URLs directly and do not use the launch endpoint.
 
@@ -144,4 +162,4 @@ Conversation features accept an optional `conversationId` param:
 npm test
 ```
 
-The launch security script validates schema rules, HMAC verification, encryption round-trips, and rate limiter behavior without a running server.
+The launch security script validates schema rules (including `validateStartBody`), HMAC verification, encryption round-trips, and rate limiter behavior without a running server.

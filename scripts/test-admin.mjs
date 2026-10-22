@@ -79,7 +79,8 @@ assert.ok(["off", "read_only", "drain"].includes(mode.mode));
 
 await setMaintenanceMode(adminDb, { mode: "off", updatedBy: "test" });
 
-const opReq = { get: () => "", genesysCredentials: {} };
-assert.equal(isOperator(opReq), true, "admin auth disabled by default allows operator");
+const opReq = { adminOperator: { username: "test-operator" } };
+assert.equal(isOperator(opReq), true, "operator session marks request as admin");
+assert.equal(isOperator({ adminOperator: null }), false, "missing operator session is not admin");
 
 console.log("test-admin.mjs: all assertions passed");

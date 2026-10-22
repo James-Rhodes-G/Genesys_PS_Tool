@@ -15,6 +15,7 @@ import { createHealthRouter } from "./routes/health.js";
 import { ensureSessionMiddleware } from "./middleware/session.js";
 import { createVaultCredentialsMiddleware } from "./middleware/vault-credentials.js";
 import { createLaunchRouter } from "./routes/launch.js";
+import { createAppConfigRouter } from "./routes/app-config.js";
 import { initDb, getLogs as dbGetLogs, getLogById as dbGetLogById } from "./data/db.js";
 import {
   initSessionDb,
@@ -30,6 +31,7 @@ import {
   purgeExpiredSessionCredentials,
   purgeConsumedLaunchCodes,
   purgeOldExportData,
+  purgeOrphanSessionCache,
 } from "./data/session-db.js";
 import {
   initMockApiDb,
@@ -81,7 +83,10 @@ import {
   listJobRuns,
   getMaintenanceMode,
   setMaintenanceMode,
+  purgeExpiredOperatorSessions,
 } from "./data/admin-db.js";
+import { ensureBootstrapOperator } from "./lib/admin-bootstrap.js";
+import { createLoadAdminSessionMiddleware } from "./middleware/admin-session.js";
 import { createMockApiService } from "./lib/mock-api.js";
 import { MOCK_API_CONFIG } from "./lib/mock-api-config.js";
 import { createAuditService } from "./lib/admin-audit.js";
@@ -120,6 +125,10 @@ const start = async () => {
   const sessionDb = await initSessionDb();
   const mockApiDb = await initMockApiDb();
   const adminDb = await initAdminDb();
+  const bootstrap = await ensureBootstrapOperator(adminDb);
+  if (bootstrap.bootstrapped) {
+    console.log(`[admin] bootstrapped operator "${bootstrap.username}" from environment.`);
+  }
 
   setModeProvider(() => getMaintenanceMode(adminDb));
 
@@ -154,7 +163,10 @@ const start = async () => {
     total += await purgeExpiredVaultEntries(sessionDb);
     total += await purgeExpiredSessionCredentials(sessionDb);
     total += await purgeConsumedLaunchCodes(sessionDb);
-    total += await purgeOldExportData(sessionDb);
+    const exportRetentionMs = Number(process.env.SESSION_EXPORT_RETENTION_MS || 24 * 60 * 60 * 1000);
+    total += await purgeOldExportData(sessionDb, { olderThanMs: exportRetentionMs });
+    total += await purgeOrphanSessionCache(sessionDb);
+    total += await purgeExpiredOperatorSessions(adminDb);
     return total;
   };
 
@@ -185,6 +197,7 @@ const start = async () => {
   app.use(createRequestIdMiddleware());
   app.use(createRequestLoggerMiddleware());
   app.use(createHealthRouter({ sessionDb, adminDb, getMaintenanceModeFromDb: getMaintenanceMode }));
+  app.use(createAppConfigRouter());
 
   app.use(
     createMockApiPublicRouter({
@@ -212,6 +225,7 @@ const start = async () => {
     recordEvent: (req, payload) => auditService.recordEvent(req, payload),
   }));
   app.use(express.json({ limit: jsonBodyLimit }));
+  app.use(createLoadAdminSessionMiddleware(adminDb));
   app.use(createVaultCredentialsMiddleware(sessionDb));
   app.use(auditService.createAuditMiddleware());
   app.use(createCoreApiMetricsMiddleware({ recordRouteStats, adminDb }));
@@ -227,7 +241,13 @@ const start = async () => {
       getLogById: (id) => dbGetLogById(db, id),
     })
   );
-  app.use("/", createSessionRouter({ sessionDb }));
+  app.use(
+    "/",
+    createSessionRouter({
+      sessionDb,
+      recordEvent: (req, payload) => auditService.recordEvent(req, payload),
+    })
+  );
   app.use("/", createGenesysRouter());
   app.use("/", createJobsRouter({ sessionDb }));
   app.use(

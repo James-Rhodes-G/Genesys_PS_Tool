@@ -35,6 +35,7 @@ const createDashboardFeature = ({
   loadCachedDataTables,
   peekCachedPhones,
   syncSessionUsers,
+  isAdminAuthenticated,
 }) => {
   let widgets = [];
 
@@ -59,6 +60,7 @@ const createDashboardFeature = ({
     loadCachedPhones,
     loadCachedDataTables,
     peekCachedPhones,
+    isAdminAuthenticated,
   };
 
   const openExport = (navId) => {

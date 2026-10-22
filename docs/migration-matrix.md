@@ -54,7 +54,7 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | Parsed notification messages | TamperMonkey / extension | quick action | Parsed Messages panel | done |
 | Quick Nav buttons | `sidepanel.js` | chrome-only | configurable web shortcuts/navigation | redesign |
 | Auto-enable side panel | `background.js` | chrome-only | not applicable in web app | will not implement |
-| Extract token from tab session storage | `sidepanel.js` | chrome-only | manual token entry or OAuth PKCE | will not implement |
+| Extract token from tab session storage | `sidepanel.js` | chrome-only | extension reads tab per launch; web vault session (`POST /api/launch/start`) | done |
 | Open tab next to current | `background.js` | chrome-only | standard links/new-window behavior | redesign |
 
 ## Supporting APIs (No Direct Extension Button)
@@ -79,7 +79,7 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | Bulk priority update | `/api/genesys/conversations/bulk-priority` | done | priority updater |
 | Data table export | `/api/genesys/datatables/export` | done | multi-table CSV export |
 | Notification topics | `/api/genesys/notifications/availabletopics` | done | topic picker for subscription pages |
-| Audit log query | audit log viewer routes | done | query and browse audit events |
+| Audit log query | `/api/genesys/audits/*` + Audit Log Viewer UI | done | async query; paged results (100/page); **Next page** + CSV fetches all pages |
 
 ## Foundation Decisions
 
@@ -94,7 +94,8 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 
 **Done**
 
-- Connection: region picker, OAuth PKCE, manual token, org binding.
+- Connection: **extension launch (recommended)** via vault session; optional manual token / OAuth PKCE when `PS_TOOL_ALLOW_MANUAL_AUTH=1`; org binding.
+- **PS Tool operator login** for server admin surfaces (separate from Genesys org access).
 - Exports: users, user roles, user skills, phones, roles, queues, queue members, skills, groups, group users, prompts, **data tables**.
 - Bulk actions: skill assign, role assign, auto answer, password reset, user logoff, bulk disconnect, **priority updater**, phone build, **phone mover**, **phone remover**, **phone site migrator**, load schedules, create master admin.
 - **Organization Dashboard**: snapshot, inventory, health checks, organization limits, telephony metrics, session activity.

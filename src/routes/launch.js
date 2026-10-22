@@ -10,6 +10,7 @@ import {
   createRateLimiter,
   validateHandoffBody,
   validatePairBody,
+  validateStartBody,
   validateUnpairBody,
   verifyLaunchSignature,
 } from "../lib/launch-validation.js";
@@ -23,6 +24,7 @@ import {
   upsertSessionCredentials,
   bindSessionConnection,
   clearSessionCredentials,
+  clearSessionData,
 } from "../data/session-db.js";
 
 const LAUNCH_VAULT_TTL_MS = Number(process.env.LAUNCH_VAULT_TTL_MS || 8 * 60 * 60 * 1000);
@@ -55,6 +57,48 @@ const assertHttpsIfRequired = (baseUrl) => {
   }
 };
 
+const validateLaunchIdentity = async ({ region, token, orgId, userId }) => {
+  const [organization, user] = await Promise.all([
+    getOrganizationMe({ region, token }),
+    getCurrentUser({ region, token }),
+  ]);
+
+  if (organization?.id !== orgId) {
+    const error = new Error("Organization validation failed.");
+    error.status = 401;
+    throw error;
+  }
+
+  if (user?.id !== userId) {
+    const error = new Error("User validation failed.");
+    error.status = 401;
+    throw error;
+  }
+
+  return { organization, user };
+};
+
+const storeVaultEntry = async (sessionDb, { region, token, organization, user }) => {
+  const linkToken = createLinkToken();
+  const linkId = hashLinkToken(linkToken);
+  const expiresAt = Date.now() + LAUNCH_VAULT_TTL_MS;
+
+  await upsertCredentialVault(sessionDb, {
+    linkId,
+    orgId: organization.id,
+    orgName: organization.name || "",
+    thirdPartyOrgName: organization.thirdPartyOrgName || "",
+    region,
+    userId: user.id,
+    userName: user.username || user.email || "",
+    userDisplayName: user.name || "",
+    encryptedToken: encryptToken(token),
+    expiresAt,
+  });
+
+  return { linkToken, linkId, expiresAt };
+};
+
 const createLaunchRouter = ({ sessionDb, recordEvent }) => {
   const router = Router();
 
@@ -73,6 +117,12 @@ const createLaunchRouter = ({ sessionDb, recordEvent }) => {
     limit: 60,
     windowMs: 15 * 60 * 1000,
     keyFn: (req) => `${req.ip || "unknown"}:${String(req.body?.linkToken || "").slice(0, 8)}`,
+  });
+
+  const startRateLimit = createRateLimiter({
+    limit: 30,
+    windowMs: 15 * 60 * 1000,
+    keyFn: (req) => req.ip || "unknown",
   });
 
   const launchGetRateLimit = createRateLimiter({
@@ -96,36 +146,12 @@ const createLaunchRouter = ({ sessionDb, recordEvent }) => {
     const { region, token, orgId, userId } = validated.value;
 
     try {
-      const [organization, user] = await Promise.all([
-        getOrganizationMe({ region, token }),
-        getCurrentUser({ region, token }),
-      ]);
-
-      if (organization?.id !== orgId) {
-        res.status(401).json({ error: "Organization validation failed." });
-        return;
-      }
-
-      if (user?.id !== userId) {
-        res.status(401).json({ error: "User validation failed." });
-        return;
-      }
-
-      const linkToken = createLinkToken();
-      const linkId = hashLinkToken(linkToken);
-      const expiresAt = Date.now() + LAUNCH_VAULT_TTL_MS;
-
-      await upsertCredentialVault(sessionDb, {
-        linkId,
-        orgId: organization.id,
-        orgName: organization.name || "",
-        thirdPartyOrgName: organization.thirdPartyOrgName || "",
+      const { organization, user } = await validateLaunchIdentity({ region, token, orgId, userId });
+      const { linkToken, expiresAt } = await storeVaultEntry(sessionDb, {
         region,
-        userId: user.id,
-        userName: user.username || user.email || "",
-        userDisplayName: user.name || "",
-        encryptedToken: encryptToken(token),
-        expiresAt,
+        token,
+        organization,
+        user,
       });
 
       res.status(200).json({
@@ -147,6 +173,55 @@ const createLaunchRouter = ({ sessionDb, recordEvent }) => {
       audit(req, { action: "launch_pair", feature: "launch", status: "failure", errorCode: error.message });
       res.status(error.status || 502).json({
         error: error.message || "Pairing failed.",
+      });
+    }
+  });
+
+  router.post("/api/launch/start", startRateLimit, async (req, res) => {
+    if (!verifyLaunchSignature(req, req.body)) {
+      res.status(401).json({ error: "Invalid launch signature." });
+      return;
+    }
+
+    const validated = await validateStartBody(req.body);
+    if (validated.error) {
+      res.status(400).json({ error: validated.error });
+      return;
+    }
+
+    const { region, token, orgId, userId, feature, params } = validated.value;
+
+    try {
+      const { organization, user } = await validateLaunchIdentity({ region, token, orgId, userId });
+      const { linkId } = await storeVaultEntry(sessionDb, { region, token, organization, user });
+
+      const baseUrl = resolveLaunchBaseUrl(req);
+      assertHttpsIfRequired(baseUrl);
+
+      const code = createLaunchCodeValue();
+      await createLaunchCode(sessionDb, {
+        code,
+        linkId,
+        feature,
+        paramsJson: JSON.stringify(params),
+        expiresAt: Date.now() + LAUNCH_CODE_TTL_MS,
+      });
+
+      res.status(200).json({
+        launchUrl: `${baseUrl}/launch?code=${encodeURIComponent(code)}`,
+      });
+      audit(req, {
+        action: "launch_start",
+        feature: "launch",
+        status: "success",
+        orgId: organization.id,
+        userId: user.id,
+        userName: user.name,
+      });
+    } catch (error) {
+      audit(req, { action: "launch_start", feature: "launch", status: "failure", errorCode: error.message });
+      res.status(error.status || 502).json({
+        error: error.message || "Launch failed.",
       });
     }
   });
@@ -337,6 +412,7 @@ const createLaunchRouter = ({ sessionDb, recordEvent }) => {
     }
 
     await clearSessionCredentials(sessionDb, req.sessionId);
+    await clearSessionData(sessionDb, req.sessionId);
     audit(req, { action: "launch_disconnect", feature: "launch", status: "success" });
     res.status(200).json({ cleared: true });
   });
