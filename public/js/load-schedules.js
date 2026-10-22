@@ -189,6 +189,7 @@ const createLoadSchedulesFeature = ({
           attrs: `data-result-id="${escapeHtml(resultId)}" data-country-code="${escapeHtml(country.countryCode)}"`,
         })}
         ${renderGuxTable({
+          exportId: resultId,
           columns: [
             { key: "select", header: "Select" },
             { key: "sourceName", header: "Name" },

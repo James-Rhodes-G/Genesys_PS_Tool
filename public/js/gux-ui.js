@@ -40,7 +40,7 @@ const renderGuxTable = ({
   columnWidths = {},
   resizable = false,
   wrapCells = false,
-  sortableColumns = false,
+  sortableColumns = true,
   sortState = null,
   exportId = "",
 }) => {
@@ -67,15 +67,18 @@ const renderGuxTable = ({
         ? '<span class="column-resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize column"></span>'
         : "";
 
-      if (sortableColumns && exportId) {
+      if (sortableColumns !== false) {
         const isActive = sortState?.columnKey === column.key;
         const direction = sortState?.direction === "desc" ? "desc" : "asc";
         const ariaSort = isActive ? (direction === "desc" ? "descending" : "ascending") : "none";
         const indicator = isActive ? (direction === "desc" ? "↓" : "↑") : "";
+        const exportIdAttr = exportId
+          ? ` data-export-id="${safeEscape(exportId)}"`
+          : "";
 
-        return `<th data-column-key="${safeEscape(column.key)}"${widthStyle}><button type="button" class="export-table-sort" data-export-id="${safeEscape(
-          exportId
-        )}" data-column-key="${safeEscape(column.key)}" aria-sort="${ariaSort}"><span class="export-table-sort__label">${safeEscape(
+        return `<th data-column-key="${safeEscape(column.key)}"${widthStyle}><button type="button" class="export-table-sort"${exportIdAttr} data-column-key="${safeEscape(
+          column.key
+        )}" aria-sort="${ariaSort}"><span class="export-table-sort__label">${safeEscape(
           column.header
         )}</span><span class="export-table-sort__indicator" aria-hidden="true">${indicator}</span></button>${resizeHandle}</th>`;
       }

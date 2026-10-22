@@ -1,3 +1,4 @@
+import { getExportDisplayRows, getSortableTableRenderProps } from "./export-table-sort.js";
 import { renderGuxTable, renderGuxTableToolbar } from "./gux-ui.js";
 
 const escapeHtml = (value) =>
@@ -47,6 +48,7 @@ const createOutboundCallSpoofFeature = ({
       callerIdName: row.callerIdName || formState.callerIdName || "",
       renderBody: () =>
         renderGuxTable({
+          ...getSortableTableRenderProps(meta, resultId),
           toolbarHtml: renderGuxTableToolbar({
             escapeHtml,
             className: "call-spoof-toolbar",
@@ -62,7 +64,7 @@ const createOutboundCallSpoofFeature = ({
           }),
           shell: true,
           columns: meta.availableColumns.filter((column) => meta.selectedColumnKeys.includes(column.key)),
-          rows: [row],
+          rows: getExportDisplayRows(meta, [row]),
           renderCell: (column, tableRow) => {
             if (typeof column.renderCell === "function") {
               return column.renderCell(tableRow);

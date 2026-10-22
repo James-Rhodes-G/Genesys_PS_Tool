@@ -174,7 +174,11 @@ import {
   handleConversationJsonToolbarClick,
   renderConversationJsonPanelHtml,
 } from "./conversation-json-view.js";
-import { getExportDisplayRows, handleExportTableSortClick } from "./export-table-sort.js";
+import {
+  ensureExportTableSort,
+  getExportDisplayRows,
+  wireExportTableSort,
+} from "./export-table-sort.js";
 import { createFlowExecutionFeature } from "./flow-execution-feature.js";
 import { clearFlowExecutionModelCache } from "./flow-execution-client.js";
 import { createUserNotificationsFeature } from "./user-notifications.js";
@@ -681,8 +685,6 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         { key: "value", header: "Value" },
       ],
       selectedColumnKeys: ["scope", "participantName", "participantPurpose", "key", "value"],
-      sortableColumns: true,
-      tableSort: { columnKey: null, direction: "asc" },
       emptyHtml: `<p class="muted">No conversation or participant attributes found for ${escapeHtml(conversationId)}.</p>`,
     };
   };
@@ -1067,7 +1069,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           wrapCells: true,
           columnWidths: exportMeta.columnWidths || {},
           emptyMessage: "No rows to display.",
-          sortableColumns: Boolean(exportMeta.sortableColumns),
+          sortableColumns: exportMeta.sortableColumns !== false,
           sortState: exportMeta.tableSort || null,
           exportId,
         }),
@@ -1769,6 +1771,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       if (exportMeta) {
         exportMeta.status = status;
         exportMeta.statusBase = status;
+        ensureExportTableSort(exportMeta);
         state.exportData[resultId] = exportMeta;
       } else {
         delete state.exportData[resultId];
@@ -2944,15 +2947,6 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           return;
         }
 
-        if (
-          handleExportTableSortClick(event, {
-            getExportMeta: (exportId) => state.exportData[exportId],
-            rerenderExportSection,
-          })
-        ) {
-          return;
-        }
-
         if (await bulkSkillAssignFeature.handleClick(event)) {
           return;
         }
@@ -3867,6 +3861,11 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           }
         }
       });
+
+    wireExportTableSort({
+      getExportMeta: (exportId) => state.exportData[exportId],
+      rerenderExportSection,
+    });
 
     if (isConnected() && (getToken() || isVaultMode())) {
       queueMicrotask(async () => {
