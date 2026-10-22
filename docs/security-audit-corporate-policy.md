@@ -1,7 +1,7 @@
 # PS Tool Security Audit — Corporate Policy Alignment
 
-**Document version:** 2.0  
-**Date:** 2026-10-16  
+**Document version:** 2.1  
+**Date:** 2026-10-22  
 **Scope:** Genesys PS Tool (Node web app + Chrome extension), assessed against Customer Success security reminders (local credential storage, approved auth, data location, least privilege).  
 **Reference policy:** Internal CS security email (Oct 2026); [Genesys Cloud Auth Orgs (Confluence)](https://genesys-confluence.atlassian.net/wiki/spaces/CusCare/pages/69023960/Genesys+Cloud+Auth+Orgs).
 
@@ -121,7 +121,8 @@ PS Tool delivers CSV downloads and bulk workflows. Bulk password reset could inc
 | --- | --- |
 | Password in CSV/results | Checkbox and password column **hidden by default**; enabled only when `PS_TOOL_ALLOW_PASSWORD_EXPORT=1` on server. |
 | CSV download audit | Client calls `POST /api/session/export-audit` with export type, row count, and whether password column was included; recorded in PS Tool audit log. |
-| Genesys Audit Log Viewer | Remains **public** (vault session) — by product design. |
+| Genesys Audit Log Viewer | Remains **public** (vault session). Results paginated via Genesys `cursor` (100/page in UI); **Download CSV** re-fetches all pages for the query. |
+| PS Tool Audit Log (admin) | Operator-gated; paginated at 25 events/page via `/api/admin/events?limit=&offset=`. |
 | User Mock API | Remains **public** under vault session; admin registry operator-gated. |
 | Manual auth exports | Blocked unless manual auth explicitly enabled (same vault gate as APIs). |
 

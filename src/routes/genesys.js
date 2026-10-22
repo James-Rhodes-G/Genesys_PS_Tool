@@ -1565,6 +1565,7 @@ const createGenesysRouter = () => {
         ...credentials,
         transactionId: req.params.transactionId,
         cursor: req.query.cursor || "",
+        pageSize: req.query.pageSize,
       });
       res.status(200).json({ results });
     } catch (error) {

@@ -17,6 +17,8 @@ const escapeHtml = (value) =>
 
 const ALL_ENTITY_TYPES = "__all_entity_types__";
 const ALL_ACTIONS = "__all_actions__";
+const AUDIT_RESULTS_PAGE_SIZE = 100;
+const AUDIT_RESULTS_MAX_PAGES = 500;
 
 const normalizeEntityTypeValue = (value) => (value === ALL_ENTITY_TYPES ? "" : String(value || "").trim());
 const normalizeActionValue = (value) => (value === ALL_ACTIONS ? "" : String(value || "").trim());
@@ -122,6 +124,25 @@ const renderSelectOptions = (options, placeholder, placeholderValue = "") => {
     .join("");
 
   return `${placeholderOption}${optionHtml}`;
+};
+
+const resolveAuditResultsNextCursor = (resultsPayload) => {
+  const directCursor = String(resultsPayload?.cursor || "").trim();
+  if (directCursor) {
+    return directCursor;
+  }
+
+  const nextUri = String(resultsPayload?.nextUri || "").trim();
+  if (!nextUri) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(nextUri, "https://api.example.com");
+    return parsed.searchParams.get("cursor") || "";
+  } catch (_error) {
+    return "";
+  }
 };
 
 const normalizeAuditEntity = (entity) => ({
@@ -353,7 +374,13 @@ const createAuditLogViewerFeature = ({
   const renderAuditResults = (resultId, featureState) => {
     const rows = featureState.rows || [];
     const expandedIds = featureState.expandedIds || {};
-    const statusMessage = featureState.resultsStatus || "";
+    const loadedCount = rows.length;
+    const hasMore = Boolean(featureState.nextCursor);
+    const statusMessage =
+      featureState.resultsStatus ||
+      (loadedCount
+        ? `Showing ${loadedCount} event${loadedCount === 1 ? "" : "s"}${hasMore ? " (more available — load next page or download CSV for full export)" : ""}.`
+        : "");
     const cursor = featureState.nextCursor || "";
     const completionBanner = renderCompletionBanner(featureState);
 
@@ -437,7 +464,7 @@ const createAuditLogViewerFeature = ({
         cursor
           ? `<gux-button class="audit-log-load-more" type="button" accent="secondary" data-result-id="${escapeHtml(
               resultId
-            )}">Load More</gux-button>`
+            )}">Next page (${AUDIT_RESULTS_PAGE_SIZE})</gux-button>`
           : ""
       }`,
     });
@@ -518,27 +545,37 @@ const createAuditLogViewerFeature = ({
   };
 
   const loadAuditResults = async ({ credentials, transactionId, cursor = "" }) => {
-    const resultsPayload = await getAuditQueryResults({ ...credentials, transactionId, cursor });
+    const resultsPayload = await getAuditQueryResults({
+      ...credentials,
+      transactionId,
+      cursor,
+      pageSize: AUDIT_RESULTS_PAGE_SIZE,
+    });
     const entities = Array.isArray(resultsPayload?.entities) ? resultsPayload.entities : [];
-    const nextUri = resultsPayload?.nextUri || "";
-    let nextCursor = "";
-
-    if (nextUri) {
-      nextCursor = resultsPayload?.cursor || "";
-      if (!nextCursor) {
-        try {
-          const parsed = new URL(nextUri, "https://api.example.com");
-          nextCursor = parsed.searchParams.get("cursor") || "";
-        } catch (_error) {
-          nextCursor = "";
-        }
-      }
-    }
 
     return {
       rows: entities.map(normalizeAuditEntity),
-      nextCursor,
+      nextCursor: resolveAuditResultsNextCursor(resultsPayload),
     };
+  };
+
+  const fetchAllAuditResults = async ({ credentials, transactionId, onProgress }) => {
+    let cursor = "";
+    const allRows = [];
+
+    for (let page = 0; page < AUDIT_RESULTS_MAX_PAGES; page += 1) {
+      const { rows, nextCursor } = await loadAuditResults({ credentials, transactionId, cursor });
+      allRows.push(...rows);
+      onProgress?.(allRows.length, Boolean(nextCursor));
+
+      if (!nextCursor) {
+        break;
+      }
+
+      cursor = nextCursor;
+    }
+
+    return allRows;
   };
 
   const runAuditQuery = async (resultId, featureState) => {
@@ -626,7 +663,9 @@ const createAuditLogViewerFeature = ({
       featureState.rows = rows;
       featureState.nextCursor = nextCursor;
       featureState.queryCompleted = true;
-      featureState.resultsStatus = `Found ${rows.length} audit event${rows.length === 1 ? "" : "s"} for this query.`;
+      featureState.resultsStatus = `Loaded ${rows.length} audit event${rows.length === 1 ? "" : "s"}${
+        nextCursor ? " — more available." : " — end of results."
+      }`;
       featureState.renderBody = () =>
         `${renderSetup(resultId, featureState)}${renderAuditResults(resultId, featureState)}`;
 
@@ -778,11 +817,54 @@ const createAuditLogViewerFeature = ({
 
       const resultId = downloadButton.getAttribute("data-result-id");
       const exportMeta = resultId ? state.exportData[resultId] : null;
-      if (!exportMeta?.rows?.length) {
+      if (!exportMeta?.transactionId) {
         return true;
       }
 
-      downloadAuditCsv(exportMeta.rows, `audit_log_${Date.now()}.csv`);
+      const credentials = requireCredentials("Audit Log Viewer");
+      if (!credentials) {
+        return true;
+      }
+
+      if (downloadButton instanceof HTMLButtonElement) {
+        downloadButton.disabled = true;
+      }
+
+      exportMeta.resultsStatus = "Preparing CSV (fetching all result pages)...";
+      rerenderFeature(resultId);
+
+      try {
+        const allRows = await fetchAllAuditResults({
+          credentials,
+          transactionId: exportMeta.transactionId,
+          onProgress: (count, hasMore) => {
+            exportMeta.resultsStatus = hasMore
+              ? `Preparing CSV... fetched ${count} events so far.`
+              : `Preparing CSV... fetched ${count} events.`;
+            rerenderFeature(resultId);
+          },
+        });
+
+        if (!allRows.length) {
+          exportMeta.resultsStatus = "No audit events to export.";
+          rerenderFeature(resultId);
+          return true;
+        }
+
+        downloadAuditCsv(allRows, `audit_log_${Date.now()}.csv`);
+        exportMeta.resultsStatus = `Downloaded CSV with ${allRows.length} audit event${
+          allRows.length === 1 ? "" : "s"
+        }.`;
+        rerenderFeature(resultId);
+      } catch (error) {
+        exportMeta.resultsStatus = error.message || "CSV export failed.";
+        rerenderFeature(resultId);
+      } finally {
+        if (downloadButton instanceof HTMLButtonElement) {
+          downloadButton.disabled = false;
+        }
+      }
+
       return true;
     }
 

@@ -6,6 +6,8 @@ Web-based replacement for the legacy Genesys Cloud Chrome extension PS Tool. Con
 
 For extension-to-web migration status, see [`docs/migration-matrix.md`](docs/migration-matrix.md).
 
+Corporate security alignment and remediation details: [`docs/security-audit-corporate-policy.md`](docs/security-audit-corporate-policy.md).
+
 ## Quick start
 
 ```bash
@@ -21,7 +23,7 @@ Open `http://localhost:3000`.
 
 ### Chrome extension launcher
 
-Load the rebuilt extension from `extension/` (see [`extension/README.md`](extension/README.md)). Set `VAULT_ENCRYPTION_KEY` in `.env` before using extension pairing. Full launch flow documentation: [`docs/launch-endpoint.md`](docs/launch-endpoint.md).
+Load the rebuilt extension from `extension/` (see [`extension/README.md`](extension/README.md)). Set `VAULT_ENCRYPTION_KEY` in `.env` before using extension launch. Full launch flow: [`docs/launch-endpoint.md`](docs/launch-endpoint.md) (`POST /api/launch/start`).
 
 ## Environment
 
@@ -49,7 +51,14 @@ Copy `.env.example` to `.env` and configure:
 | `MOCK_API_PURGE_INTERVAL_MS` | Background lifecycle purge interval (default `3600000`) |
 | `MOCK_API_MAX_DELAY_MS` | Maximum artificial response delay (default `30000`) |
 | `VAULT_ENCRYPTION_KEY` | 32-byte hex key for encrypted credential vault (required for extension launch) |
-| `LAUNCH_HMAC_SECRET` | Optional HMAC secret for signed extension pair/handoff requests |
+| `LAUNCH_HMAC_SECRET` | Optional HMAC secret for signed extension launch requests |
+| `PS_TOOL_ADMIN_USERNAME` | Bootstrap first PS Tool **operator** when `admin.db` has no operators |
+| `PS_TOOL_ADMIN_PASSWORD` | Bootstrap operator password (hashed in `admin.db`; rotate after first login) |
+| `PS_TOOL_ADMIN_SESSION_TTL_MS` | Operator HttpOnly session lifetime (default 8 hours) |
+| `PS_TOOL_ALLOW_MANUAL_AUTH` | Set to `1` to enable web PKCE / manual token UI (default: extension vault only) |
+| `PS_TOOL_ALLOW_PASSWORD_EXPORT` | Set to `1` to allow generated passwords in bulk reset CSV (default: off) |
+| `SESSION_EXPORT_RETENTION_MS` | Purge aged export rows in `session.db` (default 24 hours) |
+| `BACKUP_INCLUDE_SESSION_DB` | Set to `1` to include `session.db` in daily backups (default: excluded) |
 | `LAUNCH_BASE_URL` | Public base URL for launch redirects (defaults to request host) |
 | `LAUNCH_VAULT_TTL_MS` | Vault entry lifetime (default 8 hours) |
 | `LAUNCH_CODE_TTL_MS` | One-time launch code lifetime (default 60 seconds) |
@@ -63,7 +72,7 @@ Copy `.env.example` to `.env` and configure:
 | `GENESYS_MIN_REQUEST_INTERVAL_MS` | Minimum spacing between Genesys API requests (default `250`) |
 | `GENESYS_RATE_LIMIT_MAX_DELAY_MS` | Max backoff delay for rate-limit retries (default `30000`) |
 
-**Security:** Manual OAuth login still keeps tokens in browser `localStorage`. Extension launch uses a server-side encrypted vault bound to the `ps_tool_session` cookie — the Genesys token is sent once at pair time and not repeated on handoff. Never commit `.env`, access tokens, or SQLite database files.
+**Security:** Production-style deployments should use **extension launch only** (default: manual token/PKCE hidden until `PS_TOOL_ALLOW_MANUAL_AUTH=1`). The Genesys bearer is encrypted server-side and bound to the `ps_tool_session` cookie after `/launch?code=...`; the extension does not persist tokens. **PS Tool operator login** (separate from Genesys) gates server admin APIs. Never commit `.env`, access tokens, or SQLite database files. See [`docs/security-audit-corporate-policy.md`](docs/security-audit-corporate-policy.md).
 
 ## Features
 
@@ -118,13 +127,17 @@ Copy `.env.example` to `.env` and configure:
 
 | Tool | Description |
 | --- | --- |
-| Audit Log Viewer | Selector Driven Viewer for Audit Logs longer than 14 days |
+| Audit Log Viewer | Service/entity/action filters; async Genesys audit query; **100 events per page** with **Next page**; **Download CSV** exports all pages for the query |
 
-### PS Tool Admin
+### PS Tool Admin & Mock API
 
-| Tool | Description |
-| --- | --- |
-| **Mock API** | Create personal mock HTTP endpoints for Data Actions, Architect, and external integrations; inspect request history |
+**Operator login** (`PS_TOOL_ADMIN_*` bootstrap or existing operator in `admin.db`) is required for server admin surfaces below. Genesys org connection alone is not sufficient.
+
+| Surface | Operator login | Description |
+| --- | --- | --- |
+| Operations Dashboard, Server Health, Storage, Usage, Sessions & Vault, Launch Monitor, Dangerous Actions, **PS Tool Audit Log** (25/page), Endpoint Registry | Required | Server telemetry and cross-session controls |
+| **Mock API** (management UI) | Vault session only | Create mock HTTP endpoints for Data Actions, Architect, and integrations; inspect request history |
+| **Genesys Audit Log Viewer** | Vault session only | Org audit queries (see Audit Log above) |
 
 Mock endpoints are reachable at `/mockAPI/{userpart}/{endpointSlug}` (no PS Tool auth required for invocation). Management requires a connected session and Genesys credentials.
 
@@ -237,7 +250,10 @@ src/
   server.js              Express entry point, static assets, JSON limits
   routes/
     genesys.js           Thin Genesys API routes
-    session.js           Session binding, user cache, export persistence
+    session.js           Session binding, user cache, export persistence, export audit
+    launch.js            Extension launch (start/pair/handoff), vault consume
+    admin.js             Operator-gated admin APIs
+    app-config.js        Public security policy (`GET /api/app/security-policy`)
     mock-api.js          Mock API management + public invocation routes
     logs.js              App shell + legacy log pages
   lib/
@@ -280,12 +296,18 @@ public/js/
 
 ## Authentication
 
-Two connection paths:
+### Genesys org access (CS workflows)
 
-1. **PKCE OAuth** — `Authorize (PKCE)` in the connect panel. Redirects through `/oauth/callback.html`, exchanges the code via `/api/genesys/oauth/token`, then binds the session to the selected org.
-2. **Manual token** — paste a Genesys access token and region, then connect.
+1. **Extension launch (recommended)** — Chrome extension calls `POST /api/launch/start`; web app opens in **vault mode** with Genesys API calls authenticated via the server session cookie (no bearer token in `localStorage`).
+2. **PKCE OAuth / manual token (optional)** — Enabled only when `PS_TOOL_ALLOW_MANUAL_AUTH=1`. PKCE uses `/oauth/callback.html` and `/api/genesys/oauth/token`; manual token uses the connect panel.
 
-After connecting, the app binds the browser session to the org via `POST /api/session/bind`. Disconnecting or switching orgs clears session data (user cache, resource caches, export results).
+After connecting, the app binds the browser session to the org via `POST /api/session/bind`. Disconnecting or switching orgs clears session data (user cache, resource caches, export results) and vault credentials (`POST /api/launch/disconnect`).
+
+Policy flags are exposed to the UI at `GET /api/app/security-policy`.
+
+### PS Tool operator access (server admin)
+
+Local operator username/password → `POST /api/admin/login` → HttpOnly `ps_tool_admin_session` cookie. Bootstrap from `PS_TOOL_ADMIN_USERNAME` / `PS_TOOL_ADMIN_PASSWORD` when no operators exist. This does **not** grant Genesys org permissions; it gates PS Tool server administration only.
 
 ## Caching
 
@@ -358,6 +380,8 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 
 | Date | Change |
 | --- | --- |
+| 2026-10-16 | **Corporate security remediations** — `POST /api/launch/start`, vault-only web default, session retention/backup scope, export audit, operator admin login; see [`docs/security-audit-corporate-policy.md`](docs/security-audit-corporate-policy.md) |
+| 2026-10-22 | **Genesys Audit Log Viewer** — cursor-based pagination (100/page), CSV download fetches all result pages |
 | 2026-08-20 | **Bulk phone hotfix** — radial progress for build/move/remove/migrate; one item per request; WebRTC site move uses minimal PUT body; Phone Build excludes users with existing WebRTC phones; phone cache invalidated after successful phone mutations |
 | 2026-08-10 | **Architect Execution Timeline Viewer** — flow selection page, async download, parser, card timeline, search, variable tracking, error navigation |
 | 2026-08-05 | **Organization Dashboard** — landing page with six modular widgets; auto-opens after connect |
@@ -387,7 +411,9 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 | `scripts/test-notification-message-store.mjs` | Parsed message store behavior |
 | `scripts/test-mock-api.mjs` | Mock API slug normalization, redaction, lifecycle, validation |
 | `scripts/test-flow-execution-parser.mjs` | Execution parser timeline, variables, search, and error navigation |
-| `scripts/test-launch-security.mjs` | Launch schema validation, HMAC verification, vault encryption, rate limiting |
+| `scripts/test-launch-security.mjs` | Launch schema validation (`validateStartBody`), HMAC, vault encryption, rate limiting |
+| `scripts/test-admin-operator-auth.mjs` | Operator password hash, admin session cookie, gated feature IDs |
+| `scripts/test-admin.mjs` | Admin event store and dangerous-action filters |
 
 ## Concurrent job processing
 
@@ -398,6 +424,7 @@ Long-running bulk operations can be submitted as background jobs. The server ret
 ```bash
 curl -X POST http://localhost:3000/api/jobs \
   -H "Content-Type: application/json" \
+  --cookie "ps_tool_session=<vault session from extension launch>" \
   -H "x-genesys-region: us-east-1" \
   -H "x-genesys-token: $TOKEN" \
   -d '{
