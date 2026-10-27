@@ -1,13 +1,5 @@
-import { escapeHtml, joinPipeSeparatedCsv } from "./export-format.js";
+import { escapeCsvValue, escapeHtml, joinPipeSeparatedCsv } from "./export-format.js";
 import { downloadPromptExportPackage } from "./genesys-client.js";
-
-const escapeCsv = (value) => {
-  const stringValue = String(value == null ? "" : value);
-  if (/[",\n]/.test(stringValue)) {
-    return `"${stringValue.replace(/"/g, '""')}"`;
-  }
-  return stringValue;
-};
 
 const sanitizeRecordingFilenamePart = (value) =>
   String(value == null ? "" : value)
@@ -15,12 +7,13 @@ const sanitizeRecordingFilenamePart = (value) =>
     .replace(/^_+|_+$/g, "")
     .slice(0, 120) || "prompt";
 
+/** Backup naming for the recordings-only ZIP: `{promptName}_{resourceId}.wav`. */
 const buildRecordingFilename = (promptName, resourceId) =>
   `${sanitizeRecordingFilenamePart(promptName)}_${sanitizeRecordingFilenamePart(resourceId)}.wav`;
 
 const getPromptResources = (prompt) => (Array.isArray(prompt?.resources) ? prompt.resources : []);
 
-/** Genesys bulk-import locale for CSV headers (audio_en-us, tts_en-us, …). */
+/** Genesys bulk-import locale for CSV headers (audio_en-us, tts_en-us, ...). */
 const getResourceLanguageCode = (resource) => {
   const raw = String(resource?.language || resource?.id || "").trim().toLowerCase();
   if (!raw) {
@@ -29,8 +22,6 @@ const getResourceLanguageCode = (resource) => {
 
   return raw.replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "") || "unknown";
 };
-
-const languageCodeToImportSuffix = (resource) => getResourceLanguageCode(resource);
 
 const sanitizePromptNameForImportFile = (name) =>
   String(name ?? "")
@@ -67,44 +58,43 @@ const promptMediaUriToCsv = (row) =>
       .filter(Boolean)
   );
 
-const collectLanguageSuffixes = (rows) => {
-  const suffixes = new Set();
+const collectLanguageCodes = (rows) => {
+  const languageCodes = new Set();
 
   rows.forEach((prompt) => {
     getPromptResources(prompt).forEach((resource) => {
-      suffixes.add(languageCodeToImportSuffix(resource));
+      languageCodes.add(getResourceLanguageCode(resource));
     });
   });
 
-  return [...suffixes].sort((left, right) => left.localeCompare(right));
+  return [...languageCodes].sort((left, right) => left.localeCompare(right));
 };
 
+/**
+ * Genesys bulk prompt import CSV: one row per user prompt, tts_/audio_/text_ columns per language.
+ * @see https://help.genesys.cloud/articles/format-guidelines-csv-file-bulk-prompt-import/
+ */
 const buildGenesysBulkImportCsv = (rows) => {
-  const suffixes = collectLanguageSuffixes(rows);
-  const fixedHeaders = ["Name", "Type", "Description"];
-  const languageHeaders = suffixes.flatMap((suffix) => [
-    `tts_${suffix}`,
-    `audio_${suffix}`,
-    `text_${suffix}`,
-  ]);
-  const headers = [...fixedHeaders, ...languageHeaders];
+  const languageCodes = collectLanguageCodes(rows);
+  const headers = [
+    "Name",
+    "Type",
+    "Description",
+    ...languageCodes.flatMap((code) => [`tts_${code}`, `audio_${code}`, `text_${code}`]),
+  ];
 
-  const lines = [headers.map(escapeCsv).join(",")];
+  const lines = [headers.map(escapeCsvValue).join(",")];
 
   rows.forEach((prompt) => {
-    const resourceBySuffix = new Map();
+    const resourceByLanguage = new Map();
     getPromptResources(prompt).forEach((resource) => {
-      resourceBySuffix.set(languageCodeToImportSuffix(resource), resource);
+      resourceByLanguage.set(getResourceLanguageCode(resource), resource);
     });
 
-    const values = [
-      prompt?.name || "",
-      "user",
-      prompt?.description || "",
-    ];
+    const values = [prompt?.name || "", "user", prompt?.description || ""];
 
-    suffixes.forEach((suffix) => {
-      const resource = resourceBySuffix.get(suffix);
+    languageCodes.forEach((code) => {
+      const resource = resourceByLanguage.get(code);
       const audioFilename =
         resource?.mediaUri && prompt?.name
           ? buildGenesysImportAudioFilename(prompt.name, resource)
@@ -113,12 +103,11 @@ const buildGenesysBulkImportCsv = (rows) => {
       values.push(resource?.ttsString || "", audioFilename, resource?.text || "");
     });
 
-    lines.push(values.map(escapeCsv).join(","));
+    lines.push(values.map(escapeCsvValue).join(","));
   });
 
   return {
     csvText: lines.join("\n"),
-    headers,
     csvFilename: "prompts_bulk_import.csv",
   };
 };
@@ -156,24 +145,12 @@ const triggerBlobDownload = (blob, filename) => {
   URL.revokeObjectURL(url);
 };
 
-const downloadPromptPackage = async ({
-  credentials,
-  rows,
-  mode,
-  zipBasename,
-  onProgress,
-}) => {
+const downloadPromptPackage = async ({ credentials, rows, mode, zipBasename }) => {
   const forImport = mode === "import-package";
   const recordings = collectPromptRecordings(rows, { forImport });
   const importCsv = forImport ? buildGenesysBulkImportCsv(rows) : null;
 
-  onProgress?.({
-    message: `Preparing ${mode === "import-package" ? "import package" : "recordings"} (${recordings.length} file(s))...`,
-    current: 0,
-    total: Math.max(recordings.length, 1),
-  });
-
-  const blob = await downloadPromptExportPackage({
+  const { blob, failureCount } = await downloadPromptExportPackage({
     ...credentials,
     mode,
     recordings,
@@ -181,12 +158,12 @@ const downloadPromptPackage = async ({
     importCsvFilename: importCsv?.csvFilename,
   });
 
-  triggerBlobDownload(blob, `${zipBasename || "prompts_export"}.zip`);
+  triggerBlobDownload(blob, `${zipBasename}.zip`);
 
   return {
     recordingCount: recordings.length,
     promptCount: rows.length,
-    failedCount: 0,
+    failedCount: failureCount,
   };
 };
 
@@ -196,6 +173,7 @@ const downloadPromptRecordingsZip = (options) =>
 const downloadPromptImportPackage = (options) =>
   downloadPromptPackage({ ...options, mode: "import-package" });
 
+/** Full prompt rows for an export, including rows offloaded to the session DB. */
 const resolvePromptExportRows = async ({ exportMeta, fetchAllExportRows }) => {
   let rows = exportMeta?.rows || [];
   if (exportMeta?.sessionStored && typeof fetchAllExportRows === "function") {
@@ -217,9 +195,7 @@ export {
   collectPromptRecordings,
   downloadPromptImportPackage,
   downloadPromptRecordingsZip,
-  languageCodeToImportSuffix,
   promptMediaUriToCsv,
   renderPromptMediaUriCell,
   resolvePromptExportRows,
-  sanitizeRecordingFilenamePart,
 };

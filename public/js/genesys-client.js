@@ -394,7 +394,10 @@ const downloadPromptExportPackage = async ({
     throw new Error(message);
   }
 
-  return response.blob();
+  return {
+    blob: await response.blob(),
+    failureCount: Number(response.headers.get("X-Prompt-Export-Failure-Count")) || 0,
+  };
 };
 
 const previewBulkSkillAssignment = async ({ region, token, userIds, skills }) => {

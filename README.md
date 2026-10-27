@@ -84,9 +84,28 @@ Copy `.env.example` to `.env` and configure:
 | User Roles | Division-scoped role assignments per user |
 | User Skills | Skill proficiency assignments per user |
 | Phone | Phone inventory export |
-| Roles, Queues, Skills, Groups, Prompts | Standard catalog exports |
+| Roles, Queues, Skills, Groups | Standard catalog exports |
+| **Prompts** | User prompt export with **Listen {resourceId}** links for recordings, optional recordings ZIP, and an **Export for import** package (see [Prompts export](#prompts-export)) |
 | Queue Members / Group Users | Selector-driven member exports |
 | **Data Table Export** | Multi-select Architect data tables; exports combined CSV with progress |
+
+#### Prompts export
+
+Always covers every loaded user prompt (including rows offloaded to the session DB); there is no row selection. System prompts are not included.
+
+| Action | Result |
+| --- | --- |
+| Media URI column | Each resource with a recording renders as a **Listen {resourceId}** link. The CSV keeps the raw `mediaUri` URL(s). |
+| **Export CSV** | Normal table CSV. With **Include recordings (ZIP)** checked, also downloads `{org}_prompts_recordings_{date}.zip` containing `{promptName}_{resourceId}.wav` files (backup naming). |
+| **Export for import** | Downloads `{org}_prompts_import_{date}.zip` for Architect **Prompts > Import**: `prompts_bulk_import.csv` plus every recording. |
+
+The import package follows the Genesys bulk prompt import rules ([CSV format](https://help.genesys.cloud/articles/format-guidelines-csv-file-bulk-prompt-import/), [file naming](https://help.genesys.cloud/articles/prompt-naming-conventions-bulk-import/)):
+
+- WAV files are named `prompt_user_{PromptName}_{languageCode}.wav` (for example `prompt_user_Welcome_en-us.wav`).
+- CSV columns are `Name`, `Type` (`user`), `Description`, then `tts_{lang}`, `audio_{lang}`, `text_{lang}` for each language found (language codes keep hyphens, for example `tts_en-us`). `audio_*` holds the exact WAV filename; `tts_*` and `text_*` come from each resource's `ttsString` and `text`.
+- Extract the ZIP, then in Architect select the CSV **and all WAV files** (not the folder). Prompt names must also satisfy Genesys naming rules (letters, numbers, underscores; no leading digit).
+
+Recordings are downloaded server-side via `POST /api/genesys/prompts/export-package` (ZIP built with `jszip`). Only public `https` media URLs are fetched, at most 4 at a time, and the Genesys bearer token is sent only to hosts under the org's Genesys domain. If any recording cannot be downloaded, the status line reports how many are missing from the ZIP.
 
 ### Bulk Actions
 
@@ -258,6 +277,7 @@ src/
     logs.js              App shell + legacy log pages
   lib/
     genesys.js           Genesys API helpers and pagination
+    prompts-export-package.js Prompt recordings/import-package ZIP builder (URL allowlist, concurrency cap)
     mock-api.js          Mock endpoint business logic and invocation
     mock-api-config.js   Mock API limits and lifecycle defaults
     flow-execution-download.js Async flow execution download workflow
@@ -279,7 +299,8 @@ public/js/
   flow-execution-client.js Browser client for flow execution routes
   session-store.js       Session bind/clear, user sync, export offload
   resource-cache.js      Session-scoped cache (phones, sites, divisions, data tables, roles, queues, skills, groups)
-  export-format.js       Shared pipe-separated cell formatting
+  export-format.js       Shared pipe-separated cell formatting and CSV escaping
+  prompts-export.js      Prompts export: Listen links, Genesys bulk-import CSV, recording naming
   export-table-layout.js Resizable export columns
   export-progress.js     Progressive export progress + cache timestamp UI
   bulk-*.js              Bulk workflow modules
@@ -381,6 +402,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 | Date | Change |
 | --- | --- |
 | 2026-10-16 | **Corporate security remediations** — `POST /api/launch/start`, vault-only web default, session retention/backup scope, export audit, operator admin login; see [`docs/security-audit-corporate-policy.md`](docs/security-audit-corporate-policy.md) |
+| 2026-10-27 | **Prompts export** — Listen links for recordings, optional recordings ZIP on Export CSV, and **Export for import** package (Genesys bulk prompt import CSV + `prompt_user_*` WAV files) |
 | 2026-10-22 | **Genesys Audit Log Viewer** — cursor-based pagination (100/page), CSV download fetches all result pages |
 | 2026-08-20 | **Bulk phone hotfix** — radial progress for build/move/remove/migrate; one item per request; WebRTC site move uses minimal PUT body; Phone Build excludes users with existing WebRTC phones; phone cache invalidated after successful phone mutations |
 | 2026-08-10 | **Architect Execution Timeline Viewer** — flow selection page, async download, parser, card timeline, search, variable tracking, error navigation |
@@ -410,6 +432,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 | `scripts/test-notification-topics.mjs` | Notification topic grouping/filtering |
 | `scripts/test-notification-message-store.mjs` | Parsed message store behavior |
 | `scripts/test-mock-api.mjs` | Mock API slug normalization, redaction, lifecycle, validation |
+| `scripts/test-prompts-export.mjs` | Prompts import CSV/WAV naming, Listen cells, recording URL allowlist, ZIP builder (flat names, token scoping, failure reporting) |
 | `scripts/test-flow-execution-parser.mjs` | Execution parser timeline, variables, search, and error navigation |
 | `scripts/test-launch-security.mjs` | Launch schema validation (`validateStartBody`), HMAC, vault encryption, rate limiting |
 | `scripts/test-admin-operator-auth.mjs` | Operator password hash, admin session cookie, gated feature IDs |

@@ -387,6 +387,7 @@ const createGenesysRouter = () => {
         importCsvText,
         importCsvFilename,
         token: credentials.token,
+        genesysDomain: await getGenesysDomainForRegion(credentials.region),
       });
 
       res.setHeader("Content-Type", "application/zip");

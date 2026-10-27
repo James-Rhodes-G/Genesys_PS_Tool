@@ -23,7 +23,7 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | `queueList` | `background.js` | export | `/api/genesys/queues` + export table | done |
 | `queueMemberList` | `background.js` | export | `/api/genesys/queues/:id/members` + selector + export table | done |
 | `exportSkills` | `background.js` | export | `/api/genesys/skills` + export table | done |
-| `exportPrompts` | `background.js` | export | `/api/genesys/prompts` + export table | done |
+| `exportPrompts` | `background.js` | export | `/api/genesys/prompts` + export table; **Listen** links, recordings ZIP (replaces `promptDownload`), and **Export for import** (Genesys bulk prompt import package) via `/api/genesys/prompts/export-package` | done |
 | `exportGroups` | `background.js` | export | `/api/genesys/groups` + export table | done |
 | `exportGroupUsers` | `background.js` | export | `/api/genesys/groups/:id/members` + selector + export table | done |
 | Data tables export | TamperMonkey `dataTablesExporter.js` | export | `/api/genesys/datatables` + multi-select export UI | done |

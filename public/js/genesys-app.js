@@ -202,7 +202,7 @@ import {
   saveExportToSession,
   syncSessionUsers,
 } from "./session-store.js";
-import { formatPipeSeparatedDisplay, joinPipeSeparatedCsv } from "./export-format.js";
+import { escapeCsvValue, formatPipeSeparatedDisplay, joinPipeSeparatedCsv } from "./export-format.js";
 import {
   downloadPromptImportPackage,
   downloadPromptRecordingsZip,
@@ -340,7 +340,7 @@ const createDynamicColumns = (rows, excludedKeys) => {
     }));
 };
 
-const buildExportFilename = (exportType) => {
+const buildExportBasename = (exportType) => {
   const organizationName = (getOrganizationName() || "organization")
     .replace(/[^a-z0-9]+/gi, "_")
     .replace(/^_+|_+$/g, "");
@@ -350,21 +350,10 @@ const buildExportFilename = (exportType) => {
     String(date.getMonth() + 1).padStart(2, "0") +
     String(date.getDate()).padStart(2, "0");
 
-  return `${organizationName}_${exportType}_${stamp}.csv`;
+  return `${organizationName}_${exportType}_${stamp}`;
 };
 
-const buildPromptsZipBasename = () => {
-  const organizationName = (getOrganizationName() || "organization")
-    .replace(/[^a-z0-9]+/gi, "_")
-    .replace(/^_+|_+$/g, "");
-  const date = new Date();
-  const stamp =
-    String(date.getFullYear()) +
-    String(date.getMonth() + 1).padStart(2, "0") +
-    String(date.getDate()).padStart(2, "0");
-
-  return `${organizationName}_prompts_${stamp}`;
-};
+const buildExportFilename = (exportType) => `${buildExportBasename(exportType)}.csv`;
 
 const renderJsonBlock = (value) =>
   `<div class="log-output__json"><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></div>`;
@@ -1263,14 +1252,6 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       return;
     }
 
-    const escapeCsv = (value) => {
-      const stringValue = String(value == null ? "" : value);
-      if (/[",\n]/.test(stringValue)) {
-        return `"${stringValue.replace(/"/g, '""')}"`;
-      }
-      return stringValue;
-    };
-
       const selectedColumns = exportMeta.selectedColumnKeys
         .map((key) => exportMeta.availableColumns.find((column) => column.key === key))
         .filter(Boolean);
@@ -1287,10 +1268,10 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
     rows = getExportDisplayRows(exportMeta, rows);
 
-    const lines = [selectedColumns.map((column) => escapeCsv(column.header)).join(",")];
+    const lines = [selectedColumns.map((column) => escapeCsvValue(column.header)).join(",")];
 
     rows.forEach((row) => {
-      lines.push(selectedColumns.map((column) => escapeCsv(getColumnCsvValue(column, row))).join(","));
+      lines.push(selectedColumns.map((column) => escapeCsvValue(getColumnCsvValue(column, row))).join(","));
     });
 
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -1322,27 +1303,20 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         return;
       }
 
-      let fullRows = exportMeta.rows || [];
-      if (exportMeta.sessionStored) {
-        try {
-          const payload = await fetchAllExportRows({ exportId });
-          fullRows = payload.rows || fullRows;
-        } catch (error) {
-          console.warn("Failed to load all session rows for prompt recordings export:", error);
-        }
-      }
-
       try {
         const summary = await downloadPromptRecordingsZip({
           credentials,
-          rows: fullRows,
-          zipBasename: `${buildPromptsZipBasename()}_recordings`,
+          rows,
+          zipBasename: buildExportBasename("prompts_recordings"),
         });
         logPromptExportAudit({
           exportKind: "recordings_zip",
-          rowCount: fullRows.length,
-          recordingCount: summary.recordingCount,
+          rowCount: rows.length,
+          recordingCount: summary.recordingCount - summary.failedCount,
         });
+        if (summary.failedCount > 0) {
+          console.warn(`${summary.failedCount} prompt recording(s) could not be downloaded.`);
+        }
       } catch (error) {
         console.warn("Prompt recordings export failed:", error);
       }
@@ -1967,15 +1941,19 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         const summary = await downloadPromptImportPackage({
           credentials,
           rows,
-          zipBasename: `${buildPromptsZipBasename()}_import`,
+          zipBasename: buildExportBasename("prompts_import"),
         });
+        const downloadedCount = summary.recordingCount - summary.failedCount;
         logPromptExportAudit({
           exportKind: "import_package",
           rowCount: summary.promptCount,
-          recordingCount: summary.recordingCount,
+          recordingCount: downloadedCount,
         });
         if (statusEl) {
-          statusEl.textContent = `Import package downloaded (${summary.recordingCount} recording(s)).`;
+          statusEl.textContent =
+            summary.failedCount > 0
+              ? `Import package downloaded: ${downloadedCount} recording(s), ${summary.failedCount} failed (missing from ZIP).`
+              : `Import package downloaded (${downloadedCount} recording(s)).`;
         }
       } catch (error) {
         if (statusEl) {
