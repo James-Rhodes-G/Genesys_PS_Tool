@@ -64,7 +64,9 @@ const issueSessionCookie = (req, res) => {
 };
 
 const rotateSessionId = (req, res) => {
-  return issueSessionCookie(req, res);
+  const sessionId = issueSessionCookie(req, res);
+  req.sessionId = sessionId;
+  return sessionId;
 };
 
 const ensureSessionMiddleware = (req, res, next) => {
@@ -74,6 +76,13 @@ const ensureSessionMiddleware = (req, res, next) => {
 
   if (parsed) {
     req.sessionId = parsed;
+    next();
+    return;
+  }
+
+  // /launch rotates the session once after binding vault credentials; avoid issuing a throwaway cookie first.
+  if (req.path === "/launch") {
+    req.sessionId = null;
     next();
     return;
   }

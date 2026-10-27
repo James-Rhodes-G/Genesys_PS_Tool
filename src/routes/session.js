@@ -12,7 +12,6 @@ import {
   saveExportResult,
 } from "../data/session-db.js";
 import { readCachedSessionUsers, syncSessionUsers, USERS_CACHE_EXPAND } from "../lib/user-cache.js";
-import { rotateSessionId } from "../middleware/session.js";
 import { getOrganizationMe } from "../lib/genesys.js";
 
 const createSessionRouter = ({ sessionDb, recordEvent }) => {
@@ -43,9 +42,8 @@ const createSessionRouter = ({ sessionDb, recordEvent }) => {
   };
 
   router.post("/api/session/bind", async (req, res) => {
-    const sessionId = rotateSessionId(req, res);
+    const sessionId = requireSession(req, res);
     if (!sessionId) {
-      res.status(400).json({ error: "Session is required." });
       return;
     }
 
