@@ -1,7 +1,7 @@
-import crypto from "crypto";
+import { buildLegacySessionClearCookie, buildSessionSetCookie, LEGACY_SESSION_COOKIE, sessionCookieName } from "../lib/session-cookie.js";
+import { createSignedSessionId, parseSignedSessionId } from "../lib/session-token.js";
 
-const SESSION_COOKIE = "ps_tool_session";
-const SESSION_MAX_AGE_MS = 1000 * 60 * 60 * 24;
+const SESSION_COOKIE = LEGACY_SESSION_COOKIE;
 
 const parseCookieHeader = (header = "") => {
   if (!header) {
@@ -20,7 +20,12 @@ const parseCookieHeader = (header = "") => {
     }
 
     const key = trimmed.slice(0, separatorIndex).trim();
-    const value = decodeURIComponent(trimmed.slice(separatorIndex + 1).trim());
+    let value = trimmed.slice(separatorIndex + 1).trim();
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      return cookies;
+    }
     cookies[key] = value;
     return cookies;
   }, {});
@@ -41,22 +46,40 @@ const appendSetCookie = (res, cookieValue) => {
   res.setHeader("Set-Cookie", [existing, cookieValue]);
 };
 
+const readSessionTokenFromCookies = (cookies, req) => {
+  const primary = cookies[sessionCookieName(req)];
+  if (primary) {
+    return primary;
+  }
+  return cookies[LEGACY_SESSION_COOKIE] || "";
+};
+
+const issueSessionCookie = (req, res) => {
+  const signed = createSignedSessionId();
+  appendSetCookie(res, buildSessionSetCookie(req, signed));
+  if (sessionCookieName(req) !== LEGACY_SESSION_COOKIE) {
+    appendSetCookie(res, buildLegacySessionClearCookie(req));
+  }
+  return parseSignedSessionId(signed);
+};
+
+const rotateSessionId = (req, res) => {
+  return issueSessionCookie(req, res);
+};
+
 const ensureSessionMiddleware = (req, res, next) => {
   const cookies = parseCookieHeader(req.headers.cookie);
-  let sessionId = cookies[SESSION_COOKIE];
+  const rawToken = readSessionTokenFromCookies(cookies, req);
+  const parsed = parseSignedSessionId(rawToken);
 
-  if (!sessionId) {
-    sessionId = crypto.randomUUID();
-    appendSetCookie(
-      res,
-      `${SESSION_COOKIE}=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(
-        SESSION_MAX_AGE_MS / 1000
-      )}`
-    );
+  if (parsed) {
+    req.sessionId = parsed;
+    next();
+    return;
   }
 
-  req.sessionId = sessionId;
+  req.sessionId = issueSessionCookie(req, res);
   next();
 };
 
-export { SESSION_COOKIE, ensureSessionMiddleware };
+export { SESSION_COOKIE, ensureSessionMiddleware, issueSessionCookie, rotateSessionId };

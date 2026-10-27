@@ -43,8 +43,19 @@ const renderPromptMediaUriCell = (row) => {
   const links = getPromptResources(row)
     .filter((resource) => resource?.mediaUri && resource?.id)
     .map((resource) => {
-      const href = escapeHtml(resource.mediaUri);
+      let href = "";
+      try {
+        const parsed = new URL(String(resource.mediaUri || "").trim());
+        if (parsed.protocol === "https:") {
+          href = escapeHtml(parsed.toString());
+        }
+      } catch {
+        href = "";
+      }
       const id = escapeHtml(resource.id);
+      if (!href) {
+        return escapeHtml(String(resource.mediaUri || resource.id));
+      }
       return `<a href="${href}" target="_blank" rel="noreferrer noopener">Listen ${id}</a>`;
     });
 
@@ -83,7 +94,8 @@ const buildGenesysBulkImportCsv = (rows) => {
     ...languageCodes.flatMap((code) => [`tts_${code}`, `audio_${code}`, `text_${code}`]),
   ];
 
-  const lines = [headers.map(escapeCsvValue).join(",")];
+  const csvCell = (value) => escapeCsvValue(value, { neutralizeFormulas: false });
+  const lines = [headers.map(csvCell).join(",")];
 
   rows.forEach((prompt) => {
     const resourceByLanguage = new Map();
@@ -103,7 +115,7 @@ const buildGenesysBulkImportCsv = (rows) => {
       values.push(resource?.ttsString || "", audioFilename, resource?.text || "");
     });
 
-    lines.push(values.map(escapeCsvValue).join(","));
+    lines.push(values.map(csvCell).join(","));
   });
 
   return {

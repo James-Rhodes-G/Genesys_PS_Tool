@@ -658,24 +658,26 @@ const createLaunchCode = async (
 };
 
 const consumeLaunchCode = async (db, code) => {
-  const row = await db.get(
+  const now = Date.now();
+  const result = await db.run(
+    `UPDATE launch_codes
+     SET consumed = 1
+     WHERE code = ? AND consumed = 0 AND expires_at > ?`,
+    code,
+    now
+  );
+
+  if (!result?.changes) {
+    return null;
+  }
+
+  return db.get(
     `SELECT code, link_id AS linkId, feature, params_json AS paramsJson, created_at AS createdAt,
             expires_at AS expiresAt, consumed
      FROM launch_codes
      WHERE code = ?`,
     code
   );
-
-  if (!row || row.consumed) {
-    return null;
-  }
-
-  if (Date.now() > row.expiresAt) {
-    return null;
-  }
-
-  await db.run(`UPDATE launch_codes SET consumed = 1 WHERE code = ?`, code);
-  return row;
 };
 
 const ACTIVITY_WINDOW_MS = 15 * 60 * 1000;

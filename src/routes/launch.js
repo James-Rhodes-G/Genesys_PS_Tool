@@ -26,6 +26,8 @@ import {
   clearSessionCredentials,
   clearSessionData,
 } from "../data/session-db.js";
+import { rotateSessionId } from "../middleware/session.js";
+import { safeJsonForScript } from "../lib/safe-json-for-script.js";
 
 const LAUNCH_VAULT_TTL_MS = Number(process.env.LAUNCH_VAULT_TTL_MS || 8 * 60 * 60 * 1000);
 const LAUNCH_CODE_TTL_MS = Number(process.env.LAUNCH_CODE_TTL_MS || 60 * 1000);
@@ -309,7 +311,7 @@ const createLaunchRouter = ({ sessionDb, recordEvent }) => {
       return;
     }
 
-    const sessionId = req.sessionId;
+    const sessionId = rotateSessionId(req, res);
     if (!sessionId) {
       res.status(400).send("Session is required.");
       return;
@@ -377,7 +379,7 @@ const createLaunchRouter = ({ sessionDb, recordEvent }) => {
   <p>Launching PS Tool...</p>
   <script>
     (function () {
-      var payload = ${JSON.stringify(bootstrap)};
+      var payload = ${safeJsonForScript(bootstrap)};
       try {
         localStorage.setItem("ps_tool_region", payload.region || "");
         localStorage.setItem("ps_tool_org_id", payload.org.id || "");

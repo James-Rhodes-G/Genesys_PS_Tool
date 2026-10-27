@@ -12,6 +12,8 @@ import {
   saveExportResult,
 } from "../data/session-db.js";
 import { readCachedSessionUsers, syncSessionUsers, USERS_CACHE_EXPAND } from "../lib/user-cache.js";
+import { rotateSessionId } from "../middleware/session.js";
+import { getOrganizationMe } from "../lib/genesys.js";
 
 const createSessionRouter = ({ sessionDb, recordEvent }) => {
   const router = Router();
@@ -41,18 +43,45 @@ const createSessionRouter = ({ sessionDb, recordEvent }) => {
   };
 
   router.post("/api/session/bind", async (req, res) => {
-    const sessionId = requireSession(req, res);
+    const sessionId = rotateSessionId(req, res);
     if (!sessionId) {
+      res.status(400).json({ error: "Session is required." });
       return;
     }
 
-    const orgId = String(req.body?.orgId || "").trim();
-    const orgName = String(req.body?.orgName || "").trim();
-    const region = String(req.body?.region || "").trim();
+    let orgId = "";
+    let orgName = String(req.body?.orgName || "").trim();
+    let region = String(req.body?.region || "").trim();
 
-    if (!orgId) {
-      res.status(400).json({ error: "orgId is required." });
-      return;
+    if (req.genesysCredentials?.orgId) {
+      orgId = req.genesysCredentials.orgId;
+      region = region || req.genesysCredentials.region || "";
+      const requestedOrgId = String(req.body?.orgId || "").trim();
+      if (requestedOrgId && requestedOrgId !== orgId) {
+        res.status(403).json({ error: "orgId must match the connected organization." });
+        return;
+      }
+    } else {
+      orgId = String(req.body?.orgId || "").trim();
+      const token = String(req.body?.token || "").trim();
+      if (!orgId || !region || !token) {
+        res.status(400).json({ error: "orgId, region, and token are required to bind the session." });
+        return;
+      }
+
+      try {
+        const organization = await getOrganizationMe({ region, token });
+        if (organization?.id !== orgId) {
+          res.status(403).json({ error: "orgId does not match the supplied token." });
+          return;
+        }
+        if (!orgName) {
+          orgName = organization.name || "";
+        }
+      } catch (error) {
+        res.status(error.status || 502).json({ error: error.message || "Failed to validate organization." });
+        return;
+      }
     }
 
     try {

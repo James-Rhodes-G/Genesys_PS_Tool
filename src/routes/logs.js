@@ -1,8 +1,10 @@
 import { Router } from "express";
+import { requireAdminSession } from "../middleware/admin-session.js";
 import { renderAppPage, renderLogDetail, renderLogList } from "../views/render.js";
 
 const createLogsRouter = ({ getLogs, getLogById }) => {
   const router = Router();
+  const adminOnly = [requireAdminSession];
 
   router.get("/", async (req, res) => {
     res.status(200).send(
@@ -12,12 +14,12 @@ const createLogsRouter = ({ getLogs, getLogById }) => {
     );
   });
 
-  router.get("/api/logs", async (_req, res) => {
+  router.get("/api/logs", ...adminOnly, async (_req, res) => {
     const logs = await getLogs();
     res.status(200).json({ logs });
   });
 
-  router.get("/api/logs/:id", async (req, res) => {
+  router.get("/api/logs/:id", ...adminOnly, async (req, res) => {
     const log = await getLogById(req.params.id);
     if (!log) {
       res.status(404).json({ error: "Log not found" });
@@ -26,7 +28,7 @@ const createLogsRouter = ({ getLogs, getLogById }) => {
     res.status(200).json({ log });
   });
 
-  router.get("/logs/:id", async (req, res) => {
+  router.get("/logs/:id", ...adminOnly, async (req, res) => {
     const log = await getLogById(req.params.id);
 
     if (!log) {

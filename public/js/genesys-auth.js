@@ -11,15 +11,31 @@ const VAULT_MODE_KEY = "ps_tool_vault_mode";
 
 const CONNECTED_AT_KEY = "ps_tool_connected_at";
 
-const getToken = () => localStorage.getItem(TOKEN_KEY) || "";
+const readStoredToken = () => {
+  const fromSession = sessionStorage.getItem(TOKEN_KEY);
+  if (fromSession) {
+    return fromSession;
+  }
+  const legacy = localStorage.getItem(TOKEN_KEY);
+  if (legacy) {
+    sessionStorage.setItem(TOKEN_KEY, legacy);
+    localStorage.removeItem(TOKEN_KEY);
+    return legacy;
+  }
+  return "";
+};
+
+const getToken = () => readStoredToken();
 
 const setToken = (token) => {
   if (!token) {
+    sessionStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(TOKEN_KEY);
     return;
   }
 
-  localStorage.setItem(TOKEN_KEY, token);
+  sessionStorage.setItem(TOKEN_KEY, token);
+  localStorage.removeItem(TOKEN_KEY);
 };
 
 const getRegion = () => localStorage.getItem(REGION_KEY) || "";

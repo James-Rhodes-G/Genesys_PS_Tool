@@ -48,7 +48,7 @@ const renderBulkConfirmBody = ({
 }) => {
   const changesHtml = changes.length
     ? `<ul class="bulk-confirm-changes">${changes
-        .map((change) => `<li>${change}</li>`)
+        .map((change) => `<li>${escapeHtml(String(change))}</li>`)
         .join("")}</ul>`
     : '<p class="muted">No changes queued.</p>';
 
@@ -100,7 +100,7 @@ const renderAutoAnswerConfirmBody = ({ acdAutoAnswer, users }) =>
       String(acdAutoAnswer)
     )}</strong> for <strong>${escapeHtml(users.length)}</strong> user(s). Review the selection below before continuing.`,
     changeHeading: "Auto Answer Setting",
-    changes: [`Set ACD Auto Answer to ${escapeHtml(String(acdAutoAnswer))}`],
+    changes: [`Set ACD Auto Answer to ${String(acdAutoAnswer)}`],
     users,
     totalOperations: users.length,
   });
@@ -176,7 +176,7 @@ const renderPhoneBuildConfirmBody = ({ templatePhoneId, users }) =>
       users.length
     )}</strong> user(s) using template phone ID <strong>${escapeHtml(templatePhoneId)}</strong>. Review the selection below before continuing.`,
     changeHeading: "Phone Build",
-    changes: [`Create phones from template ${escapeHtml(templatePhoneId)}`],
+    changes: [`Create phones from template ${templatePhoneId}`],
     users,
     totalOperations: users.length,
   });

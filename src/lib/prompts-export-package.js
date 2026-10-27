@@ -1,17 +1,69 @@
+import dns from "dns";
 import net from "net";
+import { promisify } from "util";
 import JSZip from "jszip";
 import { createWorkerPool } from "./concurrency/worker-pool.js";
 
+const dnsLookup = promisify(dns.lookup);
 const RECORDING_DOWNLOAD_CONCURRENCY = 4;
+const MAX_RECORDINGS_PER_REQUEST = Number(process.env.PROMPT_EXPORT_MAX_RECORDINGS || 500);
+const MAX_RECORDING_BYTES = Number(process.env.PROMPT_EXPORT_MAX_RECORDING_BYTES || 52_428_800);
+const FETCH_TIMEOUT_MS = Number(process.env.PROMPT_EXPORT_FETCH_TIMEOUT_MS || 60_000);
+const MAX_REDIRECTS = 5;
 
 const isRetryableDownloadError = (error) => {
   const status = Number(error?.status);
   return status === 429 || (status >= 500 && status <= 504);
 };
 
+const isPrivateOrLocalAddress = (address) => {
+  const normalized = String(address || "").trim();
+  if (!normalized) {
+    return true;
+  }
+  if (net.isIP(normalized)) {
+    return net.isIP(normalized) !== 0 && !normalized.startsWith("0.");
+  }
+  const lower = normalized.toLowerCase();
+  return (
+    lower === "localhost" ||
+    lower.endsWith(".localhost") ||
+    lower.endsWith(".local")
+  );
+};
+
+const isPrivateIp = (ip) => {
+  if (net.isIPv4(ip)) {
+    const parts = ip.split(".").map(Number);
+    if (parts[0] === 10) return true;
+    if (parts[0] === 127) return true;
+    if (parts[0] === 169 && parts[1] === 254) return true;
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (parts[0] === 192 && parts[1] === 168) return true;
+    if (parts[0] === 0) return true;
+    return false;
+  }
+  if (net.isIPv6(ip)) {
+    const lower = ip.toLowerCase();
+    return lower === "::1" || lower.startsWith("fc") || lower.startsWith("fd") || lower.startsWith("fe80");
+  }
+  return true;
+};
+
+const resolveHostname = async (hostname) => {
+  const host = String(hostname || "").trim().toLowerCase();
+  if (!host || isPrivateOrLocalAddress(host)) {
+    throw new Error("Recording host is not allowed.");
+  }
+  const { address } = await dnsLookup(host, { verbatim: true });
+  if (isPrivateIp(address)) {
+    throw new Error("Recording host resolves to a private address.");
+  }
+  return address;
+};
+
 /**
- * Media URIs come from the browser request body, so only plain public https hosts are fetched
- * (no IP literals, localhost, or single-label hosts).
+ * Media URIs come from the browser request body; only https URLs on public hosts are fetched.
  */
 const parseRecordingUri = (mediaUri) => {
   let url;
@@ -45,20 +97,88 @@ const isGenesysHost = (hostname, genesysDomain) => {
 /** ZIP entries are flat files; strip path separators so extraction cannot escape the target folder. */
 const toFlatFilename = (value) => String(value || "").trim().replace(/[\\/]+/g, "_");
 
+const fetchWithTimeout = async (url, options) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const readResponseWithLimit = async (response) => {
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > MAX_RECORDING_BYTES) {
+      throw new Error("Recording exceeds size limit.");
+    }
+    return buffer;
+  }
+
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    total += value.byteLength;
+    if (total > MAX_RECORDING_BYTES) {
+      throw new Error("Recording exceeds size limit.");
+    }
+    chunks.push(value);
+  }
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return merged.buffer;
+};
+
 const fetchRecording = async ({ url, token, genesysDomain }) => {
+  if (process.env.PROMPT_EXPORT_SKIP_DNS !== "1") {
+    await resolveHostname(url.hostname);
+  }
+
+  let currentUrl = url;
+  let redirectCount = 0;
   const headers = {};
-  if (token && isGenesysHost(url.hostname, genesysDomain)) {
+  if (token && isGenesysHost(currentUrl.hostname, genesysDomain)) {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(url, { headers });
-  if (!response.ok) {
-    const error = new Error(`HTTP ${response.status}`);
-    error.status = response.status;
-    throw error;
-  }
+  while (true) {
+    const response = await fetchWithTimeout(currentUrl, { headers, redirect: "manual" });
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location || redirectCount >= MAX_REDIRECTS) {
+        throw new Error("Too many redirects while fetching recording.");
+      }
+      redirectCount += 1;
+      currentUrl = new URL(location, currentUrl);
+      const parsed = parseRecordingUri(currentUrl.toString());
+      if (!parsed) {
+        throw new Error("Recording redirect target is not allowed.");
+      }
+      if (process.env.PROMPT_EXPORT_SKIP_DNS !== "1") {
+        await resolveHostname(parsed.hostname);
+      }
+      currentUrl = parsed;
+      continue;
+    }
 
-  return response.arrayBuffer();
+    if (!response.ok) {
+      const error = new Error(`HTTP ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+
+    return readResponseWithLimit(response);
+  }
 };
 
 const buildPromptExportZip = async ({
@@ -71,6 +191,10 @@ const buildPromptExportZip = async ({
 }) => {
   if (mode === "recordings-only" && recordings.length === 0) {
     throw new Error("No prompt recordings to export.");
+  }
+
+  if (recordings.length > MAX_RECORDINGS_PER_REQUEST) {
+    throw new Error(`Cannot export more than ${MAX_RECORDINGS_PER_REQUEST} recordings at once.`);
   }
 
   const zip = new JSZip();

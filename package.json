@@ -10,7 +10,8 @@
     "seed:logs": "node scripts/seed_logs.js",
     "sw:build": "node scripts/build_sw.js",
     "clean": "node scripts/clean.js",
-    "test": "node scripts/test-resource-cache.mjs && node scripts/test-phone-site-move.mjs && node scripts/test-open-interactions-query.mjs && node scripts/test-dashboard-limits.mjs && node scripts/test-health-check-reports.mjs && node scripts/test-queue-members-cache.mjs && node scripts/test-genesys-rate-limit.mjs && node scripts/test-worker-pool.mjs && node scripts/test-genesys-api-client.mjs && node scripts/test-job-manager.mjs && node scripts/test-admin-prevention.mjs && node scripts/test-notification-topics.mjs && node scripts/test-notification-subscription.mjs && node scripts/test-notification-message-store.mjs && node scripts/test-mock-api.mjs && node scripts/test-prompts-export.mjs && node scripts/test-flow-execution-parser.mjs && node scripts/test-launch-security.mjs && node scripts/test-admin-operator-auth.mjs && node scripts/test-admin.mjs"
+    "test": "node scripts/test-resource-cache.mjs && node scripts/test-phone-site-move.mjs && node scripts/test-open-interactions-query.mjs && node scripts/test-dashboard-limits.mjs && node scripts/test-health-check-reports.mjs && node scripts/test-queue-members-cache.mjs && node scripts/test-genesys-rate-limit.mjs && node scripts/test-worker-pool.mjs && node scripts/test-genesys-api-client.mjs && node scripts/test-job-manager.mjs && node scripts/test-admin-prevention.mjs && node scripts/test-notification-topics.mjs && node scripts/test-notification-subscription.mjs && node scripts/test-notification-message-store.mjs && node scripts/test-mock-api.mjs && node scripts/test-prompts-export.mjs && node scripts/test-flow-execution-parser.mjs && node scripts/test-launch-security.mjs && node scripts/test-security-session.mjs && node scripts/test-admin-operator-auth.mjs && node scripts/test-admin.mjs",
+    "audit:prod": "npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
@@ -18,7 +19,7 @@
     "genesys-spark": "^4.207.2",
     "jszip": "^3.10.2",
     "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^6.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"

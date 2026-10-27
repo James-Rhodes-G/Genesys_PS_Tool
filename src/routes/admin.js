@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { createRateLimiter } from "../lib/launch-validation.js";
 import { requireAdminSession } from "../lib/admin-auth.js";
-import { verifyPassword } from "../lib/admin-operator-auth.js";
+import { hashPassword, verifyPassword } from "../lib/admin-operator-auth.js";
 import {
   issueAdminSession,
   revokeAdminSession,
@@ -74,7 +74,15 @@ const createAdminRouter = ({
     keyFn: (req) => req.ip || "unknown",
   });
 
-  router.post("/api/admin/login", adminLoginRateLimit, async (req, res) => {
+  const adminLoginUserRateLimit = createRateLimiter({
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+    keyFn: (req) => `user:${String(req.body?.username || "").trim().toLowerCase()}`,
+  });
+
+  let dummyPasswordHashPromise;
+
+  router.post("/api/admin/login", adminLoginRateLimit, adminLoginUserRateLimit, async (req, res) => {
     const username = String(req.body?.username || "").trim();
     const password = String(req.body?.password || "");
     if (!username || !password) {
@@ -83,13 +91,12 @@ const createAdminRouter = ({
     }
 
     const operator = await getOperatorByUsername(adminDb, username);
-    if (!operator) {
-      res.status(401).json({ error: "Invalid username or password." });
-      return;
+    if (!dummyPasswordHashPromise) {
+      dummyPasswordHashPromise = hashPassword("\x00invalid-login-timing-pad");
     }
-
-    const valid = await verifyPassword(password, operator.passwordHash);
-    if (!valid) {
+    const passwordHash = operator?.passwordHash || (await dummyPasswordHashPromise);
+    const valid = await verifyPassword(password, passwordHash);
+    if (!operator || !valid) {
       res.status(401).json({ error: "Invalid username or password." });
       return;
     }
@@ -167,15 +174,19 @@ const createAdminRouter = ({
     if (!req.sessionId) {
       return res.status(401).json({ error: "Session required." });
     }
+    if (!req.genesysCredentials?.orgId) {
+      return res.status(403).json({ error: "An active Genesys connection is required." });
+    }
     const { action, affectedCount, successCount, failureCount } = req.body || {};
-    if (!action) {
+    const normalizedAction = String(action || "").trim().slice(0, 128);
+    if (!normalizedAction) {
       return res.status(400).json({ error: "action is required." });
     }
     const id = await insertAdminActivity(adminDb, {
       sessionId: req.sessionId,
-      orgId: req.genesysCredentials?.orgId || req.body?.orgId,
-      userId: req.genesysCredentials?.userId,
-      action,
+      orgId: req.genesysCredentials.orgId,
+      userId: req.genesysCredentials.userId,
+      action: normalizedAction,
       affectedCount: affectedCount ?? 0,
       successCount: successCount ?? 0,
       failureCount: failureCount ?? 0,

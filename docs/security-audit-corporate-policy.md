@@ -39,8 +39,14 @@ This audit covers three **priority risks** and documents **code remediations** s
 | **Prompt recording downloads** | `POST /api/genesys/prompts/export-package` fetches recordings server-side: public `https` hosts only (no IP literals/localhost), 4 concurrent, Genesys bearer sent only to hosts under the org's Genesys domain, ZIP entry names flattened — [`src/lib/prompts-export-package.js`](../src/lib/prompts-export-package.js) |
 | **Admin login** | Rate limit on `POST /api/admin/login` — [`src/routes/admin.js`](../src/routes/admin.js) |
 | **Policy API** | `GET /api/app/security-policy` — [`src/routes/app-config.js`](../src/routes/app-config.js) |
+| **Mock API same-origin** | Forbidden response headers (e.g. `Set-Cookie`, `Location`); forced sandbox CSP on mock responses — [`src/lib/mock-api.js`](../src/lib/mock-api.js) |
+| **Session cookie** | HMAC-signed `ps_tool_session`; rotation on vault launch and org bind; `Secure` / `__Host-` on HTTPS — [`src/middleware/session.js`](../src/middleware/session.js), [`src/lib/session-token.js`](../src/lib/session-token.js) |
+| **Security headers** | CSP (report-only by default), `frame-ancestors`, HSTS on HTTPS — [`src/middleware/security-headers.js`](../src/middleware/security-headers.js) |
+| **Launch hardening** | HMAC required in production; replay nonces; atomic launch-code consume — [`src/lib/launch-validation.js`](../src/lib/launch-validation.js), [`src/data/session-db.js`](../src/data/session-db.js) |
+| **Org bind** | `/api/session/bind` verifies org via vault credentials or Genesys token — [`src/routes/session.js`](../src/routes/session.js) |
+| **Dependency audit** | `npm run audit:prod` — [`package.json`](../package.json) |
 
-**Tests:** `npm test` includes `scripts/test-launch-security.mjs` (`validateStartBody`, vault crypto, HMAC, rate limiter).
+**Tests:** `npm test` includes `scripts/test-launch-security.mjs`, `scripts/test-security-session.mjs`, and `scripts/test-mock-api.mjs`.
 
 ---
 

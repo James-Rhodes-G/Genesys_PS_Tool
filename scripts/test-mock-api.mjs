@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import {
   createMockApiService,
+  deriveUserpart,
+  isForbiddenResponseHeader,
+  MOCK_RESPONSE_FORCED_HEADERS,
   normalizeEndpointSlug,
   redactHeaders,
-  deriveUserpart,
+  validateResponseHeaders,
 } from "../src/lib/mock-api.js";
 import { MOCK_API_CONFIG } from "../src/lib/mock-api-config.js";
 
@@ -116,6 +119,19 @@ assert.deepEqual(redactHeaders({ Authorization: "secret", "X-Test": "ok" }), {
 });
 
 assert.equal(deriveUserpart({ email: "Jane.Doe@Example.com" }), "janedoe");
+
+assert.equal(isForbiddenResponseHeader("Set-Cookie"), true);
+assert.equal(isForbiddenResponseHeader("Location"), true);
+assert.equal(isForbiddenResponseHeader("Content-Security-Policy-Report-Only"), true);
+assert.equal(isForbiddenResponseHeader("X-Custom"), false);
+
+assert.throws(
+  () => validateResponseHeaders({ "Set-Cookie": "ps_tool_session=evil" }),
+  /not allowed/i
+);
+
+assert.deepEqual(validateResponseHeaders({ "X-Test": "ok" }), { "X-Test": "ok" });
+assert.equal(MOCK_RESPONSE_FORCED_HEADERS["Content-Security-Policy"], "sandbox; default-src 'none'");
 
 const owner = service.buildOwnerContext({
   user: { email: "jrhodes@example.com" },

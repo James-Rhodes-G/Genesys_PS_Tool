@@ -16,8 +16,10 @@ export const buildSignedHeaders = async ({ secret, method, path, body }) => {
   }
 
   const timestamp = String(Date.now());
+  const nonceBytes = crypto.getRandomValues(new Uint8Array(16));
+  const nonce = toHex(nonceBytes);
   const bodyHash = await hashBody(body);
-  const payload = `${timestamp}:${method}:${path}:${bodyHash}`;
+  const payload = `${timestamp}:${nonce}:${method}:${path}:${bodyHash}`;
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(secret),
@@ -28,6 +30,7 @@ export const buildSignedHeaders = async ({ secret, method, path, body }) => {
   const signatureBuffer = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
   return {
     "X-PS-Tool-Timestamp": timestamp,
+    "X-PS-Tool-Nonce": nonce,
     "X-PS-Tool-Signature": toHex(signatureBuffer),
   };
 };

@@ -61,6 +61,50 @@ const deriveUserpart = (user) => {
 
 const isValidHeaderName = (name) => /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name);
 
+/** Headers mock endpoints must not set (same-origin cookie / redirect / CSP bypass). */
+const FORBIDDEN_RESPONSE_HEADER_PREFIXES = [
+  "access-control-",
+  "content-security-policy",
+  "clear-site-data",
+  "link",
+  "location",
+  "refresh",
+  "set-cookie",
+  "set-cookie2",
+  "strict-transport-security",
+  "x-frame-options",
+];
+
+const isForbiddenResponseHeader = (name) => {
+  const lower = String(name || "").trim().toLowerCase();
+  return FORBIDDEN_RESPONSE_HEADER_PREFIXES.some(
+    (prefix) => lower === prefix || lower.startsWith(prefix)
+  );
+};
+
+const MOCK_RESPONSE_FORCED_HEADERS = Object.freeze({
+  "Content-Security-Policy": "sandbox; default-src 'none'",
+  "X-Content-Type-Options": "nosniff",
+  "Cache-Control": "no-store",
+});
+
+const filterAllowedResponseHeaders = (headers = {}) => {
+  const filtered = {};
+  Object.entries(headers).forEach(([name, value]) => {
+    if (isForbiddenResponseHeader(name)) {
+      return;
+    }
+    filtered[name] = value;
+  });
+  return filtered;
+};
+
+const applyMockResponseSecurityHeaders = (res) => {
+  Object.entries(MOCK_RESPONSE_FORCED_HEADERS).forEach(([name, value]) => {
+    res.setHeader(name, value);
+  });
+};
+
 const redactHeaders = (headers = {}) => {
   const output = {};
   Object.entries(headers).forEach(([name, value]) => {
@@ -129,6 +173,9 @@ const validateResponseHeaders = (headers = {}) => {
     if (!isValidHeaderName(trimmedName)) {
       throw new Error(`Invalid response header name: ${name}`);
     }
+    if (isForbiddenResponseHeader(trimmedName)) {
+      throw new Error(`Response header "${trimmedName}" is not allowed on mock endpoints.`);
+    }
 
     const stringValue = String(value ?? "");
     if (Buffer.byteLength(stringValue, "utf8") > MOCK_API_CONFIG.maxHeaderValueBytes) {
@@ -169,6 +216,10 @@ const validateContentType = (contentType) => {
 };
 
 const buildPublicUrl = ({ req, userpart, endpointSlug }) => {
+  const configuredOrigin = String(process.env.MOCK_API_PUBLIC_ORIGIN || "").trim().replace(/\/$/, "");
+  if (configuredOrigin) {
+    return `${configuredOrigin}/mockAPI/${encodeURIComponent(userpart)}/${encodeURIComponent(endpointSlug)}`;
+  }
   const host = req.get("x-forwarded-host") || req.get("host") || "localhost";
   const protocol = req.get("x-forwarded-proto") || req.protocol || "http";
   return `${protocol}://${host}/mockAPI/${encodeURIComponent(userpart)}/${encodeURIComponent(endpointSlug)}`;
@@ -480,14 +531,17 @@ const createMockApiService = ({
     }
 
     const responseHeaders = {
-      ...endpoint.responseHeaders,
+      ...filterAllowedResponseHeaders(endpoint.responseHeaders),
       "Content-Type": endpoint.responseContentType,
       "X-Mock-Endpoint-Id": endpoint.id,
     };
 
     Object.entries(responseHeaders).forEach(([name, value]) => {
-      res.setHeader(name, value);
+      if (!isForbiddenResponseHeader(name)) {
+        res.setHeader(name, value);
+      }
     });
+    applyMockResponseSecurityHeaders(res);
 
     const responseBody = endpoint.responseBody || "";
     res.status(endpoint.httpStatusCode);
@@ -599,8 +653,13 @@ const createMockApiService = ({
 export {
   HTTP_STATUS_PRESETS,
   MOCK_API_CONFIG,
+  MOCK_RESPONSE_FORCED_HEADERS,
+  applyMockResponseSecurityHeaders,
   createMockApiService,
   deriveUserpart,
+  filterAllowedResponseHeaders,
+  isForbiddenResponseHeader,
   normalizeEndpointSlug,
   redactHeaders,
+  validateResponseHeaders,
 };
