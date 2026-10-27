@@ -203,6 +203,13 @@ import {
   syncSessionUsers,
 } from "./session-store.js";
 import { formatPipeSeparatedDisplay, joinPipeSeparatedCsv } from "./export-format.js";
+import {
+  downloadPromptImportPackage,
+  downloadPromptRecordingsZip,
+  promptMediaUriToCsv,
+  renderPromptMediaUriCell,
+  resolvePromptExportRows,
+} from "./prompts-export.js";
 import { wireExportTableResize } from "./export-table-layout.js";
 import { getSelectedBotFlow, mapBotFlowOptions, validatePublishedBotFlow } from "./bot-flow-utils.js";
 import { createPasswordResetWorkflow } from "./bulk-password-reset.js";
@@ -346,6 +353,19 @@ const buildExportFilename = (exportType) => {
   return `${organizationName}_${exportType}_${stamp}.csv`;
 };
 
+const buildPromptsZipBasename = () => {
+  const organizationName = (getOrganizationName() || "organization")
+    .replace(/[^a-z0-9]+/gi, "_")
+    .replace(/^_+|_+$/g, "");
+  const date = new Date();
+  const stamp =
+    String(date.getFullYear()) +
+    String(date.getMonth() + 1).padStart(2, "0") +
+    String(date.getDate()).padStart(2, "0");
+
+  return `${organizationName}_prompts_${stamp}`;
+};
+
 const renderJsonBlock = (value) =>
   `<div class="log-output__json"><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></div>`;
 
@@ -362,6 +382,9 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     exportRefreshInFlight: new Set(),
     hasConnection: false,
   };
+
+  /** Set during initializeGenesysApp; used by downloadCsv for prompt recording exports. */
+  let resolveExportCredentials = null;
 
     const getCurrentAppDomain = () => {
     const currentRegion = getRegion();
@@ -897,8 +920,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       };
     };
 
-    const createPromptsExportMeta = (resultId, rows, title, status) =>
-      createSimpleExportMeta(
+    const createPromptsExportMeta = (resultId, rows, title, status) => {
+      const exportMeta = createSimpleExportMeta(
         resultId,
         rows,
         title,
@@ -906,6 +929,53 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         "prompts",
         ["name", "description", "resources[].id", "resources[].uploadStatus", "resources[].ttsString", "resources[].mediaUri"]
       );
+
+      const mediaUriColumn = exportMeta.availableColumns.find(
+        (column) => column.key === "resources[].mediaUri"
+      );
+      if (mediaUriColumn) {
+        mediaUriColumn.renderCell = renderPromptMediaUriCell;
+        mediaUriColumn.toCsv = promptMediaUriToCsv;
+      }
+
+      exportMeta.includeRecordingsOnExport = false;
+      return exportMeta;
+    };
+
+    const renderPromptsExportToolbarExtras = (exportId, exportMeta) => ({
+      searchAndFilterHtml: renderGuxFieldCheckbox({
+        escapeHtml,
+        inputId: `${exportId}-prompts-include-recordings`,
+        className: "prompts-export-include-recordings",
+        label: "Include recordings (ZIP)",
+        checked: Boolean(exportMeta.includeRecordingsOnExport),
+        attrs: `data-export-id="${escapeHtml(exportId)}"`,
+        labelPosition: "beside",
+      }),
+      extraPermanentActionsHtml: `<gux-table-toolbar-custom-action
+          accent="primary"
+          class="prompts-export-for-import"
+          data-export-id="${escapeHtml(exportId)}"
+        >
+          <span slot="text">Export for import</span>
+          <gux-icon slot="icon" icon-name="export" decorative></gux-icon>
+        </gux-table-toolbar-custom-action>`,
+    });
+
+    const logPromptExportAudit = ({ exportKind, rowCount, recordingCount = 0 }) => {
+      fetch("/api/session/export-audit", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          exportType: "prompts",
+          exportKind,
+          rowCount,
+          recordingCount,
+          includesPasswordColumn: false,
+        }),
+      }).catch(() => {});
+    };
 
     const createQueueMembersExportMeta = (resultId, rows, title, status) => {
       const baseColumns = [
@@ -1010,10 +1080,15 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
     const renderExportDataTableMarkup = (exportId, exportMeta) => {
       const selectedColumns = getExportSelectedColumns(exportMeta);
+      const promptsToolbarExtras =
+        exportMeta.exportType === "prompts"
+          ? renderPromptsExportToolbarExtras(exportId, exportMeta)
+          : {};
       const exportToolbarHtml = renderGuxExportToolbar({
         escapeHtml,
         exportId,
         showEdit: exportMeta.editable !== false,
+        ...promptsToolbarExtras,
       });
 
       if (selectedColumns.length === 0) {
@@ -1235,10 +1310,43 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         exportType: exportMeta.exportType || "export",
+        exportKind: exportMeta.exportType === "prompts" ? "table_csv" : undefined,
         rowCount: rows.length,
         includesPasswordColumn,
       }),
     }).catch(() => {});
+
+    if (exportMeta.exportType === "prompts" && exportMeta.includeRecordingsOnExport) {
+      const credentials = resolveExportCredentials?.(exportMeta.title);
+      if (!credentials) {
+        return;
+      }
+
+      let fullRows = exportMeta.rows || [];
+      if (exportMeta.sessionStored) {
+        try {
+          const payload = await fetchAllExportRows({ exportId });
+          fullRows = payload.rows || fullRows;
+        } catch (error) {
+          console.warn("Failed to load all session rows for prompt recordings export:", error);
+        }
+      }
+
+      try {
+        const summary = await downloadPromptRecordingsZip({
+          credentials,
+          rows: fullRows,
+          zipBasename: `${buildPromptsZipBasename()}_recordings`,
+        });
+        logPromptExportAudit({
+          exportKind: "recordings_zip",
+          rowCount: fullRows.length,
+          recordingCount: summary.recordingCount,
+        });
+      } catch (error) {
+        console.warn("Prompt recordings export failed:", error);
+      }
+    }
   };
 
     const initializeGenesysApp = () => {
@@ -1828,6 +1936,57 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       setToken(token);
       setRegion(region);
       return { token, region };
+    };
+
+    resolveExportCredentials = requireCredentials;
+
+    const runPromptsExportForImport = async (exportId) => {
+      const exportMeta = state.exportData[exportId];
+      if (!exportMeta || exportMeta.exportType !== "prompts") {
+        return;
+      }
+
+      const credentials = requireCredentials(exportMeta.title);
+      if (!credentials) {
+        return;
+      }
+
+      const resultEl = document.getElementById(exportId);
+      const statusEl = resultEl?.querySelector(".export-results__status");
+      const previousStatus = statusEl?.textContent || exportMeta.status;
+
+      if (statusEl) {
+        statusEl.textContent = "Building import package...";
+      }
+
+      try {
+        const rows = await resolvePromptExportRows({
+          exportMeta,
+          fetchAllExportRows,
+        });
+        const summary = await downloadPromptImportPackage({
+          credentials,
+          rows,
+          zipBasename: `${buildPromptsZipBasename()}_import`,
+        });
+        logPromptExportAudit({
+          exportKind: "import_package",
+          rowCount: summary.promptCount,
+          recordingCount: summary.recordingCount,
+        });
+        if (statusEl) {
+          statusEl.textContent = `Import package downloaded (${summary.recordingCount} recording(s)).`;
+        }
+      } catch (error) {
+        if (statusEl) {
+          statusEl.textContent = error.message || "Import package export failed.";
+        }
+        console.warn("Prompt import package export failed:", error);
+      } finally {
+        if (statusEl && statusEl.textContent === "Building import package...") {
+          statusEl.textContent = previousStatus;
+        }
+      }
     };
 
     const wireExportButton = (button, config) => {
@@ -3088,6 +3247,18 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           return;
         }
 
+        const promptsImportButton = target.closest(".prompts-export-for-import");
+        if (promptsImportButton) {
+          event.preventDefault();
+          event.stopPropagation();
+
+          const exportId = promptsImportButton.getAttribute("data-export-id");
+          if (exportId) {
+            await runPromptsExportForImport(exportId);
+          }
+          return;
+        }
+
         const downloadButton = target.closest(".export-download-button");
         if (downloadButton) {
           event.preventDefault();
@@ -3224,6 +3395,16 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       });
 
       resultsListEl.addEventListener("change", (event) => {
+        const promptsRecordingsToggle = event.target.closest?.(".prompts-export-include-recordings");
+        if (promptsRecordingsToggle) {
+          const exportId = promptsRecordingsToggle.getAttribute("data-export-id");
+          const exportMeta = exportId ? state.exportData[exportId] : null;
+          if (exportMeta?.exportType === "prompts") {
+            exportMeta.includeRecordingsOnExport = promptsRecordingsToggle.checked;
+          }
+          return;
+        }
+
         if (bulkSkillAssignFeature.handleChange(event)) {
           return;
         }

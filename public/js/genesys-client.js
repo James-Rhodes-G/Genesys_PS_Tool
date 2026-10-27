@@ -354,6 +354,49 @@ const getPrompts = async ({ region, token }) => {
   return payload.prompts || [];
 };
 
+const downloadPromptExportPackage = async ({
+  region,
+  token,
+  mode,
+  recordings,
+  importCsvText,
+  importCsvFilename,
+}) => {
+  const response = await fetch(
+    "/api/genesys/prompts/export-package",
+    withGenesysFetchOptions({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+      body: JSON.stringify({
+        mode,
+        recordings,
+        importCsvText,
+        importCsvFilename,
+      }),
+    })
+  );
+
+  if (!response.ok) {
+    let message = "Prompt export package failed";
+    try {
+      const payload = await response.json();
+      message = payload?.error || message;
+      if (isVaultSessionRequiredPayload(payload)) {
+        showVaultSessionRequiredModal(payload);
+      }
+    } catch {
+      // ignore parse errors
+    }
+    throw new Error(message);
+  }
+
+  return response.blob();
+};
+
 const previewBulkSkillAssignment = async ({ region, token, userIds, skills }) => {
   return requestGenesysJson(
     "/api/genesys/bulk-skill-assignment/preview",
@@ -1371,6 +1414,7 @@ export {
   getPhones,
   getOrganizationLimits,
   getPrompts,
+  downloadPromptExportPackage,
   getQueueMembers,
   getQueues,
   getCampaigns,

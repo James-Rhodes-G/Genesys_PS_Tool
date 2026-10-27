@@ -16,6 +16,7 @@
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "genesys-spark": "^4.207.2",
+    "jszip": "^3.10.2",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
   },

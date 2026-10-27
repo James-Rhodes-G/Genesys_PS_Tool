@@ -303,7 +303,9 @@ const createSessionRouter = ({ sessionDb, recordEvent }) => {
     }
 
     const exportType = String(req.body?.exportType || "").slice(0, 64);
+    const exportKind = String(req.body?.exportKind || "").slice(0, 64);
     const rowCount = Math.max(0, Number(req.body?.rowCount) || 0);
+    const recordingCount = Math.max(0, Number(req.body?.recordingCount) || 0);
     const includesPasswordColumn = Boolean(req.body?.includesPasswordColumn);
 
     if (recordEvent) {
@@ -312,7 +314,13 @@ const createSessionRouter = ({ sessionDb, recordEvent }) => {
         feature: "export",
         status: "success",
         orgId: bound.orgId,
-        metadata: { exportType, rowCount, includesPasswordColumn },
+        metadata: {
+          exportType,
+          exportKind: exportKind || undefined,
+          rowCount,
+          recordingCount: recordingCount || undefined,
+          includesPasswordColumn,
+        },
       }).catch(() => {});
     }
 

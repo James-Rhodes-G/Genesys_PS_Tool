@@ -317,7 +317,13 @@ const renderGuxColumnMoveButton = ({
   )}"${disabled ? " disabled" : ""}><gux-icon icon-name="${isUp ? "arrow-up" : "arrow-down"}" decorative></gux-icon></gux-button>`;
 };
 
-const renderGuxExportToolbar = ({ escapeHtml: escapeHtmlFn, exportId, showEdit = true }) => {
+const renderGuxExportToolbar = ({
+  escapeHtml: escapeHtmlFn,
+  exportId,
+  showEdit = true,
+  searchAndFilterHtml = "",
+  extraPermanentActionsHtml = "",
+}) => {
   const safeEscape = escapeHtmlFn || escapeHtml;
   const editActionHtml = showEdit
     ? `<gux-table-toolbar-custom-action
@@ -331,7 +337,8 @@ const renderGuxExportToolbar = ({ escapeHtml: escapeHtmlFn, exportId, showEdit =
 
   return renderGuxTableToolbar({
     escapeHtml: safeEscape,
-    permanentActionsHtml: `${editActionHtml}<gux-table-toolbar-custom-action
+    searchAndFilterHtml,
+    permanentActionsHtml: `${editActionHtml}${extraPermanentActionsHtml}<gux-table-toolbar-custom-action
         accent="secondary"
         class="export-download-button"
         data-export-id="${safeEscape(exportId)}"
