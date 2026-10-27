@@ -2,6 +2,7 @@ import {
   createAdminSessionToken,
   hashAdminSessionToken,
 } from "../lib/admin-operator-auth.js";
+import { isSecureRequest } from "../lib/session-cookie.js";
 import {
   createOperatorSession,
   deleteOperatorSession,
@@ -27,7 +28,12 @@ const parseCookieHeader = (header = "") => {
       return cookies;
     }
     const key = trimmed.slice(0, separatorIndex).trim();
-    const value = decodeURIComponent(trimmed.slice(separatorIndex + 1).trim());
+    let value = trimmed.slice(separatorIndex + 1).trim();
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      return cookies;
+    }
     cookies[key] = value;
     return cookies;
   }, {});
@@ -46,15 +52,15 @@ const appendSetCookie = (res, cookieValue) => {
   res.setHeader("Set-Cookie", [existing, cookieValue]);
 };
 
-const buildSessionCookie = (token, { maxAgeMs = DEFAULT_SESSION_TTL_MS } = {}) => {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+const buildSessionCookie = (req, token, { maxAgeMs = DEFAULT_SESSION_TTL_MS } = {}) => {
+  const secure = isSecureRequest(req) ? "; Secure" : "";
   return `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(
     maxAgeMs / 1000
   )}${secure}`;
 };
 
-const clearSessionCookie = () => {
-  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+const clearSessionCookie = (req) => {
+  const secure = isSecureRequest(req) ? "; Secure" : "";
   return `${ADMIN_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
 };
 
@@ -118,7 +124,7 @@ const issueAdminSession = async (adminDb, res, { operatorId, username }) => {
     username,
     expiresAt,
   });
-  appendSetCookie(res, buildSessionCookie(token));
+  appendSetCookie(res, buildSessionCookie(req, token));
   return { username, expiresAt };
 };
 
@@ -126,7 +132,7 @@ const revokeAdminSession = async (adminDb, req, res) => {
   if (req.adminOperator?.sessionTokenHash) {
     await deleteOperatorSession(adminDb, req.adminOperator.sessionTokenHash);
   }
-  appendSetCookie(res, clearSessionCookie());
+  appendSetCookie(res, clearSessionCookie(req));
 };
 
 export {

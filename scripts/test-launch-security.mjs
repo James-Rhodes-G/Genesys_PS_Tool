@@ -102,8 +102,9 @@ const originalSecret = process.env.LAUNCH_HMAC_SECRET;
 process.env.LAUNCH_HMAC_SECRET = "test-hmac-secret";
 const body = { linkToken, feature: "genesys-users", params: {} };
 const timestamp = String(Date.now());
+const nonce = crypto.randomBytes(16).toString("hex");
 const bodyHash = crypto.createHash("sha256").update(JSON.stringify(body), "utf8").digest("hex");
-const payload = `${timestamp}:POST:/api/launch/handoff:${bodyHash}`;
+const payload = `${timestamp}:${nonce}:POST:/api/launch/handoff:${bodyHash}`;
 const signature = crypto.createHmac("sha256", process.env.LAUNCH_HMAC_SECRET).update(payload, "utf8").digest("hex");
 
 const signedReq = {
@@ -111,6 +112,7 @@ const signedReq = {
   path: "/api/launch/handoff",
   get: (header) => {
     if (header === "x-ps-tool-timestamp") return timestamp;
+    if (header === "x-ps-tool-nonce") return nonce;
     if (header === "x-ps-tool-signature") return signature;
     return "";
   },

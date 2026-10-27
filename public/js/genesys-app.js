@@ -1689,6 +1689,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
               orgId: organization.id,
               orgName: organization?.name || "",
               region: effectiveRegion,
+              token: isVaultMode() ? undefined : getToken(),
             });
           } catch (error) {
             console.warn("Failed to bind org session store:", error);

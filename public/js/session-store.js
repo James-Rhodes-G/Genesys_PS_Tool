@@ -13,7 +13,7 @@ const parseJsonResponse = async (response, fallbackMessage) => {
   return payload;
 };
 
-const bindSession = async ({ orgId, orgName, region }) =>
+const bindSession = async ({ orgId, orgName, region, token }) =>
   parseJsonResponse(
     await fetch("/api/session/bind", {
       method: "POST",
@@ -21,7 +21,7 @@ const bindSession = async ({ orgId, orgName, region }) =>
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ orgId, orgName, region }),
+      body: JSON.stringify({ orgId, orgName, region, token }),
     }),
     "Failed to bind session."
   );

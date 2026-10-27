@@ -441,7 +441,10 @@ const populateRegionControl = async (regionControl, regions, savedRegionId) => {
   if (regionControl instanceof HTMLSelectElement) {
     if (options.length > 0 && regionControl.options.length === 0) {
       regionControl.innerHTML = options
-        .map((option) => `<option value="${option.value}">${option.label}</option>`)
+        .map(
+          (option) =>
+            `<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`
+        )
         .join("");
     }
     if (savedRegionId) {

@@ -38,8 +38,13 @@ const joinPipeSeparatedCsv = (values) =>
     .filter((value) => value !== "")
     .join(" | ");
 
-const escapeCsvValue = (value) => {
-  const stringValue = String(value == null ? "" : value);
+const needsCsvFormulaNeutralization = (stringValue) => /^[=+\-@]/.test(stringValue);
+
+const escapeCsvValue = (value, { neutralizeFormulas = true } = {}) => {
+  let stringValue = String(value == null ? "" : value);
+  if (neutralizeFormulas && needsCsvFormulaNeutralization(stringValue)) {
+    stringValue = `'${stringValue}`;
+  }
   if (/[",\n]/.test(stringValue)) {
     return `"${stringValue.replace(/"/g, '""')}"`;
   }

@@ -45,8 +45,8 @@ const createPreventionMiddleware = ({ sessionDb, getSessionConnection }) => {
       if (connection && connection.orgId && connection.orgId !== req.genesysCredentials.orgId) {
         return res.status(403).json({ error: "Session org does not match credentials." });
       }
-    } catch (_error) {
-      // continue
+    } catch (error) {
+      return res.status(503).json({ error: error.message || "Failed to validate session org binding." });
     }
     next();
   };
@@ -82,8 +82,11 @@ const createPreventionMiddleware = ({ sessionDb, getSessionConnection }) => {
     const allowlist = process.env.GENESYS_AUTHORIZED_ORGS;
     if (!allowlist) return next();
     const allowed = new Set(allowlist.split(",").map((s) => s.trim()).filter(Boolean));
-    const orgId = req.genesysCredentials?.orgId || req.body?.orgId;
-    if (orgId && !allowed.has(orgId)) {
+    const orgId = req.genesysCredentials?.orgId;
+    if (!orgId) {
+      return res.status(403).json({ error: "Organization authorization requires an active connection." });
+    }
+    if (!allowed.has(orgId)) {
       return res.status(403).json({ error: "Organization not authorized on this instance." });
     }
     next();

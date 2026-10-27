@@ -95,16 +95,28 @@ import { createMaintenanceMiddleware, setModeProvider } from "./lib/maintenance-
 import { createCoreApiMetricsMiddleware } from "./lib/core-api-metrics.js";
 import { createPreventionMiddleware } from "./lib/admin-prevention.js";
 import { createAdminJobs } from "./lib/admin-jobs.js";
+import { createSecurityHeadersMiddleware } from "./middleware/security-headers.js";
+import { parseBodyLimitBytes } from "./lib/body-limit.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const app = express();
 const port = process.env.PORT || 3000;
-const jsonBodyLimit = process.env.JSON_BODY_LIMIT || "50mb";
+const defaultJsonLimitBytes = parseBodyLimitBytes(process.env.JSON_BODY_LIMIT, "1mb");
+const largeJsonLimitBytes = parseBodyLimitBytes(process.env.SESSION_JSON_BODY_LIMIT, "50mb");
 const mockRequestBodyLimit = String(MOCK_API_CONFIG.maxRequestBodyBytes);
 
-app.set("trust proxy", 1);
+if (process.env.NODE_ENV === "production" && !process.env.LAUNCH_HMAC_SECRET) {
+  throw new Error("LAUNCH_HMAC_SECRET is required when NODE_ENV=production.");
+}
+
+const trustProxy = String(process.env.TRUST_PROXY || "0").trim();
+if (trustProxy === "1" || trustProxy.toLowerCase() === "true") {
+  app.set("trust proxy", 1);
+}
+
+app.use(createSecurityHeadersMiddleware());
 app.use(express.static(path.join(projectRoot, "public")));
 app.get("/js/shared/flow-execution-analysis.js", (_req, res) => {
   res.sendFile(path.join(projectRoot, "src", "lib", "flow-execution-analysis.js"));
@@ -224,7 +236,15 @@ const start = async () => {
     sessionDb,
     recordEvent: (req, payload) => auditService.recordEvent(req, payload),
   }));
-  app.use(express.json({ limit: jsonBodyLimit }));
+  app.use((req, res, next) => {
+    const path = req.path || "";
+    const needsLargeBody =
+      path.startsWith("/api/session/exports") ||
+      path.includes("/bulk-") ||
+      path.endsWith("/export-package");
+    const limit = needsLargeBody ? largeJsonLimitBytes : defaultJsonLimitBytes;
+    return express.json({ limit })(req, res, next);
+  });
   app.use(createLoadAdminSessionMiddleware(adminDb));
   app.use(createVaultCredentialsMiddleware(sessionDb));
   app.use(auditService.createAuditMiddleware());

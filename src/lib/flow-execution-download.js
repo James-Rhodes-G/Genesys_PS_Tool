@@ -1,5 +1,9 @@
-import { genesysRequest, buildGenesysApiUrl } from "./genesys.js";
+import { genesysRequest, buildGenesysApiUrl, getGenesysDomainForRegion } from "./genesys.js";
 import { runGenesysHttp } from "./genesys-rate-limit.js";
+
+const MAX_EXECUTION_DOCUMENT_BYTES = Number(process.env.FLOW_EXECUTION_MAX_BYTES || 52_428_800);
+const EXECUTION_FETCH_TIMEOUT_MS = Number(process.env.FLOW_EXECUTION_FETCH_TIMEOUT_MS || 60_000);
+const MAX_EXECUTION_REDIRECTS = 5;
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -121,6 +125,21 @@ const summarizeDocument = (document, byteLength = null) => {
   return { topLevelKeys: [], byteLength: resolvedByteLength, type: typeof document };
 };
 
+const isAllowedExecutionHost = (hostname, genesysDomain) => {
+  const host = String(hostname || "").toLowerCase();
+  const domain = String(genesysDomain || "").toLowerCase();
+  if (!host || !domain) {
+    return false;
+  }
+  return (
+    host === domain ||
+    host.endsWith(`.${domain}`) ||
+    host.endsWith(".mypurecloud.com") ||
+    host.endsWith(".pure.cloud") ||
+    host.endsWith(".inindca.com")
+  );
+};
+
 const fetchExecutionDocument = async ({ region, token, downloadUri }) => {
   let requestUrl = String(downloadUri || "").trim();
   if (!requestUrl) {
@@ -139,23 +158,76 @@ const fetchExecutionDocument = async ({ region, token, downloadUri }) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  let requestHost = "";
+  const genesysDomain = await getGenesysDomainForRegion(region);
+  let currentUrl;
   try {
-    requestHost = new URL(requestUrl).host;
+    currentUrl = new URL(requestUrl);
   } catch {
     throw new Error("Flow execution download URI is invalid.");
   }
 
+  if (currentUrl.protocol !== "https:" || !isAllowedExecutionHost(currentUrl.hostname, genesysDomain)) {
+    throw new Error("Flow execution download host is not allowed.");
+  }
+
+  let requestHost = currentUrl.host;
   console.log("[flow-execution] fetching rendered execution document", {
     host: requestHost,
   });
 
-  const response = await runGenesysHttp(
-    () => fetch(requestUrl, { headers, redirect: "follow" }),
-    { host: requestHost, kind: "flow-execution-download" }
-  );
+  let redirectCount = 0;
+  let response;
+  while (true) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), EXECUTION_FETCH_TIMEOUT_MS);
+    try {
+      response = await runGenesysHttp(
+        () => fetch(currentUrl, { headers, redirect: "manual", signal: controller.signal }),
+        { host: requestHost, kind: "flow-execution-download" }
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
 
-  const text = await response.text();
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location || redirectCount >= MAX_EXECUTION_REDIRECTS) {
+        throw new Error("Flow execution download redirect limit exceeded.");
+      }
+      redirectCount += 1;
+      currentUrl = new URL(location, currentUrl);
+      if (currentUrl.protocol !== "https:" || !isAllowedExecutionHost(currentUrl.hostname, genesysDomain)) {
+        throw new Error("Flow execution download redirect target is not allowed.");
+      }
+      requestHost = currentUrl.host;
+      continue;
+    }
+    break;
+  }
+
+  const reader = response.body?.getReader?.();
+  let text = "";
+  if (reader) {
+    const chunks = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      total += value.byteLength;
+      if (total > MAX_EXECUTION_DOCUMENT_BYTES) {
+        throw new Error("Flow execution document exceeds size limit.");
+      }
+      chunks.push(value);
+    }
+    text = Buffer.concat(chunks).toString("utf8");
+  } else {
+    text = await response.text();
+    if (text.length > MAX_EXECUTION_DOCUMENT_BYTES) {
+      throw new Error("Flow execution document exceeds size limit.");
+    }
+  }
   console.log("[flow-execution] rendered execution document response", {
     host: requestHost,
     status: response.status,

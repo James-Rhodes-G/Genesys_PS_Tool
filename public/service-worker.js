@@ -1,10 +1,8 @@
 const CACHE_NAME = "log-pages-v1";
-const STATIC_ASSETS = ["/", "/styles.css"];
+const STATIC_ASSETS = ["/styles.css", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)));
 });
 
 self.addEventListener("activate", (event) => {
@@ -17,25 +15,18 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+const shouldBypassCache = (request) => {
+  const url = new URL(request.url);
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/launch")) {
+    return true;
+  }
+  return request.mode === "navigate";
+};
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-
-  if (request.mode === "navigate") {
-    event.respondWith(
-      caches.match(request).then((cached) => {
-        const fetchPromise = fetch(request)
-          .then((response) => {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, clone);
-            });
-            return response;
-          })
-          .catch(() => cached || caches.match("/"));
-
-        return cached || fetchPromise;
-      })
-    );
+  if (shouldBypassCache(request)) {
+    event.respondWith(fetch(request));
     return;
   }
 
@@ -58,10 +49,7 @@ self.addEventListener("message", (event) => {
           url: client.url,
           focused: "focused" in client ? client.focused : false,
         }));
-
-        clientList.forEach((client) => {
-          client.postMessage({ type: "CLIENTS_LIST", tabs });
-        });
+        event.source?.postMessage?.({ type: "LIST_CLIENTS_RESULT", tabs });
       })
   );
 });

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+
+process.env.PROMPT_EXPORT_SKIP_DNS = "1";
 import JSZip from "jszip";
 import {
   buildGenesysBulkImportCsv,

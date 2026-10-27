@@ -58,7 +58,12 @@ const createGenesysApiClient = ({
     const activeWorkerId = itemContext.workerId ?? workerId;
     const startedAt = Date.now();
 
-    const url = await buildGenesysApiUrl(resolvedRegion, path);
+    const normalizedPath = String(path || "");
+    if (!normalizedPath.startsWith("/") || normalizedPath.includes("..") || normalizedPath.includes("//")) {
+      throw new Error("Invalid Genesys API path.");
+    }
+
+    const url = await buildGenesysApiUrl(resolvedRegion, normalizedPath);
 
     const response = await runGenesysHttp(
       async () => {
