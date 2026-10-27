@@ -35,7 +35,8 @@ This audit covers three **priority risks** and documents **code remediations** s
 | **Data at rest** | Disconnect clears credentials **and** session export/cache; orphan purge; export retention default 24h — [`src/data/session-db.js`](../src/data/session-db.js), [`src/server.js`](../src/server.js) |
 | **Backups** | `session.db` omitted unless `BACKUP_INCLUDE_SESSION_DB=1` — [`src/lib/admin-jobs.js`](../src/lib/admin-jobs.js) |
 | **Password in CSV** | UI hidden unless `PS_TOOL_ALLOW_PASSWORD_EXPORT=1` — [`public/js/bulk-password-reset-feature.js`](../public/js/bulk-password-reset-feature.js) |
-| **Export audit** | `POST /api/session/export-audit` logs type, row count, password column flag — [`src/routes/session.js`](../src/routes/session.js) |
+| **Export audit** | `POST /api/session/export-audit` logs type, row count, password column flag, and for prompts the export kind (`table_csv`, `recordings_zip`, `import_package`) and recording count — [`src/routes/session.js`](../src/routes/session.js) |
+| **Prompt recording downloads** | `POST /api/genesys/prompts/export-package` fetches recordings server-side: public `https` hosts only (no IP literals/localhost), 4 concurrent, Genesys bearer sent only to hosts under the org's Genesys domain, ZIP entry names flattened — [`src/lib/prompts-export-package.js`](../src/lib/prompts-export-package.js) |
 | **Admin login** | Rate limit on `POST /api/admin/login` — [`src/routes/admin.js`](../src/routes/admin.js) |
 | **Policy API** | `GET /api/app/security-policy` — [`src/routes/app-config.js`](../src/routes/app-config.js) |
 
@@ -120,7 +121,7 @@ PS Tool delivers CSV downloads and bulk workflows. Bulk password reset could inc
 | Control | Resolution |
 | --- | --- |
 | Password in CSV/results | Checkbox and password column **hidden by default**; enabled only when `PS_TOOL_ALLOW_PASSWORD_EXPORT=1` on server. |
-| CSV download audit | Client calls `POST /api/session/export-audit` with export type, row count, and whether password column was included; recorded in PS Tool audit log. |
+| CSV download audit | Client calls `POST /api/session/export-audit` with export type, row count, and whether password column was included (prompt exports also send export kind and recording count); recorded in PS Tool audit log. |
 | Genesys Audit Log Viewer | Remains **public** (vault session). Results paginated via Genesys `cursor` (100/page in UI); **Download CSV** re-fetches all pages for the query. |
 | PS Tool Audit Log (admin) | Operator-gated; paginated at 25 events/page via `/api/admin/events?limit=&offset=`. |
 | User Mock API | Remains **public** under vault session; admin registry operator-gated. |
@@ -128,7 +129,7 @@ PS Tool delivers CSV downloads and bulk workflows. Bulk password reset could inc
 
 ### Residual risk / follow-up
 
-- CSV files still download to the user’s browser Downloads folder when exports run — **DLP/governance** must approve which roles and machines may export.
+- CSV files still download to the user’s browser Downloads folder when exports run — **DLP/governance** must approve which roles and machines may export. This includes prompt recording ZIPs (customer audio) from the Prompts export.
 - Audit log viewer and flow downloads still move customer data in motion; training and ticket storage rules apply.
 - Bulk reset still sends passwords to Genesys API over HTTPS (required for the operation); not written to CSV by default.
 

@@ -38,4 +38,18 @@ const joinPipeSeparatedCsv = (values) =>
     .filter((value) => value !== "")
     .join(" | ");
 
-export { escapeHtml, formatPipeSeparatedDisplay, joinPipeSeparatedCsv, renderPipeSeparatedHtml };
+const escapeCsvValue = (value) => {
+  const stringValue = String(value == null ? "" : value);
+  if (/[",\n]/.test(stringValue)) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  return stringValue;
+};
+
+export {
+  escapeCsvValue,
+  escapeHtml,
+  formatPipeSeparatedDisplay,
+  joinPipeSeparatedCsv,
+  renderPipeSeparatedHtml,
+};

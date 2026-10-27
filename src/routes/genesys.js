@@ -63,6 +63,7 @@ import {
   subscribeNotificationTopicsWithResults,
 } from "../lib/genesys.js";
 import { parseExecutionJson } from "../lib/flow-execution-parser.js";
+import { buildPromptExportZip } from "../lib/prompts-export-package.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -357,6 +358,49 @@ const createGenesysRouter = () => {
     label: "prompts",
     field: "prompts",
     handler: getPrompts,
+  });
+
+  router.post("/api/genesys/prompts/export-package", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const mode = String(req.body?.mode || "").trim();
+    if (mode !== "import-package" && mode !== "recordings-only") {
+      res.status(400).json({ error: "Invalid export mode." });
+      return;
+    }
+
+    const recordings = Array.isArray(req.body?.recordings) ? req.body.recordings : [];
+    const importCsvText =
+      typeof req.body?.importCsvText === "string" ? req.body.importCsvText : "";
+    const importCsvFilename = String(req.body?.importCsvFilename || "prompts_bulk_import.csv").slice(
+      0,
+      120
+    );
+
+    try {
+      const { zipBuffer, failures, successCount } = await buildPromptExportZip({
+        mode,
+        recordings,
+        importCsvText,
+        importCsvFilename,
+        token: credentials.token,
+        genesysDomain: await getGenesysDomainForRegion(credentials.region),
+      });
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${mode === "import-package" ? "prompts_import_package" : "prompts_recordings"}.zip"`
+      );
+      res.setHeader("X-Prompt-Export-Success-Count", String(successCount));
+      res.setHeader("X-Prompt-Export-Failure-Count", String(failures.length));
+      res.status(200).send(zipBuffer);
+    } catch (error) {
+      res.status(500).json({ error: error.message || "Prompt export package failed." });
+    }
   });
 
   router.get("/api/genesys/queues/:queueId/members", async (req, res) => {
