@@ -2,6 +2,7 @@ import os from "os";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { readServerPackageVersion } from "./github-update-check.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,7 +61,7 @@ const getDbSizes = () => ({
 });
 
 const getAppInfo = () => ({
-  version: process.env.APP_VERSION || "dev",
+  version: process.env.APP_VERSION || readServerPackageVersion(),
   gitSha: process.env.GIT_SHA || "unknown",
   environment: process.env.NODE_ENV || "development",
   uptimeSeconds: Math.floor((Date.now() - processStartTime) / 1000),

@@ -161,6 +161,24 @@ body {
   font-size: 12px;
 }
 
+.update-banner {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #5c3b00;
+  background: #fff4d6;
+  border-bottom: 1px solid #e6c875;
+}
+
+.update-banner a {
+  color: #2954cb;
+}
+
+.update-banner[hidden] {
+  display: none;
+}
+
 .status {
   margin: 8px 12px 0;
   font-size: 12px;

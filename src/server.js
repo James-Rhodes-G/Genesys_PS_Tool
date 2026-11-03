@@ -97,6 +97,8 @@ import { createPreventionMiddleware } from "./lib/admin-prevention.js";
 import { createAdminJobs } from "./lib/admin-jobs.js";
 import { createSecurityHeadersMiddleware } from "./middleware/security-headers.js";
 import { parseBodyLimitBytes } from "./lib/body-limit.js";
+import { startUpdateChecks } from "./lib/github-update-check.js";
+import { printServerUpdateAlert } from "./lib/update-terminal-alert.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -330,6 +332,7 @@ const start = async () => {
 
   app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
+    startUpdateChecks({ onServerUpdateAvailable: printServerUpdateAlert });
   });
 };
 

@@ -3,6 +3,7 @@ import { isAppsSubdomainUrl } from "./js/apps-url.js";
 import { CONVERSATION_FEATURES, FEATURE_MAP } from "./js/constants.js";
 import { launchWebFeature } from "./js/launch.js";
 import { wireQuickNavButtons } from "./js/quick-nav.js";
+import { refreshUpdateBanner } from "./js/update-check.js";
 
 const CLOSE_PANEL_MESSAGE = "ps-tool-close-sidepanel";
 
@@ -189,6 +190,7 @@ wireFeatureButtons();
 wireQuickNavButtons().catch((error) => setStatus(error.message, true));
 maybeCloseForActiveTab();
 refreshAuth();
+refreshUpdateBanner();
 
 chrome.tabs.onActivated.addListener(() => {
   refreshAuth();
