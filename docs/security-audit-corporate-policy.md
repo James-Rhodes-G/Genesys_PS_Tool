@@ -38,7 +38,8 @@ This audit covers three **priority risks** and documents **code remediations** s
 | **Export audit** | `POST /api/session/export-audit` logs type, row count, password column flag, and for prompts the export kind (`table_csv`, `recordings_zip`, `import_package`) and recording count — [`src/routes/session.js`](../src/routes/session.js) |
 | **Prompt recording downloads** | `POST /api/genesys/prompts/export-package` fetches recordings server-side: public `https` hosts only (no IP literals/localhost), 4 concurrent, Genesys bearer sent only to hosts under the org's Genesys domain, ZIP entry names flattened — [`src/lib/prompts-export-package.js`](../src/lib/prompts-export-package.js) |
 | **Admin login** | Rate limit on `POST /api/admin/login` — [`src/routes/admin.js`](../src/routes/admin.js) |
-| **Policy API** | `GET /api/app/security-policy` — [`src/routes/app-config.js`](../src/routes/app-config.js) |
+| **Policy API** | `GET /api/app/security-policy`, `GET /api/app/update` (version check vs GitHub Releases; no session required) — [`src/routes/app-config.js`](../src/routes/app-config.js) |
+| **Update checks** | Server fetches GitHub Releases (optional `GITHUB_TOKEN`); extension reads update status from PS Tool base URL only — [`src/lib/github-update-check.js`](../src/lib/github-update-check.js) |
 | **Mock API same-origin** | Forbidden response headers (e.g. `Set-Cookie`, `Location`); forced sandbox CSP on mock responses — [`src/lib/mock-api.js`](../src/lib/mock-api.js) |
 | **Session cookie** | HMAC-signed `ps_tool_session`; rotation on vault launch and org bind; `Secure` / `__Host-` on HTTPS — [`src/middleware/session.js`](../src/middleware/session.js), [`src/lib/session-token.js`](../src/lib/session-token.js) |
 | **Security headers** | CSP (report-only by default), `frame-ancestors`, HSTS on HTTPS — [`src/middleware/security-headers.js`](../src/middleware/security-headers.js) |
@@ -46,7 +47,7 @@ This audit covers three **priority risks** and documents **code remediations** s
 | **Org bind** | `/api/session/bind` verifies org via vault credentials or Genesys token — [`src/routes/session.js`](../src/routes/session.js) |
 | **Dependency audit** | `npm run audit:prod` — [`package.json`](../package.json) |
 
-**Tests:** `npm test` includes `scripts/test-launch-security.mjs`, `scripts/test-security-session.mjs`, and `scripts/test-mock-api.mjs`.
+**Tests:** `npm test` includes `scripts/test-github-update-check.mjs`, `scripts/test-launch-security.mjs`, `scripts/test-security-session.mjs`, and `scripts/test-mock-api.mjs`.
 
 ---
 
@@ -165,7 +166,7 @@ See [`.env.example`](../.env.example).
 | `genesys-audit-log-viewer` | Query org audit via Genesys API |
 | `genesys-mock-api` | User mock endpoint CRUD |
 
-**APIs:** `/api/genesys/audits/*`, `/api/mock-api/*`, `POST /api/admin/activity`, `GET /api/app/security-policy`, `POST /api/session/export-audit` (bound session).
+**APIs:** `/api/genesys/audits/*`, `/api/mock-api/*`, `POST /api/admin/activity`, `GET /api/app/security-policy`, `GET /api/app/update`, `POST /api/session/export-audit` (bound session).
 
 ### Operator login required (10 surfaces)
 

@@ -25,6 +25,10 @@ Open `http://localhost:3000`.
 
 Load the rebuilt extension from `extension/` (see [`extension/README.md`](extension/README.md)). Set `VAULT_ENCRYPTION_KEY` in `.env` before using extension launch. Full launch flow: [`docs/launch-endpoint.md`](docs/launch-endpoint.md) (`POST /api/launch/start`).
 
+### Update notifications
+
+On startup the server compares [`package.json`](package.json) `version` to the latest [GitHub Release](https://docs.github.com/en/rest/releases/releases?apiVersion=2022-11-28#get-the-latest-release) for `GITHUB_REPO`. If the server is behind, a boxed warning is printed in the terminal. The extension side panel calls `GET /api/app/update?extensionVersion=…` (using the same base URL as launch) and shows a compact banner when **either** the server or the installed extension ([`extension/manifest.json`](extension/manifest.json) `version`) is older than that release. Bump both `package.json` and `manifest.json` when you cut a release. Set `UPDATE_CHECK_ENABLED=0` to disable checks (offline or CI).
+
 ## Environment
 
 Copy `.env.example` to `.env` and configure:
@@ -71,6 +75,12 @@ Copy `.env.example` to `.env` and configure:
 | `JOB_MAX_ITEMS` | Maximum work items per submitted job (default `50000`) |
 | `GENESYS_MIN_REQUEST_INTERVAL_MS` | Minimum spacing between Genesys API requests (default `250`) |
 | `GENESYS_RATE_LIMIT_MAX_DELAY_MS` | Max backoff delay for rate-limit retries (default `30000`) |
+| `UPDATE_CHECK_ENABLED` | Set to `0` to disable GitHub release checks (default `1`) |
+| `GITHUB_REPO` | `owner/repo` for latest release lookup (default `James-Rhodes-G/Genesys_PS_Tool`) |
+| `GITHUB_TOKEN` | Optional GitHub PAT for private forks or higher API rate limits |
+| `UPDATE_CHECK_INTERVAL_MS` | How often the server re-fetches GitHub (default `86400000` — 24 hours) |
+| `UPDATE_CHECK_CACHE_TTL_MS` | In-memory cache TTL for release metadata (default `3600000` — 1 hour) |
+| `APP_VERSION` | Optional version string for `/health`; defaults to `package.json` `version` |
 
 **Security:** Production-style deployments should use **extension launch only** (default: manual token/PKCE hidden until `PS_TOOL_ALLOW_MANUAL_AUTH=1`). The Genesys bearer is encrypted server-side and bound to the `ps_tool_session` cookie after `/launch?code=...`; the extension does not persist tokens. **PS Tool operator login** (separate from Genesys) gates server admin APIs. Never commit `.env`, access tokens, or SQLite database files. See [`docs/security-audit-corporate-policy.md`](docs/security-audit-corporate-policy.md).
 
@@ -272,7 +282,7 @@ src/
     session.js           Session binding, user cache, export persistence, export audit
     launch.js            Extension launch (start/pair/handoff), vault consume
     admin.js             Operator-gated admin APIs
-    app-config.js        Public security policy (`GET /api/app/security-policy`)
+    app-config.js        Public app config (`GET /api/app/security-policy`, `GET /api/app/update`)
     mock-api.js          Mock API management + public invocation routes
     logs.js              App shell + legacy log pages
   lib/

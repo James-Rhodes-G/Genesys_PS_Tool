@@ -18,6 +18,8 @@ Open **Extension options** (linked from the side panel footer) or right-click th
 | PS Tool base URL | `http://localhost:3000` | Web app origin for signed launch requests |
 | Launch HMAC secret | empty | Must match `LAUNCH_HMAC_SECRET` in server `.env` when set |
 
+The side panel reads update status from `GET /api/app/update` on the PS Tool base URL (same host as launch). Non-localhost base URLs must be allowed in `manifest.json` `host_permissions` if you deploy the web app elsewhere.
+
 Quick Navigation buttons (Roles, People, Queues, etc.) are configured per-button with label, URL, and optional new-tab behavior. Relative URLs are opened against the active Genesys tab origin.
 
 ## Usage
@@ -25,7 +27,8 @@ Quick Navigation buttons (Roles, People, Queues, etc.) are configured per-button
 1. Log into Genesys Cloud in a normal browser tab (`apps.*` subdomain).
 2. Click the extension toolbar icon to open the side panel.
 3. Confirm org name and username appear in the header. **Org Info** shows Org ID and Region only (copyable); bearer tokens are not displayed or stored in the extension.
-4. Click any **Export**, **Bulk**, or **Quick Actions** button to launch the matching web feature.
+4. If the PS Tool server or this extension is older than the latest GitHub release, an **update banner** appears below the header (server pull/restart, extension reload from release, or both).
+5. Click any **Export**, **Bulk**, or **Quick Actions** button to launch the matching web feature.
 
 The side panel closes automatically when the active tab leaves the Genesys `apps.*` subdomain.
 
