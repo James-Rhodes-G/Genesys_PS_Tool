@@ -20,6 +20,7 @@ const LAUNCH_FEATURES = new Set([
   "genesys-report-interaction",
   "genesys-report-intent-health",
   "genesys-report-utterances",
+  "genesys-chat-agent-tester",
   "genesys-bulk-skill-assignment",
   "genesys-bulk-role-assign",
   "genesys-bulk-auto-answer",

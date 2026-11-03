@@ -39,6 +39,7 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | Phone site migrator | TamperMonkey `phoneSiteMigrator.js` | mutation/workflow | Phone Site Migrator (WebRTC phones only) | done |
 | `intentHealth` | `background.js` | read/report | diagnostics page/panel | done |
 | `utterances` | `background.js` | read/report | diagnostics page/panel | done |
+| `chatAgentTester` | — | live test | Web Messenger + AVA chat panel | done |
 | `passwordReset` | `background.js` | mutation/workflow | bulk password reset workflow + confirmation modal | done |
 | `logoff` / `userLogoff` | `background.js` | mutation/workflow | bulk user logoff workflow with preview | done |
 | `bulkAssignRoles` | `background.js` | mutation/workflow | bulk role assignment workflow | done |
@@ -74,6 +75,7 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | Outbound call spoof | `/api/genesys/call-spoof` | done | outbound call with spoofed CLID/CNAM |
 | Inbound call spoof | `/api/genesys/call-spoof/inbound` | done | inbound DNIS spoof call |
 | Bot flow diagnostics | bot flows, utterances, intent health routes | done | intent health + utterances panels |
+| Chat agent tester | webdeployments, agentic virtual agents, guide session turns, guest WebSocket | done | Interaction Data nav + extension Digital Actions |
 | Open interactions query | `/api/genesys/analytics/open-interactions/query` | done | bulk disconnect + priority updater (live, not cached) |
 | Bulk phone move/delete | `/api/genesys/phones/bulk-move`, `bulk-delete` | done | phone mover, remover, site migrator |
 | Bulk priority update | `/api/genesys/conversations/bulk-priority` | done | priority updater |

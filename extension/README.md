@@ -40,6 +40,7 @@ Each feature launch calls **`POST /api/launch/start`** with the current Genesys 
 | --- | --- |
 | Quick Nav 1–6 | Opens Genesys admin URLs (same tab or new tab) |
 | Export / Bulk / Reports | Opens PS Tool via `/launch?code=...` after `POST /api/launch/start` |
+| Chat Tester (Digital Actions) | Opens **Chat Agent Tester** to exercise Web Messenger or agentic virtual agents |
 
 ## URL Parameters
 

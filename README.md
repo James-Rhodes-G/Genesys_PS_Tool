@@ -151,6 +151,7 @@ Recordings are downloaded server-side via `POST /api/genesys/prompts/export-pack
 | Interaction Details | Takes you to the Genesys UI interaction details page |
 | Intent Health | selector driven intent health for selected flow |
 | Utterances | selector driven utterances for selected flow |
+| **Chat Agent Tester** | List Web Messenger deployments or agentic virtual agents, run live digital chat in-page, and inspect a message trace (WebSocket/API frames) |
 
 ### Audit Log
 

@@ -41,6 +41,7 @@ export const FEATURE_MAP = {
   goToFlowExecution: "genesys-report-flow",
   utterances: "genesys-report-utterances",
   intentHealth: "genesys-report-intent-health",
+  chatAgentTester: "genesys-chat-agent-tester",
 };
 
 export const CONVERSATION_FEATURES = new Set([

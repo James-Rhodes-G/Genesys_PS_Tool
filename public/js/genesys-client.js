@@ -1067,6 +1067,94 @@ const getBotUtterances = async ({ region, token, flowId, filters = {} }) => {
   );
 };
 
+const getWebDeployments = async ({ region, token }) => {
+  const payload = await requestGenesysJson(
+    "/api/genesys/webdeployments/deployments",
+    {
+      method: "GET",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys web deployments request failed"
+  );
+
+  return payload.deployments || [];
+};
+
+const getWebDeployment = async ({ region, token, deploymentId }) => {
+  const payload = await requestGenesysJson(
+    `/api/genesys/webdeployments/deployments/${encodeURIComponent(deploymentId)}`,
+    {
+      method: "GET",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys web deployment request failed"
+  );
+
+  return payload.deployment;
+};
+
+const getAgenticVirtualAgents = async ({ region, token }) => {
+  const payload = await requestGenesysJson(
+    "/api/genesys/agentic/virtualagents",
+    {
+      method: "GET",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys agentic virtual agents request failed"
+  );
+
+  return payload.agents || [];
+};
+
+const getAgenticVirtualAgent = async ({ region, token, virtualAgentId }) => {
+  const payload = await requestGenesysJson(
+    `/api/genesys/agentic/virtualagents/${encodeURIComponent(virtualAgentId)}`,
+    {
+      method: "GET",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys agentic virtual agent request failed"
+  );
+
+  return payload.agent;
+};
+
+const addAgenticGuideSessionTurn = async ({
+  region,
+  token,
+  guideId,
+  guideSessionId,
+  body,
+}) => {
+  const payload = await requestGenesysJson(
+    `/api/genesys/agentic/guides/${encodeURIComponent(guideId)}/sessions/${encodeURIComponent(guideSessionId)}/turns`,
+    {
+      method: "POST",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    },
+    "Genesys guide session turn request failed"
+  );
+
+  return payload.result;
+};
+
 const getIntentHealth = async ({ region, token, flowId, versionId }) => {
   const payload = await requestGenesysJson(
     `/api/genesys/bot-flows/${encodeURIComponent(flowId)}/versions/${encodeURIComponent(versionId)}/health`,
@@ -1403,6 +1491,11 @@ export {
   getAuditServiceMapping,
   getAvailableNotificationTopics,
   getAuthorizationSubject,
+  getWebDeployments,
+  getWebDeployment,
+  getAgenticVirtualAgents,
+  getAgenticVirtualAgent,
+  addAgenticGuideSessionTurn,
   getBotFlows,
   getBotUtterances,
   getConversation,

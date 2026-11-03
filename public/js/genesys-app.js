@@ -62,6 +62,10 @@ import {
   getAccessibleOrganizations,
   getBotFlows,
   getBotUtterances,
+  getWebDeployments,
+  getWebDeployment,
+  getAgenticVirtualAgents,
+  addAgenticGuideSessionTurn,
   createAuditQuery,
   createNotificationChannel,
   deleteNotificationChannel,
@@ -163,6 +167,7 @@ import {
 } from "./gux-ui.js";
 import { createIntentHealthFeature } from "./intent-health.js";
 import { createUtterancesFeature } from "./utterances.js";
+import { createChatAgentTesterFeature } from "./chat-agent-tester-feature.js";
 import { createAuditLogViewerFeature } from "./audit-log-viewer.js";
 import { createMockApiFeature } from "./mock-api-feature.js";
 import { createAdminFeatures } from "./admin/admin-features.js";
@@ -1364,6 +1369,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const inboundCallSpoofBtn = document.getElementById("genesys-inbound-call-spoof");
     const reportIntentHealthBtn = document.getElementById("genesys-report-intent-health");
     const reportUtterancesBtn = document.getElementById("genesys-report-utterances");
+    const chatAgentTesterBtn = document.getElementById("genesys-chat-agent-tester");
     const userNotificationsBtn = document.getElementById("genesys-user-notifications");
     const queueNotificationsBtn = document.getElementById("genesys-queue-notifications");
     const outboundNotificationsBtn = document.getElementById("genesys-outbound-notifications");
@@ -2973,6 +2979,20 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       renderEditableTableContent,
     });
 
+    const chatAgentTesterFeature = createChatAgentTesterFeature({
+      state,
+      getWebDeployments,
+      getWebDeployment,
+      getAgenticVirtualAgents,
+      addAgenticGuideSessionTurn,
+      requireCredentials,
+      startExportResult,
+      finishExportResult,
+      renderLoadingState,
+      renderJsonBlock,
+      getCurrentAppDomain,
+    });
+
     const auditLogViewerFeature = createAuditLogViewerFeature({
       state,
       getAuditServiceMapping,
@@ -3128,6 +3148,9 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         }
 
         if (await utterancesFeature.handleClick(event)) {
+          return;
+        }
+        if (await chatAgentTesterFeature.handleClick(event)) {
           return;
         }
 
@@ -3455,6 +3478,9 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         if (utterancesFeature.handleChange(event)) {
           return;
         }
+        if (chatAgentTesterFeature.handleChange(event)) {
+          return;
+        }
 
         if (auditLogViewerFeature.handleChange(event)) {
           return;
@@ -3762,6 +3788,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     inboundCallSpoofFeature.wireButton(inboundCallSpoofBtn);
     intentHealthFeature.wireButton(reportIntentHealthBtn);
     utterancesFeature.wireButton(reportUtterancesBtn);
+    chatAgentTesterFeature.wireButton(chatAgentTesterBtn);
     userNotificationsFeature.wireButton(userNotificationsBtn);
     queueNotificationsFeature.wireButton(queueNotificationsBtn);
     outboundNotificationsFeature.wireButton(outboundNotificationsBtn);
