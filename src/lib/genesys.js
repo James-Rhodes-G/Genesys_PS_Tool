@@ -6,6 +6,7 @@ import { downloadFlowExecutionJson } from "./flow-execution-download.js";
 import {
   runGenesysHttp,
 } from "./genesys-rate-limit.js";
+import { readAllowedDomains, resolveAllowAllDomains } from "./web-deployment-origin.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1673,6 +1674,15 @@ const getIntentHealth = ({ region, token, flowId, versionId }) =>
     path: `/api/v2/flows/${encodeURIComponent(flowId)}/versions/${encodeURIComponent(versionId)}/health?pageSize=1`,
   });
 
+const resolveMessengerDeploymentKey = (entity) =>
+  String(
+    entity?.messengerDeploymentKey ||
+      entity?.deploymentKey ||
+      entity?.key ||
+      entity?.id ||
+      ""
+  ).trim();
+
 const mapWebDeploymentSummary = (entity) => {
   if (!entity || typeof entity !== "object") {
     return null;
@@ -1685,15 +1695,10 @@ const mapWebDeploymentSummary = (entity) => {
     description: entity.description || "",
     status: entity.status || "",
     flowId: entity.flow?.id || entity.flowId || configuration.flowId || "",
-    allowAllDomains: Boolean(
-      entity.allDomainsAllowed ?? entity.allowAllDomains ?? entity.allow_all_domains
-    ),
-    allowedDomains: Array.isArray(entity.allowedDomains)
-      ? entity.allowedDomains
-      : Array.isArray(entity.domains)
-        ? entity.domains
-        : [],
+    allowAllDomains: resolveAllowAllDomains(entity),
+    allowedDomains: readAllowedDomains(entity),
     configurationVersion: configuration.version || configuration.versionId || "",
+    messengerDeploymentKey: resolveMessengerDeploymentKey(entity),
   };
 };
 

@@ -25,11 +25,26 @@ const buildWebMessagingTokenUrl = async (region, deploymentId) => {
 };
 
 const buildWebMessagingWsUrl = async (region, deploymentId, token) => {
+  const candidates = await buildWebMessagingWsCandidates(region, deploymentId, token);
+  return candidates[0] || null;
+};
+
+const buildWebMessagingWsCandidates = async (region, deploymentId, token) => {
   const domain = await getMessagingDomainForRegion(region);
-  if (!domain || !deploymentId || !token) {
-    return null;
+  if (!domain || !deploymentId) {
+    return [];
   }
-  return `wss://webmessaging.${domain}/v1/ws/deployment/${encodeURIComponent(deploymentId)}?token=${encodeURIComponent(token)}`;
+
+  const encodedDeployment = encodeURIComponent(deploymentId);
+  const candidates = [];
+
+  if (token) {
+    candidates.push(
+      `wss://webmessaging.${domain}/v1/ws/deployment/${encodedDeployment}?token=${encodeURIComponent(token)}`
+    );
+  }
+  candidates.push(`wss://webmessaging.${domain}/v1?deploymentId=${encodedDeployment}`);
+  return candidates;
 };
 
 export {
@@ -37,4 +52,5 @@ export {
   getMessagingDomainForRegion,
   buildWebMessagingTokenUrl,
   buildWebMessagingWsUrl,
+  buildWebMessagingWsCandidates,
 };

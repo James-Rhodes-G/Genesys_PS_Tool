@@ -1,4 +1,4 @@
-import { buildWebMessagingTokenUrl, buildWebMessagingWsUrl } from "./web-messaging-domain-client.js";
+import { buildWebMessagingWsCandidates } from "./web-messaging-domain-client.js";
 import {
   appendChatAgentMessage,
   resetChatAgentMessageExport,
@@ -27,6 +27,7 @@ const extractToken = (payload) =>
 const createWebMessagingGuestChat = ({
   region,
   deploymentId,
+  requestGuestToken,
   onStatus,
   onConversationMessage,
   onQuickReplies,
@@ -80,53 +81,66 @@ const createWebMessagingGuestChat = ({
   };
 
   const connectWebSocket = async () => {
-    const wsUrl = await buildWebMessagingWsUrl(region, deploymentId, jwt);
-    if (!wsUrl) {
+    const candidates = await buildWebMessagingWsCandidates(region, deploymentId, jwt);
+    if (!candidates.length) {
       throw new Error("Unable to build Web Messaging WebSocket URL for this region.");
     }
 
-    await new Promise((resolve, reject) => {
-      socket = new WebSocket(wsUrl);
-      socket.addEventListener("open", () => {
-        emitStatus("WebSocket connected.");
-        resolve();
-      });
-      socket.addEventListener("error", () => {
-        reject(new Error("WebSocket connection failed. Check deployment domain allowlist."));
-      });
-      socket.addEventListener("message", (event) => {
-        handleInboundPayload(parseJsonSafe(event.data));
-      });
-      socket.addEventListener("close", () => {
-        if (!closed) {
-          emitStatus("WebSocket closed.");
-        }
-      });
-    });
+    let lastError = null;
+
+    for (const wsUrl of candidates) {
+      try {
+        await new Promise((resolve, reject) => {
+          socket = new WebSocket(wsUrl);
+          socket.addEventListener("open", () => {
+            traceFrame("outbound", { eventType: "websocketOpen", url: wsUrl });
+            if (jwt && wsUrl.includes("deploymentId=") && !wsUrl.includes("token=")) {
+              const configureFrame = {
+                action: "configureSession",
+                deploymentId,
+                token: jwt,
+              };
+              traceFrame("outbound", configureFrame);
+              socket.send(JSON.stringify(configureFrame));
+            }
+            emitStatus("WebSocket connected.");
+            resolve();
+          });
+          socket.addEventListener("error", () => {
+            reject(new Error("WebSocket connection failed."));
+          });
+          socket.addEventListener("message", (event) => {
+            handleInboundPayload(parseJsonSafe(event.data));
+          });
+          socket.addEventListener("close", () => {
+            if (!closed) {
+              emitStatus("WebSocket closed.");
+            }
+          });
+        });
+        return;
+      } catch (error) {
+        lastError = error;
+        socket = null;
+      }
+    }
+
+    throw lastError || new Error("WebSocket connection failed. Check deployment domain allowlist and region.");
   };
 
   const fetchDeploymentToken = async () => {
-    const tokenUrl = await buildWebMessagingTokenUrl(region, deploymentId);
-    if (!tokenUrl) {
-      throw new Error("Unable to resolve Web Messaging host for this region.");
+    if (typeof requestGuestToken !== "function") {
+      throw new Error("Guest token request handler is not configured.");
     }
 
-    const response = await fetch(tokenUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({}),
+    const result = await requestGuestToken();
+    traceFrame("inbound", {
+      eventType: "tokenResponse",
+      body: result?.payload || result,
+      origin: result?.origin,
     });
 
-    const payload = await response.json().catch(() => ({}));
-    traceFrame("inbound", { eventType: "tokenResponse", status: response.status, body: payload });
-
-    if (!response.ok) {
-      throw new Error(payload?.message || payload?.error || `Token request failed (${response.status}).`);
-    }
-
-    jwt = extractToken(payload);
+    jwt = extractToken(result?.payload || result) || result?.token || "";
     if (!jwt) {
       throw new Error("Token response did not include a JWT.");
     }

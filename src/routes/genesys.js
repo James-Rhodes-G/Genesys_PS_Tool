@@ -3,6 +3,7 @@ import { requireGenesysCredentials } from "../lib/genesys-request-credentials.js
 import { readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { buildMessengerEmbedConfig } from "../lib/genesys-messenger-embed.js";
 import {
   assignRoutingSkillsToUsers,
   assignUsersToRoleDivision,
@@ -72,6 +73,7 @@ import {
 } from "../lib/genesys.js";
 import { parseExecutionJson } from "../lib/flow-execution-parser.js";
 import { buildPromptExportZip } from "../lib/prompts-export-package.js";
+import { fetchGuestDeploymentToken } from "../lib/web-messaging-guest.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1227,6 +1229,40 @@ const createGenesysRouter = () => {
     }
   });
 
+  router.post("/api/genesys/webmessaging/deployment-token", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const deploymentId = String(req.body?.deploymentId || "").trim();
+    if (!deploymentId) {
+      res.status(400).json({ error: "deploymentId is required." });
+      return;
+    }
+
+    const origin =
+      String(req.body?.origin || "").trim() ||
+      String(req.get("origin") || "").trim() ||
+      String(process.env.LAUNCH_BASE_URL || "").trim() ||
+      `${req.protocol}://${req.get("host")}`;
+
+    try {
+      const result = await fetchGuestDeploymentToken({
+        region: credentials.region,
+        deploymentId,
+        origin,
+      });
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+        origin,
+      });
+    }
+  });
+
   router.get("/api/genesys/webdeployments/deployments", async (req, res) => {
     const credentials = requireCredentials(req, res);
     if (!credentials) {
@@ -1278,6 +1314,33 @@ const createGenesysRouter = () => {
       }
 
       res.status(200).json({ deployment });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.get("/api/genesys/webdeployments/deployments/:deploymentId/messenger-embed", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const { deploymentId } = req.params;
+    if (!deploymentId) {
+      res.status(400).json({ error: "deploymentId is required." });
+      return;
+    }
+
+    try {
+      const entity = await getWebDeployment({ ...credentials, deploymentId });
+      const embed = buildMessengerEmbedConfig({
+        region: credentials.region,
+        deploymentEntity: entity,
+      });
+      res.status(200).json({ embed });
     } catch (error) {
       res.status(error.status || 502).json({
         error: error.message,

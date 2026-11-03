@@ -1067,6 +1067,27 @@ const getBotUtterances = async ({ region, token, flowId, filters = {} }) => {
   );
 };
 
+const getWebMessagingDeploymentToken = async ({ region, token, deploymentId, origin }) => {
+  const payload = await requestGenesysJson(
+    "/api/genesys/webmessaging/deployment-token",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+      body: JSON.stringify({
+        deploymentId,
+        origin: origin || window.location.origin,
+      }),
+    },
+    "Web Messaging guest token request failed"
+  );
+
+  return payload;
+};
+
 const getWebDeployments = async ({ region, token }) => {
   const payload = await requestGenesysJson(
     "/api/genesys/webdeployments/deployments",
@@ -1097,6 +1118,22 @@ const getWebDeployment = async ({ region, token, deploymentId }) => {
   );
 
   return payload.deployment;
+};
+
+const getWebMessengerEmbed = async ({ region, token, deploymentId }) => {
+  const payload = await requestGenesysJson(
+    `/api/genesys/webdeployments/deployments/${encodeURIComponent(deploymentId)}/messenger-embed`,
+    {
+      method: "GET",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys Web Messenger embed request failed"
+  );
+
+  return payload.embed;
 };
 
 const getAgenticVirtualAgents = async ({ region, token }) => {
@@ -1491,8 +1528,10 @@ export {
   getAuditServiceMapping,
   getAvailableNotificationTopics,
   getAuthorizationSubject,
+  getWebMessagingDeploymentToken,
   getWebDeployments,
   getWebDeployment,
+  getWebMessengerEmbed,
   getAgenticVirtualAgents,
   getAgenticVirtualAgent,
   addAgenticGuideSessionTurn,
