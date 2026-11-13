@@ -179,9 +179,73 @@ const loadAndOpenGenesysMessenger = (embed) =>
     await openGenesysMessenger();
   });
 
+const mapMessengerSdkMessage = (message) => {
+  const text = String(message?.text || "").trim();
+  if (!text) {
+    return null;
+  }
+
+  const direction = String(message?.direction || "").toLowerCase();
+  const entity = String(message?.originatingEntity || "").toLowerCase();
+
+  if (direction === "inbound") {
+    return { role: "customer", text, raw: message, entity: message.originatingEntity || "Customer" };
+  }
+
+  if (direction === "outbound" || entity === "bot" || entity === "human") {
+    return {
+      role: "bot",
+      text,
+      raw: message,
+      entity: message.originatingEntity || "Bot",
+    };
+  }
+
+  return null;
+};
+
+const attachMessengerMessageCapture = (onConversationMessage) => {
+  if (typeof window.Genesys !== "function") {
+    return () => {};
+  }
+
+  window.Genesys("subscribe", "MessagingService.messagesReceived", ({ data }) => {
+    const messages = Array.isArray(data?.messages) ? data.messages : [];
+    messages.forEach((message) => {
+      const mapped = mapMessengerSdkMessage(message);
+      if (!mapped) {
+        return;
+      }
+      onConversationMessage?.({
+        ...mapped,
+        timestamp: new Date().toISOString(),
+      });
+    });
+  });
+
+  return () => {};
+};
+
+const sendMessengerText = (text) => {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) {
+    return;
+  }
+
+  runGenesysCommand("MessagingService.sendMessage", {
+    message: {
+      type: "Text",
+      text: trimmed,
+    },
+  });
+};
+
 export {
   loadAndOpenGenesysMessenger,
   closeGenesysMessenger,
   unloadGenesysMessenger,
   loadGenesysBootstrap,
+  attachMessengerMessageCapture,
+  sendMessengerText,
+  mapMessengerSdkMessage,
 };

@@ -97,7 +97,7 @@ Copy `.env.example` to `.env` and configure:
 | Roles, Queues, Skills, Groups | Standard catalog exports |
 | **Prompts** | User prompt export with **Listen {resourceId}** links for recordings, optional recordings ZIP, and an **Export for import** package (see [Prompts export](#prompts-export)) |
 | Queue Members / Group Users | Selector-driven member exports |
-| **Data Table Export** | Multi-select Architect data tables; exports combined CSV with progress |
+| **Data Table Export** | Multi-select Architect data tables; server builds one CSV per table (`{org}_{tableName}_{YYYYMMDD}.csv`) inside `{org}_datatables_{YYYYMMDD}.zip` (full row data via `showbrief=false`) |
 
 #### Prompts export
 

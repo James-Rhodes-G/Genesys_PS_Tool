@@ -210,4 +210,5 @@ export {
   promptMediaUriToCsv,
   renderPromptMediaUriCell,
   resolvePromptExportRows,
+  triggerBlobDownload,
 };

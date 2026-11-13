@@ -8,7 +8,18 @@ import {
   isDeploymentSelectable,
   isOriginAllowedForDeployment,
 } from "./web-deployment-origin.js";
-import { loadAndOpenGenesysMessenger, unloadGenesysMessenger } from "./genesys-messenger-loader.js";
+import {
+  attachMessengerMessageCapture,
+  loadAndOpenGenesysMessenger,
+  sendMessengerText,
+  unloadGenesysMessenger,
+} from "./genesys-messenger-loader.js";
+import { runConversationAutomation } from "./chat-agent-automation-runner.js";
+import {
+  appendChatAgentMessage,
+  resetChatAgentMessageExport,
+} from "./chat-agent-message-store.js";
+import { createParsedChatAgentEntry } from "./chat-agent-message-parser.js";
 
 const escapeHtml = (value) =>
   String(value == null ? "" : value)
@@ -47,6 +58,30 @@ const mapAgentOptions = (agents) =>
     label: `${agent.name || agent.id}${agent.latestProductionReadyVersion ? ` v${agent.latestProductionReadyVersion}` : ""}`,
     agent,
   }));
+
+const renderAutomationResults = (results, summary) => {
+  if (!results?.length) {
+    return `<p class="muted chat-agent-automation-empty">No automation run yet.</p>`;
+  }
+
+  const rows = results
+    .map(
+      (entry) =>
+        `<tr class="chat-agent-automation-row chat-agent-automation-row--${entry.pass ? "pass" : "fail"}">
+          <td>${escapeHtml(entry.utterance)}</td>
+          <td>${escapeHtml(entry.expected || "—")}</td>
+          <td>${escapeHtml(entry.actual || "—")}</td>
+          <td>${entry.pass ? "Pass" : "Fail"}</td>
+        </tr>`
+    )
+    .join("");
+
+  return `<p class="chat-agent-automation-summary"><strong>${escapeHtml(summary || "")}</strong></p>
+    <table class="chat-agent-automation-table">
+      <thead><tr><th>Sent</th><th>Expected</th><th>Actual</th><th>Result</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+};
 
 const renderConversation = (messages, quickReplies) => {
   const bubbles = (messages || [])
@@ -87,6 +122,31 @@ const createChatAgentTesterFeature = ({
   renderJsonBlock,
   getCurrentAppDomain,
 }) => {
+  const attachMessengerCapture = (resultId, exportMeta) => {
+    exportMeta.messengerCaptureCleanup?.();
+    exportMeta.messengerCaptureActive = false;
+
+    exportMeta.messengerCaptureCleanup = attachMessengerMessageCapture((entry) => {
+      appendChatAgentMessage(
+        createParsedChatAgentEntry({
+          direction: entry.role === "customer" ? "outbound" : "inbound",
+          category: entry.role === "customer" ? "outbound" : "inbound",
+          eventType: "messengerSdkMessage",
+          summaryText: entry.text,
+          data: entry.raw || entry,
+        }),
+        {
+          deploymentId: exportMeta.selectedDeploymentId,
+          mode: "webDeployment",
+        }
+      );
+
+      exportMeta.conversationMessages = [...(exportMeta.conversationMessages || []), entry];
+      rerender(resultId, exportMeta);
+    });
+    exportMeta.messengerCaptureActive = true;
+  };
+
   const rerender = (resultId, exportMeta) => {
     const resultEl = document.getElementById(resultId);
     if (!resultEl || !exportMeta?.renderBody) {
@@ -122,6 +182,11 @@ const createChatAgentTesterFeature = ({
           (featureState.conversationMessages && featureState.conversationMessages.length)
       );
 
+    const messengerTranscriptReady =
+      mode === "webDeployment" &&
+      featureState.messengerLoaded &&
+      Boolean(featureState.conversationMessages?.length);
+
     const renderRightChatColumn = () => {
       if (mode === "agenticAgent" || showGuestApiChat) {
         return `<section class="chat-agent-tester__chat" aria-label="Chat">
@@ -145,12 +210,16 @@ const createChatAgentTesterFeature = ({
       if (mode === "webDeployment" && featureState.messengerLoaded) {
         return `<section class="chat-agent-tester__chat chat-agent-tester__chat--messenger" aria-label="Messenger">
           <div class="chat-agent-tester__chat-header">
-            <h3 class="chat-agent-tester__chat-title">Web Messenger</h3>
+            <h3 class="chat-agent-tester__chat-title">Web Messenger (SDK capture)</h3>
           </div>
-          <div class="chat-agent-messenger-placeholder">
+          ${
+            messengerTranscriptReady
+              ? `${renderConversation(featureState.conversationMessages, featureState.quickReplies)}${renderChatAgentTracePanel({ resultId })}`
+              : `<div class="chat-agent-messenger-placeholder">
             <p><strong>Messenger is open on this page.</strong></p>
-            <p class="muted">Use the Genesys launcher (bottom corner) to chat — same widget customers see on their site. It is not embedded in this panel because Genesys renders it as a floating overlay.</p>
-          </div>
+            <p class="muted">Bot and agent replies are read via <code>MessagingService.messagesReceived</code> for automation. Use the launcher or run <strong>Response automation</strong> on the left.</p>
+          </div>`
+          }
         </section>`;
       }
 
@@ -275,6 +344,26 @@ const createChatAgentTesterFeature = ({
               ? "Select a deployment and load Messenger to preview the customer experience."
               : "Select a target and start a session.")
         )}</p>
+        <details class="chat-agent-automation-panel">
+          <summary>Response automation</summary>
+          <p class="muted">Send each line automatically and evaluate the latest bot reply in the browser. Optional <code>| expected text</code> (contains, case-insensitive).</p>
+          <p class="muted">Agentic: start session first. Web Messenger: load Messenger (SDK capture). Guest API: start API session.</p>
+          <label class="field-label" for="${escapeHtml(resultId)}-automation-script">Script</label>
+          <textarea
+            class="chat-agent-automation-script"
+            id="${escapeHtml(resultId)}-automation-script"
+            rows="7"
+            placeholder="Hello&#10;I need help | help&#10;/regex/i pattern as expected uses regex mode if it starts with /"
+          >${escapeHtml(featureState.automationScript || "")}</textarea>
+          <div class="bulk-control-row bulk-control-row--actions">
+            <gux-button class="chat-agent-run-automation" type="button" accent="primary" data-result-id="${escapeHtml(
+              resultId
+            )}"${featureState.automationRunning ? " disabled" : ""}>Run automation</gux-button>
+          </div>
+          <div id="${escapeHtml(resultId)}-automation-results" class="chat-agent-automation-results">
+            ${renderAutomationResults(featureState.automationResults, featureState.automationSummary)}
+          </div>
+        </details>
         ${
           mode === "webDeployment"
             ? `<details class="chat-agent-advanced-api">
@@ -305,6 +394,47 @@ const createChatAgentTesterFeature = ({
     if (statusEl) {
       statusEl.textContent = message;
     }
+  };
+
+  const ensureAutomationReady = async (resultId, exportMeta, credentials) => {
+    if (exportMeta.mode === "agenticAgent") {
+      if (!exportMeta.selectedAgentId) {
+        throw new Error("Select an agentic virtual agent.");
+      }
+      if (!exportMeta.chatController) {
+        const controller = ensureChatController(resultId, exportMeta, credentials);
+        await controller.start();
+      }
+      return;
+    }
+
+    if (exportMeta.mode === "webDeployment") {
+      if (exportMeta.apiSessionActive && exportMeta.chatController) {
+        return;
+      }
+      if (exportMeta.messengerLoaded && exportMeta.messengerCaptureActive) {
+        return;
+      }
+      throw new Error("Load Messenger or start an Advanced API session before running automation.");
+    }
+  };
+
+  const createAutomationSender = (resultId, exportMeta, credentials) => {
+    if (exportMeta.mode === "agenticAgent" || exportMeta.apiSessionActive) {
+      return async (text) => {
+        const controller = ensureChatController(resultId, exportMeta, credentials);
+        await controller.sendText(text);
+        rerender(resultId, exportMeta);
+      };
+    }
+
+    if (exportMeta.messengerLoaded) {
+      return async (text) => {
+        sendMessengerText(text);
+      };
+    }
+
+    throw new Error("No automation send path is available.");
   };
 
   const ensureChatController = (resultId, exportMeta, credentials) => {
@@ -415,6 +545,54 @@ const createChatAgentTesterFeature = ({
       return true;
     }
 
+    const runAutomationButton = target.closest(".chat-agent-run-automation");
+    if (runAutomationButton) {
+      const resultId = runAutomationButton.dataset.resultId;
+      const exportMeta = getExportMeta(resultId);
+      const credentials = requireCredentials("Chat Agent Tester");
+      if (!exportMeta || !credentials || exportMeta.automationRunning) {
+        return true;
+      }
+
+      const scriptEl = document.getElementById(`${resultId}-automation-script`);
+      const scriptText = scriptEl?.value || "";
+      exportMeta.automationScript = scriptText;
+      exportMeta.automationRunning = true;
+      exportMeta.automationResults = [];
+      exportMeta.automationSummary = "Running…";
+      rerender(resultId, exportMeta);
+
+      void (async () => {
+        try {
+          await ensureAutomationReady(resultId, exportMeta, credentials);
+          const sendUtterance = createAutomationSender(resultId, exportMeta, credentials);
+          const outcome = await runConversationAutomation({
+            scriptText,
+            sendUtterance,
+            getConversationMessages: () => exportMeta.conversationMessages || [],
+            onStepComplete: () => {
+              rerender(resultId, exportMeta);
+            },
+          });
+          exportMeta.automationResults = outcome.results;
+          exportMeta.automationSummary = outcome.summary;
+          setChatStatus(
+            resultId,
+            exportMeta,
+            outcome.allPassed ? `Automation passed (${outcome.summary})` : `Automation finished (${outcome.summary})`
+          );
+        } catch (error) {
+          exportMeta.automationSummary = error.message || "Automation failed.";
+          setChatStatus(resultId, exportMeta, exportMeta.automationSummary);
+        } finally {
+          exportMeta.automationRunning = false;
+          rerender(resultId, exportMeta);
+        }
+      })();
+
+      return true;
+    }
+
     const loadMessengerButton = target.closest(".chat-agent-load-messenger");
     if (loadMessengerButton) {
       const resultId = loadMessengerButton.dataset.resultId;
@@ -452,7 +630,17 @@ const createChatAgentTesterFeature = ({
         exportMeta.messengerLoaded = false;
         await loadAndOpenGenesysMessenger(embed);
         exportMeta.messengerLoaded = true;
-        setChatStatus(resultId, exportMeta, "Messenger loaded — use the Genesys launcher to chat.");
+        exportMeta.conversationMessages = [];
+        resetChatAgentMessageExport({
+          deploymentId: exportMeta.selectedDeploymentId,
+          mode: "webDeployment",
+        });
+        attachMessengerCapture(resultId, exportMeta);
+        setChatStatus(
+          resultId,
+          exportMeta,
+          "Messenger loaded — SDK capture active for automation and transcript."
+        );
         rerender(resultId, exportMeta);
       } catch (error) {
         setChatStatus(resultId, exportMeta, error.message || "Unable to load Messenger preview.");
@@ -467,7 +655,10 @@ const createChatAgentTesterFeature = ({
       const exportMeta = getExportMeta(resultId);
       if (exportMeta) {
         void unloadGenesysMessenger().then(() => {
+          exportMeta.messengerCaptureCleanup?.();
+          exportMeta.messengerCaptureActive = false;
           exportMeta.messengerLoaded = false;
+          exportMeta.conversationMessages = [];
           setChatStatus(resultId, exportMeta, "Messenger closed and unloaded.");
           rerender(resultId, exportMeta);
         });
@@ -705,7 +896,12 @@ const createChatAgentTesterFeature = ({
           chatStatus: "",
           chatController: null,
           messengerLoaded: false,
+          messengerCaptureActive: false,
           apiSessionActive: false,
+          automationScript: "",
+          automationResults: [],
+          automationSummary: "",
+          automationRunning: false,
           traceMount: null,
           renderBody: () => renderSetup(loadingResultId, state.exportData[loadingResultId] || exportMeta),
         };

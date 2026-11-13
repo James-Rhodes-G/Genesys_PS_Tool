@@ -1392,6 +1392,61 @@ const exportDataTables = async ({ region, token, tableIds }) => {
   return payload.exports || [];
 };
 
+const downloadDataTableExportPackage = async ({ region, token, tableIds, orgName }) => {
+  const response = await fetch(
+    "/api/genesys/datatables/export-package",
+    withGenesysFetchOptions({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+      body: JSON.stringify({ tableIds, orgName }),
+    })
+  );
+
+  if (!response.ok) {
+    let message = "Data table export package failed";
+    try {
+      const payload = await response.json();
+      message = payload?.error || message;
+      if (isVaultSessionRequiredPayload(payload)) {
+        showVaultSessionRequiredModal(payload);
+      }
+      const error = new Error(message);
+      error.payload = payload;
+      throw error;
+    } catch (parseError) {
+      if (parseError?.payload) {
+        throw parseError;
+      }
+      throw new Error(message);
+    }
+  }
+
+  const summaryHeader = response.headers.get("X-PS-Tool-Export-Summary") || "";
+  let summary = [];
+  if (summaryHeader) {
+    try {
+      summary = JSON.parse(decodeURIComponent(summaryHeader));
+    } catch {
+      summary = [];
+    }
+  }
+
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const filenameMatch = disposition.match(/filename="([^"]+)"/i);
+  const zipFilename = filenameMatch?.[1] || "datatables_export.zip";
+
+  return {
+    blob: await response.blob(),
+    summary,
+    zipFilename,
+    fileCount: Number(response.headers.get("X-PS-Tool-Export-File-Count") || 0),
+  };
+};
+
 const movePhonesToSite = async ({ region, token, phoneIds, siteId, siteName = "" }) => {
   const payload = await requestGenesysJson(
     "/api/genesys/phones/bulk-move",
@@ -1521,6 +1576,7 @@ export {
   deletePhones,
   disconnectConversations,
   exportDataTables,
+  downloadDataTableExportPackage,
   executeBulkSkillAssignment,
   getAccessibleOrganizations,
   getAuditQueryResults,
