@@ -3,6 +3,7 @@ import { requireGenesysCredentials } from "../lib/genesys-request-credentials.js
 import { readFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { buildMessengerEmbedConfig } from "../lib/genesys-messenger-embed.js";
 import {
   assignRoutingSkillsToUsers,
   assignUsersToRoleDivision,
@@ -24,6 +25,14 @@ import {
   getAuditServiceMapping,
   getBotFlows,
   getBotUtterances,
+  getWebDeployments,
+  getWebDeployment,
+  getArchitectFlowSummary,
+  mapWebDeploymentSummary,
+  getAgenticVirtualAgents,
+  getAgenticVirtualAgent,
+  mapAgenticVirtualAgentSummary,
+  addGuideSessionTurn,
   getConversation,
   getCurrentUser,
   getFlowExecutions,
@@ -64,6 +73,7 @@ import {
 } from "../lib/genesys.js";
 import { parseExecutionJson } from "../lib/flow-execution-parser.js";
 import { buildPromptExportZip } from "../lib/prompts-export-package.js";
+import { fetchGuestDeploymentToken } from "../lib/web-messaging-guest.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1211,6 +1221,206 @@ const createGenesysRouter = () => {
         },
       });
       res.status(200).json(payload);
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/genesys/webmessaging/deployment-token", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const deploymentId = String(req.body?.deploymentId || "").trim();
+    if (!deploymentId) {
+      res.status(400).json({ error: "deploymentId is required." });
+      return;
+    }
+
+    const origin =
+      String(req.body?.origin || "").trim() ||
+      String(req.get("origin") || "").trim() ||
+      String(process.env.LAUNCH_BASE_URL || "").trim() ||
+      `${req.protocol}://${req.get("host")}`;
+
+    try {
+      const result = await fetchGuestDeploymentToken({
+        region: credentials.region,
+        deploymentId,
+        origin,
+      });
+      res.status(200).json(result);
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+        origin,
+      });
+    }
+  });
+
+  router.get("/api/genesys/webdeployments/deployments", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    try {
+      const entities = await getWebDeployments(credentials);
+      const deployments = (entities || []).map(mapWebDeploymentSummary).filter(Boolean);
+      res.status(200).json({ deployments });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.get("/api/genesys/webdeployments/deployments/:deploymentId", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const { deploymentId } = req.params;
+    if (!deploymentId) {
+      res.status(400).json({ error: "deploymentId is required." });
+      return;
+    }
+
+    try {
+      const entity = await getWebDeployment({ ...credentials, deploymentId });
+      const deployment = mapWebDeploymentSummary(entity);
+      if (!deployment) {
+        res.status(404).json({ error: "Deployment not found." });
+        return;
+      }
+
+      if (deployment.flowId) {
+        try {
+          const flow = await getArchitectFlowSummary({
+            ...credentials,
+            flowId: deployment.flowId,
+          });
+          deployment.flowName = flow?.name || "";
+        } catch {
+          deployment.flowName = "";
+        }
+      }
+
+      res.status(200).json({ deployment });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.get("/api/genesys/webdeployments/deployments/:deploymentId/messenger-embed", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const { deploymentId } = req.params;
+    if (!deploymentId) {
+      res.status(400).json({ error: "deploymentId is required." });
+      return;
+    }
+
+    try {
+      const entity = await getWebDeployment({ ...credentials, deploymentId });
+      const embed = buildMessengerEmbedConfig({
+        region: credentials.region,
+        deploymentEntity: entity,
+      });
+      res.status(200).json({ embed });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.get("/api/genesys/agentic/virtualagents", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    try {
+      const entities = await getAgenticVirtualAgents(credentials);
+      const agents = (entities || []).map(mapAgenticVirtualAgentSummary).filter(Boolean);
+      res.status(200).json({ agents });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.get("/api/genesys/agentic/virtualagents/:virtualAgentId", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const { virtualAgentId } = req.params;
+    if (!virtualAgentId) {
+      res.status(400).json({ error: "virtualAgentId is required." });
+      return;
+    }
+
+    try {
+      const entity = await getAgenticVirtualAgent({ ...credentials, virtualAgentId });
+      const agent = mapAgenticVirtualAgentSummary(entity);
+      if (!agent) {
+        res.status(404).json({ error: "Virtual agent not found." });
+        return;
+      }
+      res.status(200).json({ agent });
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/genesys/agentic/guides/:guideId/sessions/:guideSessionId/turns", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const { guideId, guideSessionId } = req.params;
+    if (!guideId || !guideSessionId) {
+      res.status(400).json({ error: "guideId and guideSessionId are required." });
+      return;
+    }
+
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    if (!Object.keys(body).length) {
+      res.status(400).json({ error: "Request body is required." });
+      return;
+    }
+
+    try {
+      const result = await addGuideSessionTurn({
+        ...credentials,
+        guideId,
+        guideSessionId,
+        body,
+      });
+      res.status(200).json({ result });
     } catch (error) {
       res.status(error.status || 502).json({
         error: error.message,

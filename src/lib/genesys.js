@@ -6,6 +6,7 @@ import { downloadFlowExecutionJson } from "./flow-execution-download.js";
 import {
   runGenesysHttp,
 } from "./genesys-rate-limit.js";
+import { readAllowedDomains, resolveAllowAllDomains } from "./web-deployment-origin.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1673,6 +1674,99 @@ const getIntentHealth = ({ region, token, flowId, versionId }) =>
     path: `/api/v2/flows/${encodeURIComponent(flowId)}/versions/${encodeURIComponent(versionId)}/health?pageSize=1`,
   });
 
+const resolveMessengerDeploymentKey = (entity) =>
+  String(
+    entity?.messengerDeploymentKey ||
+      entity?.deploymentKey ||
+      entity?.key ||
+      entity?.id ||
+      ""
+  ).trim();
+
+const mapWebDeploymentSummary = (entity) => {
+  if (!entity || typeof entity !== "object") {
+    return null;
+  }
+
+  const configuration = entity.configuration || entity.config || {};
+  return {
+    id: entity.id || "",
+    name: entity.name || entity.id || "",
+    description: entity.description || "",
+    status: entity.status || "",
+    flowId: entity.flow?.id || entity.flowId || configuration.flowId || "",
+    allowAllDomains: resolveAllowAllDomains(entity),
+    allowedDomains: readAllowedDomains(entity),
+    configurationVersion: configuration.version || configuration.versionId || "",
+    messengerDeploymentKey: resolveMessengerDeploymentKey(entity),
+  };
+};
+
+const getWebDeployments = ({ region, token }) =>
+  genesysPaginatedRequest({
+    region,
+    token,
+    path: "/api/v2/webdeployments/deployments",
+    pageSize: 100,
+  });
+
+const getWebDeployment = ({ region, token, deploymentId }) =>
+  genesysRequest({
+    region,
+    token,
+    path: `/api/v2/webdeployments/deployments/${encodeURIComponent(deploymentId)}`,
+  });
+
+const getArchitectFlowSummary = ({ region, token, flowId }) =>
+  genesysRequest({
+    region,
+    token,
+    path: `/api/v2/flows/${encodeURIComponent(flowId)}`,
+  });
+
+const mapAgenticVirtualAgentSummary = (entity) => {
+  if (!entity || typeof entity !== "object") {
+    return null;
+  }
+
+  return {
+    id: entity.id || "",
+    name: entity.name || entity.id || "",
+    description: entity.description || "",
+    guideId: entity.guideId || entity.guide?.id || "",
+    latestProductionReadyVersion:
+      entity.latestProductionReadyVersion?.version ||
+      entity.latestProductionReadyVersion ||
+      "",
+    latestTestReadyVersion:
+      entity.latestTestReadyVersion?.version || entity.latestTestReadyVersion || "",
+  };
+};
+
+const getAgenticVirtualAgents = ({ region, token }) =>
+  genesysPaginatedRequest({
+    region,
+    token,
+    path: "/api/v2/agentic/virtualagents",
+    pageSize: 100,
+  });
+
+const getAgenticVirtualAgent = ({ region, token, virtualAgentId }) =>
+  genesysRequest({
+    region,
+    token,
+    path: `/api/v2/agentic/virtualagents/${encodeURIComponent(virtualAgentId)}`,
+  });
+
+const addGuideSessionTurn = ({ region, token, guideId, guideSessionId, body }) =>
+  genesysRequest({
+    region,
+    token,
+    path: `/api/v2/guides/${encodeURIComponent(guideId)}/sessions/${encodeURIComponent(guideSessionId)}/turns`,
+    method: "POST",
+    body,
+  });
+
 const getAuditServiceMapping = ({ region, token }) =>
   genesysRequest({
     region,
@@ -1786,6 +1880,14 @@ export {
   getAvailableNotificationTopics,
   getBotFlows,
   getBotUtterances,
+  getWebDeployments,
+  getWebDeployment,
+  getArchitectFlowSummary,
+  mapWebDeploymentSummary,
+  getAgenticVirtualAgents,
+  getAgenticVirtualAgent,
+  mapAgenticVirtualAgentSummary,
+  addGuideSessionTurn,
   getConversation,
   getCurrentUser,
   downloadFlowExecution,

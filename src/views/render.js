@@ -112,6 +112,7 @@ ${navSubmenuItem("genesys-report-interaction", "Interaction Details")}
 
 ${navSubmenuItem("genesys-report-intent-health", "Intent Health")}
 ${navSubmenuItem("genesys-report-utterances", "Utterances")}
+${navSubmenuItem("genesys-chat-agent-tester", "Chat Agent Tester")}
 <li class="menu-item-container"><p id="reports-status" class="command-nav__status">Connect to an organization to run reports.</p></li>`,
     }),
     navGroupDefinition({

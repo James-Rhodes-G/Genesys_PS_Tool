@@ -47,7 +47,7 @@ This audit covers three **priority risks** and documents **code remediations** s
 | **Org bind** | `/api/session/bind` verifies org via vault credentials or Genesys token — [`src/routes/session.js`](../src/routes/session.js) |
 | **Dependency audit** | `npm run audit:prod` — [`package.json`](../package.json) |
 
-**Tests:** `npm test` includes `scripts/test-github-update-check.mjs`, `scripts/test-launch-security.mjs`, `scripts/test-security-session.mjs`, and `scripts/test-mock-api.mjs`.
+**Tests:** `npm test` includes `scripts/test-github-update-check.mjs`, `scripts/test-web-messaging-domain.mjs`, `scripts/test-launch-security.mjs`, `scripts/test-security-session.mjs`, and `scripts/test-mock-api.mjs`.
 
 ---
 
@@ -166,7 +166,7 @@ See [`.env.example`](../.env.example).
 | `genesys-audit-log-viewer` | Query org audit via Genesys API |
 | `genesys-mock-api` | User mock endpoint CRUD |
 
-**APIs:** `/api/genesys/audits/*`, `/api/mock-api/*`, `POST /api/admin/activity`, `GET /api/app/security-policy`, `GET /api/app/update`, `POST /api/session/export-audit` (bound session).
+**APIs:** `/api/genesys/audits/*`, `/api/genesys/webdeployments/*`, `/api/genesys/agentic/*`, `/api/mock-api/*`, `POST /api/admin/activity`, `GET /api/app/security-policy`, `GET /api/app/update`, `POST /api/session/export-audit` (bound session). Chat Agent Tester opens a browser WebSocket to Genesys Web Messaging (guest API) using the selected deployment; domain allowlist must include the PS Tool origin.
 
 ### Operator login required (10 surfaces)
 
