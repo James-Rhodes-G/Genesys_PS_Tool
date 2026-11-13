@@ -2,6 +2,8 @@
 
 Thin Chrome side panel that launches PS Tool web features from Genesys Cloud. The extension does not run export or bulk logic locally — it calls the web app launch API and opens deep links.
 
+**Current release:** manifest version **0.2.0** (keep in sync with server [`package.json`](../package.json) `version`). If the update banner shows the server or extension behind the latest GitHub release, upgrade **both** — an old extension against a new server (or the reverse) can miss launch features such as **Documentation export** and **Data Table Export**.
+
 ## Load Unpacked
 
 1. Open `chrome://extensions`
@@ -29,6 +31,14 @@ Quick Navigation buttons (Roles, People, Queues, etc.) are configured per-button
 3. Confirm org name and username appear in the header. **Org Info** shows Org ID and Region only (copyable); bearer tokens are not displayed or stored in the extension.
 4. If the PS Tool server or this extension is older than the latest GitHub release, an **update banner** appears below the header (server pull/restart, extension reload from release, or both).
 5. Click any **Export**, **Bulk**, or **Quick Actions** button to launch the matching web feature.
+
+### Export launches (0.2.0+)
+
+| Side panel control | Web feature |
+| --- | --- |
+| **Documentation Export** | Multi-select catalog ZIP (`genesys-export-all`) — replaces legacy `exportAll` / GC Helper documentation bundles |
+| **Data Tables** | Architect data table multi-export ZIP (`genesys-datatable-export`) |
+| Other export buttons | Unchanged — deep-link to the matching Exports nav item |
 
 The side panel closes automatically when the active tab leaves the Genesys `apps.*` subdomain.
 

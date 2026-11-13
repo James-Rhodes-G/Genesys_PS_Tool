@@ -2,6 +2,8 @@
 
 This matrix maps the extension actions in the legacy Genesys Cloud Chrome extension PS Tool to the **Genesys PS Tool** web app (`Genesys_PS_Tool`).
 
+**Release 0.2.0:** Server [`package.json`](../package.json) and [`extension/manifest.json`](../extension/manifest.json) versions should be upgraded together when deploying export enhancements (documentation ZIP, catalog exports, data-table ZIP). See [Upgrading in README](../README.md#upgrading-020).
+
 ## Status Legend
 
 - `done`: available in the web app

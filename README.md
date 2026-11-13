@@ -23,6 +23,17 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+### Upgrading (0.2.0)
+
+PS Tool **0.2.0** adds catalog exports, **Documentation export** (multi-module ZIP / `exportAll` replacement), data-table ZIP packaging improvements, and displacement docs for ACES / GC_API_Helper. **Update the server and extension together** so versions match and the side-panel update banner stays clear:
+
+1. Pull this release (or deploy the new server build) and run `npm install` if dependencies changed.
+2. Restart the Node server (`npm run start` or your process manager).
+3. Reload the Chrome extension from `extension/` (or install the release artifact) so [`extension/manifest.json`](extension/manifest.json) reports **0.2.0**.
+4. Hard-refresh the PS Tool browser tab (or close and relaunch from the extension).
+
+If `UPDATE_CHECK_ENABLED` is on and `GITHUB_REPO` is set, the terminal and extension show when either component is behind the latest GitHub release.
+
 ### Chrome extension launcher
 
 Load the rebuilt extension from `extension/` (see [`extension/README.md`](extension/README.md)). Set `VAULT_ENCRYPTION_KEY` in `.env` before using extension launch. Full launch flow: [`docs/launch-endpoint.md`](docs/launch-endpoint.md) (`POST /api/launch/start`).
@@ -416,6 +427,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 
 | Date | Change |
 | --- | --- |
+| 2026-11-13 | **0.2.0 — Export enhancements** — Registry-backed catalog exports (divisions, wrap-up codes, locations, teams, sites, campaigns); **Documentation export** ZIP (`POST /api/genesys/exports/batch-package`); `catalog-export` / `export-batch` jobs; data-table export ZIP helpers; ACES/GC Helper displacement roadmap ([`docs/displacement-aces-gc-helper.md`](docs/displacement-aces-gc-helper.md)); extension launch targets for documentation and data-table export |
 | 2026-10-16 | **Corporate security remediations** — `POST /api/launch/start`, vault-only web default, session retention/backup scope, export audit, operator admin login; see [`docs/security-audit-corporate-policy.md`](docs/security-audit-corporate-policy.md) |
 | 2026-10-27 | **Prompts export** — Listen links for recordings, optional recordings ZIP on Export CSV, and **Export for import** package (Genesys bulk prompt import CSV + `prompt_user_*` WAV files) |
 | 2026-10-22 | **Genesys Audit Log Viewer** — cursor-based pagination (100/page), CSV download fetches all result pages |
@@ -447,6 +459,9 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 | `scripts/test-notification-topics.mjs` | Notification topic grouping/filtering |
 | `scripts/test-notification-message-store.mjs` | Parsed message store behavior |
 | `scripts/test-mock-api.mjs` | Mock API slug normalization, redaction, lifecycle, validation |
+| `scripts/test-export-flatten.mjs` | Catalog row flattening and export registry defaults |
+| `scripts/test-export-batch.mjs` | Documentation ZIP builder and `export-batch` job item shaping |
+| `scripts/test-datatables-export.mjs` | Data table CSV/ZIP naming and row flattening |
 | `scripts/test-prompts-export.mjs` | Prompts import CSV/WAV naming, Listen cells, recording URL allowlist, ZIP builder (flat names, token scoping, failure reporting) |
 | `scripts/test-flow-execution-parser.mjs` | Execution parser timeline, variables, search, and error navigation |
 | `scripts/test-launch-security.mjs` | Launch schema validation (`validateStartBody`), HMAC, vault encryption, rate limiting |

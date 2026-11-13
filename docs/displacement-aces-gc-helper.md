@@ -2,6 +2,8 @@
 
 This document is the product contract for replacing **ACES** (Advanced Cloud Expert Script) and **GC_API_Helper** with the **Genesys PS Tool** web app wherever feasible. It complements the extension migration matrix in [`migration-matrix.md`](migration-matrix.md).
 
+**Shipped in PS Tool 0.2.0 (Phase 0):** export registry, catalog exports in the web UI, documentation ZIP (`exportAll`), and job types `catalog-export` / `export-batch`. Upgrade server and extension together — see [Upgrading in README](../README.md#upgrading-020).
+
 **Reference sources (external to this repo):**
 
 - ACES operator docs — e.g. `ACES_MacX86/docs` (`operator_guide.md`, `ACES_menu_reference.html`, `FRS_README.md`, `FRS_TAB_SPECS.md`).
