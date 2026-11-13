@@ -79,7 +79,7 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | Open interactions query | `/api/genesys/analytics/open-interactions/query` | done | bulk disconnect + priority updater (live, not cached) |
 | Bulk phone move/delete | `/api/genesys/phones/bulk-move`, `bulk-delete` | done | phone mover, remover, site migrator |
 | Bulk priority update | `/api/genesys/conversations/bulk-priority` | done | priority updater |
-| Data table export | `/api/genesys/datatables/export` | done | multi-table CSV export |
+| Data table export | `/api/genesys/datatables/export-package` | done | ZIP with one CSV per table (`{org}_{tableName}_{YYYYMMDD}.csv`); rows use `showbrief=false` |
 | Notification topics | `/api/genesys/notifications/availabletopics` | done | topic picker for subscription pages |
 | Audit log query | `/api/genesys/audits/*` + Audit Log Viewer UI | done | async query; paged results (100/page); **Next page** + CSV fetches all pages |
 

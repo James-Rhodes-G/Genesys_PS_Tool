@@ -72,6 +72,7 @@ import {
   createNotificationChannel,
   deleteNotificationChannel,
   exportDataTables,
+  downloadDataTableExportPackage,
   getAuditQueryResults,
   getAuditQueryStatus,
   getAuditServiceMapping,
@@ -1080,12 +1081,14 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
         exportMeta.exportType === "prompts"
           ? renderPromptsExportToolbarExtras(exportId, exportMeta)
           : {};
-      const exportToolbarHtml = renderGuxExportToolbar({
-        escapeHtml,
-        exportId,
-        showEdit: exportMeta.editable !== false,
-        ...promptsToolbarExtras,
-      });
+      const exportToolbarHtml = exportMeta.hideActions
+        ? ""
+        : renderGuxExportToolbar({
+            escapeHtml,
+            exportId,
+            showEdit: exportMeta.editable !== false,
+            ...promptsToolbarExtras,
+          });
 
       if (selectedColumns.length === 0) {
         return {
@@ -2759,7 +2762,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const dataTableExportFeature = createDataTableExportFeature({
       state,
       getCachedDataTables: loadCachedDataTablesForSession,
-      exportDataTables,
+      downloadDataTableExportPackage,
+      getOrganizationName,
       requireCredentials,
       startExportResult,
       finishExportResult,

@@ -73,6 +73,8 @@ import {
 } from "../lib/genesys.js";
 import { parseExecutionJson } from "../lib/flow-execution-parser.js";
 import { buildPromptExportZip } from "../lib/prompts-export-package.js";
+import { buildDataTablesZipFilename } from "../lib/datatables-export-csv.js";
+import { buildDataTablesExportZip } from "../lib/datatables-export-package.js";
 import { fetchGuestDeploymentToken } from "../lib/web-messaging-guest.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -751,6 +753,51 @@ const createGenesysRouter = () => {
       res.status(200).json({ exports });
     } catch (error) {
       res.status(error.status || 502).json({
+        error: error.message,
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/genesys/datatables/export-package", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const tableIds = Array.isArray(req.body?.tableIds) ? req.body.tableIds.filter(Boolean) : [];
+    if (!tableIds.length) {
+      res.status(400).json({ error: "tableIds must be a non-empty array." });
+      return;
+    }
+
+    const orgName = String(req.body?.orgName || "organization").trim() || "organization";
+
+    try {
+      const exports = await exportDataTables({ ...credentials, tableIds });
+      const { zipBuffer, fileResults, includedCount } = await buildDataTablesExportZip({
+        exports,
+        orgName,
+      });
+
+      const summary = fileResults.map((entry) => ({
+        tableName: entry.tableName,
+        tableId: entry.tableId,
+        status: entry.status,
+        rowCount: entry.rowCount,
+        csvFile: entry.csvFile,
+        error: entry.error,
+      }));
+
+      const zipFilename = buildDataTablesZipFilename(orgName);
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${zipFilename}"`);
+      res.setHeader("X-PS-Tool-Export-Summary", encodeURIComponent(JSON.stringify(summary)));
+      res.setHeader("X-PS-Tool-Export-File-Count", String(includedCount));
+      res.status(200).send(zipBuffer);
+    } catch (error) {
+      const status = error.code === "DATATABLE_ZIP_EMPTY" ? 404 : error.status || 502;
+      res.status(status).json({
         error: error.message,
         details: error.details || null,
       });

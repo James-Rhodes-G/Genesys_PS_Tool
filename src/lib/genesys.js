@@ -959,22 +959,60 @@ const getDataTableRows = ({ region, token, tableId }) =>
   genesysPaginatedRequest({
     region,
     token,
-    path: `/api/v2/flows/datatables/${encodeURIComponent(tableId)}/rows`,
+    path: `/api/v2/flows/datatables/${encodeURIComponent(tableId)}/rows?showbrief=false`,
+    pageSize: 500,
   });
+
+const unwrapDataTableCell = (value) => {
+  if (value == null) {
+    return "";
+  }
+  if (typeof value !== "object") {
+    return value;
+  }
+  if (Object.prototype.hasOwnProperty.call(value, "value") && value.value != null && value.value !== "") {
+    return value.value;
+  }
+  if (Object.prototype.hasOwnProperty.call(value, "display")) {
+    return value.display ?? "";
+  }
+  if (Array.isArray(value)) {
+    return value.map(unwrapDataTableCell).filter((entry) => entry !== "").join(" | ");
+  }
+  return value;
+};
 
 const flattenDataTableRow = (row) => {
   if (!row || typeof row !== "object") {
     return { value: row };
   }
 
-  if (row.values && typeof row.values === "object") {
-    return {
-      key: row.key ?? "",
-      ...row.values,
-    };
+  const rowKey = row.key ?? "";
+
+  if (row.values && typeof row.values === "object" && !Array.isArray(row.values)) {
+    const flat = { key: rowKey };
+    for (const [column, cell] of Object.entries(row.values)) {
+      const unwrapped = unwrapDataTableCell(cell);
+      flat[column] =
+        unwrapped !== null && typeof unwrapped === "object" ? JSON.stringify(unwrapped) : unwrapped ?? "";
+    }
+    return flat;
   }
 
-  return row;
+  const skip = new Set(["values", "id", "selfUri", "tableUri"]);
+  const flat = {};
+  for (const [column, cell] of Object.entries(row)) {
+    if (skip.has(column)) {
+      continue;
+    }
+    const unwrapped = unwrapDataTableCell(cell);
+    flat[column] =
+      unwrapped !== null && typeof unwrapped === "object" ? JSON.stringify(unwrapped) : unwrapped ?? "";
+  }
+  if (!Object.prototype.hasOwnProperty.call(flat, "key")) {
+    flat.key = rowKey;
+  }
+  return flat;
 };
 
 const exportDataTables = async ({ region, token, tableIds }) => {

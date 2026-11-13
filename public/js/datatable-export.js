@@ -1,5 +1,6 @@
 import { renderGuxFieldCheckbox, renderGuxFieldText } from "./gux-ui.js";
 import { summarizeBulkStatuses } from "./bulk-utils.js";
+import { triggerBlobDownload } from "./prompts-export.js";
 
 const escapeHtml = (value) =>
   String(value == null ? "" : value)
@@ -68,7 +69,7 @@ const renderDataTableExportBody = (resultId, exportMeta) => {
 
   return `<div class="column-editor">
     <div class="column-editor__header">Data Table Exporter</div>
-    <p class="muted">Select Architect data tables to export. Row data is fetched live at export time.</p>
+    <p class="muted">Select Architect data tables. Export builds one CSV per table (full row data) and downloads a single ZIP named <code>{org}_datatables_{YYYYMMDD}.zip</code>.</p>
     <div class="bulk-skill-filters">
       ${renderGuxFieldText({
         escapeHtml,
@@ -113,22 +114,27 @@ const createDataTableExportResultsMeta = (resultId, rows, title, status) => ({
   title,
   status,
   exportType: "datatable_export_results",
+  kind: "datatable-export-results",
   rows,
   editMode: false,
+  editable: false,
+  hideActions: true,
   availableColumns: [
     { key: "tableName", header: "Table Name" },
     { key: "tableId", header: "Table ID" },
     { key: "status", header: "Status" },
     { key: "rowCount", header: "Row Count" },
+    { key: "csvFile", header: "CSV in ZIP" },
     { key: "error", header: "Error" },
   ],
-  selectedColumnKeys: ["tableName", "tableId", "status", "rowCount", "error"],
+  selectedColumnKeys: ["tableName", "tableId", "status", "rowCount", "csvFile", "error"],
 });
 
 const createDataTableExportFeature = ({
   state,
   getCachedDataTables,
-  exportDataTables,
+  downloadDataTableExportPackage,
+  getOrganizationName,
   requireCredentials,
   startExportResult,
   finishExportResult,
@@ -195,58 +201,42 @@ const createDataTableExportFeature = ({
     }
 
     const tableIds = selectedTables.map((table) => table.id);
-    const updateProgress = (current, total, message) => {
+    const updateProgress = (message) => {
       const body = resultEl.querySelector(".export-results__body");
       if (body) {
         body.innerHTML = renderExportProgressState({
           message,
-          current,
-          total,
+          current: tableIds.length,
+          total: tableIds.length,
           resultId,
         });
       }
     };
 
-    updateProgress(0, tableIds.length, `Exporting ${tableIds.length} data table(s)...`);
+    updateProgress(`Fetching ${tableIds.length} data table(s) and building ZIP...`);
 
     try {
-      const exports = await exportDataTables({ ...credentials, tableIds });
-
-      const combinedRows = [];
-      exports.forEach((entry) => {
-        if (Array.isArray(entry.rows)) {
-          combinedRows.push(...entry.rows);
-        }
+      const orgName = getOrganizationName?.() || "organization";
+      const { blob, summary, zipFilename, fileCount } = await downloadDataTableExportPackage({
+        ...credentials,
+        tableIds,
+        orgName,
       });
 
-      const summaryRows = exports.map((entry) => ({
-        tableName: entry.tableName || entry.tableId,
+      triggerBlobDownload(blob, zipFilename);
+
+      const summaryRows = (summary || []).map((entry) => ({
+        tableName: entry.tableName,
         tableId: entry.tableId,
-        status: entry.status || "unknown",
-        rowCount: entry.rowCount ?? (entry.rows?.length || 0),
+        status: entry.status,
+        rowCount: entry.rowCount,
+        csvFile: entry.csvFile || "—",
         error: entry.error || "",
       }));
-      const status = summarizeBulkStatuses(summaryRows);
+      const bulkStatus = summarizeBulkStatuses(summaryRows);
+      const status = `${bulkStatus} — ZIP downloaded (${zipFilename}, ${fileCount} CSV file(s)).`;
 
-      if (combinedRows.length > 0) {
-        const exportResultsMeta = {
-          resultId,
-          title: "Data Table Export",
-          status,
-          exportType: "datatable_export_rows",
-          rows: combinedRows,
-          editMode: false,
-          availableColumns: Object.keys(combinedRows[0] || {}).map((key) => ({
-            key,
-            header: key,
-          })),
-          selectedColumnKeys: Object.keys(combinedRows[0] || {}),
-        };
-        finishExportResult(resultId, "Data Table Export", status, "", exportResultsMeta);
-        return;
-      }
-
-      finishExportResult(
+      await finishExportResult(
         resultId,
         "Data Table Export",
         status,

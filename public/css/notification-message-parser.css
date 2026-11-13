@@ -357,6 +357,57 @@
   margin: 0 0 0.5rem;
 }
 
+.chat-agent-automation-panel {
+  margin-top: 1rem;
+  padding: 0.75rem 0 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.chat-agent-automation-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.chat-agent-automation-script {
+  width: 100%;
+  min-height: 7rem;
+  margin: 0.35rem 0 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.chat-agent-automation-results {
+  margin-top: 0.75rem;
+}
+
+.chat-agent-automation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.chat-agent-automation-table th,
+.chat-agent-automation-table td {
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.45rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.chat-agent-automation-row--pass {
+  background: #ecfdf3;
+}
+
+.chat-agent-automation-row--fail {
+  background: #fef2f2;
+}
+
 .chat-agent-advanced-api {
   margin-top: 1rem;
   padding: 0.75rem 0 0;
