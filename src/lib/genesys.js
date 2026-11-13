@@ -429,6 +429,27 @@ const getDivisions = ({ region, token }) =>
     path: "/api/v2/authorization/divisions?pageSize=100&sortBy=name&sortOrder=ASC",
   });
 
+const getWrapupCodes = ({ region, token }) =>
+  genesysPaginatedRequest({
+    region,
+    token,
+    path: "/api/v2/routing/wrapupcodes",
+  });
+
+const getLocations = ({ region, token }) =>
+  genesysPaginatedRequest({
+    region,
+    token,
+    path: "/api/v2/locations",
+  });
+
+const getTeams = ({ region, token }) =>
+  genesysPaginatedRequest({
+    region,
+    token,
+    path: "/api/v2/teams",
+  });
+
 const getQueues = ({ region, token }) =>
   genesysPaginatedRequest({
     region,
@@ -1980,6 +2001,9 @@ export {
   getPasswordPolicy,
   getGenesysDomainForRegion,
   getDivisions,
+  getWrapupCodes,
+  getLocations,
+  getTeams,
   getUser,
   addUserRoutingSkill,
   logoffUsers,

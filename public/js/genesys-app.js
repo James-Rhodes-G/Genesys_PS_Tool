@@ -85,6 +85,11 @@ import {
   getJob,
   getJobResults,
   getDivisions,
+  getWrapupCodes,
+  getLocations,
+  getTeams,
+  fetchExportRegistry,
+  downloadExportBatchPackage,
   getIntentHealth,
   getOrganizationLimits,
   getPasswordPolicy,
@@ -124,6 +129,8 @@ import { createBulkPhoneRemoveFeature } from "./bulk-phone-remove.js";
 import { createBulkPhoneSiteMigrateFeature } from "./bulk-phone-site-migrate.js";
 import { createBulkPriorityUpdateFeature } from "./bulk-priority-update.js";
 import { createDataTableExportFeature } from "./datatable-export.js";
+import { wireCatalogExportButtons } from "./export-catalog-feature.js";
+import { createExportAllFeature } from "./export-all-feature.js";
 import {
   clearResourceCaches,
   getCachedDataTables,
@@ -872,6 +879,8 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
   const createPhonesExportMeta = (resultId, rows, title, status) => {
     const baseColumns = [
       { key: "name", header: "Name" },
+      { key: "id", header: "ID" },
+      { key: "division.name", header: "Division" },
       { key: "site.name", header: "Site" },
       { key: "phoneBaseSettings.name", header: "Base Settings" },
       {
@@ -884,7 +893,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     ];
     const dynamicColumns = createDynamicColumns(
       rows,
-      new Set(["name", "site.name", "phoneBaseSettings.name"])
+      new Set(["name", "id", "division.name", "site.name", "phoneBaseSettings.name"])
     );
 
     return {
@@ -895,7 +904,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       rows,
       editMode: false,
       availableColumns: baseColumns.concat(dynamicColumns),
-      selectedColumnKeys: ["name", "site.name", "phoneBaseSettings.name", "__stationRecording"],
+      selectedColumnKeys: ["name", "id", "division.name", "site.name", "phoneBaseSettings.name", "__stationRecording"],
     };
   };
 
@@ -1350,6 +1359,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const groupMembersBtn = document.getElementById("genesys-group-members");
     const promptsBtn = document.getElementById("genesys-prompts");
     const datatableExportBtn = document.getElementById("genesys-datatable-export");
+    const exportAllBtn = document.getElementById("genesys-export-all");
 
     // Bulk Actions Buttons
     const bulkSkillsBtn = document.getElementById("genesys-bulk-skill-assignment");
@@ -2774,6 +2784,17 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       renderExportProgressState,
     });
 
+    const exportAllFeature = createExportAllFeature({
+      fetchExportRegistry,
+      downloadExportBatchPackage,
+      startExportResult,
+      finishExportResult,
+      renderLoadingState,
+      requireCredentials,
+      state,
+      rerenderExportSection,
+    });
+
     const bulkPhoneMoveFeature = createBulkPhoneMoveFeature({
       state,
       getCachedPhones: loadCachedPhonesForSession,
@@ -3661,7 +3682,13 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       failureMessage: "Queues export failed",
       loader: loadCachedQueuesForSession,
       createExportMeta: (resultId, rows, title, status) =>
-        createSimpleExportMeta(resultId, rows, title, status, "queues", ["name", "id", "division.id"]),
+        createSimpleExportMeta(resultId, rows, title, status, "queues", [
+          "name",
+          "id",
+          "division.name",
+          "description",
+          "memberCount",
+        ]),
     });
 
     wireExportButton(skillsBtn, {
@@ -3789,6 +3816,22 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
 
     dataTableExportFeature.wireButton(datatableExportBtn, {
       hasConnection: () => state.hasConnection,
+    });
+
+    exportAllFeature.wireExportAll(exportAllBtn);
+    exportAllFeature.attachExportAllListeners(resultsListEl);
+
+    wireCatalogExportButtons({
+      wireExportButton,
+      createSimpleExportMeta,
+      loaders: {
+        getDivisions,
+        getWrapupCodes,
+        getSites,
+        getLocations,
+        getTeams,
+        getCampaigns,
+      },
     });
 
     loadSchedulesFeature.wireButton(loadSchedulesBtn);

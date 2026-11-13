@@ -11,6 +11,8 @@ import * as bulkRoleAssign from "./bulk-role-assign.js";
 import * as bulkSkillAssign from "./bulk-skill-assign.js";
 import * as userRoleExport from "./user-role-export.js";
 import * as userSkillExport from "./user-skill-export.js";
+import * as catalogExport from "./catalog-export.js";
+import * as exportBatch from "./export-batch.js";
 
 const handlers = {
   "bulk-auto-answer": bulkAutoAnswer,
@@ -26,6 +28,8 @@ const handlers = {
   "bulk-skill-assign": bulkSkillAssign,
   "user-role-export": userRoleExport,
   "user-skill-export": userSkillExport,
+  "catalog-export": catalogExport,
+  "export-batch": exportBatch,
 };
 
 const getJobHandler = (type) => handlers[type] || null;

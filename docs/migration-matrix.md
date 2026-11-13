@@ -27,7 +27,7 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | `exportGroups` | `background.js` | export | `/api/genesys/groups` + export table | done |
 | `exportGroupUsers` | `background.js` | export | `/api/genesys/groups/:id/members` + selector + export table | done |
 | Data tables export | TamperMonkey `dataTablesExporter.js` | export | `/api/genesys/datatables` + multi-select export UI | done |
-| `exportAll` | `background.js` | export | batch export workflow in web UI | next |
+| `exportAll` | `background.js` | export | Exports → Documentation export (`POST /api/genesys/exports/batch-package`) | done |
 | `exportToCSV` | `background.js` | export | per-result CSV download on export tables | done |
 | `printConversationData` | `background.js` | read/report | searchable JSON viewer panel | done |
 | `goToFlowExecution` | `background.js` | read/report | flow execution results page/panel | done |
@@ -80,6 +80,8 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | Bulk phone move/delete | `/api/genesys/phones/bulk-move`, `bulk-delete` | done | phone mover, remover, site migrator |
 | Bulk priority update | `/api/genesys/conversations/bulk-priority` | done | priority updater |
 | Data table export | `/api/genesys/datatables/export-package` | done | ZIP with one CSV per table (`{org}_{tableName}_{YYYYMMDD}.csv`); rows use `showbrief=false` |
+| Catalog export registry | `GET /api/genesys/exports/registry` | done | GC Helper displacement catalog metadata |
+| Documentation ZIP | `POST /api/genesys/exports/batch-package` | done | Multi-catalog CSV bundle |
 | Notification topics | `/api/genesys/notifications/availabletopics` | done | topic picker for subscription pages |
 | Audit log query | `/api/genesys/audits/*` + Audit Log Viewer UI | done | async query; paged results (100/page); **Next page** + CSV fetches all pages |
 
@@ -107,8 +109,31 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 
 **Next**
 
-- `exportAll` batch export workflow.
+- (none — `exportAll` shipped via documentation export ZIP)
 
 **UI cleanup (not migration blockers)**
 
 - Quick Actions sidebar still has placeholder buttons (`quickAction#4` … `#9`).
+
+## Legacy ACES / GC Helper displacement
+
+PS Tool is intended to **replace ACES** (operator + FRS/clone toolkits) and **GC_API_Helper** (62-module extract GUI) wherever feasible. Status for that program uses a separate legend (`displaced`, `partial`, `planned`, `hybrid`, `cannot-displace`) documented in **[`displacement-aces-gc-helper.md`](displacement-aces-gc-helper.md)**.
+
+Use that document for:
+
+- The full **GC_API_Helper module matrix** (62 rows) and phased roadmap (Phases 1–4).
+- **ACES hub** and **FRS tab** displacement summary.
+- **Cannot-displace** register and mitigations.
+
+When a displacement item ships in the web app, add a row below (or promote an existing capability from `planned` in the displacement doc) using the migration-matrix statuses `done` / `next` / `planned`.
+
+| Legacy source | Capability | Web app target | Displacement doc status | Migration status |
+| --- | --- | --- | --- | --- |
+| GC Helper — Data Tables | Data table content export | `/api/genesys/datatables/export-package` | displaced | done |
+| GC Helper — Organization Limits | Org limits report | Dashboard + `/api/genesys/organizations/limits` | displaced | done |
+| GC Helper / ACES | Users, roles, skills, phones, queues, groups, prompts (user) | Export tables + prompts ZIP | displaced / partial | done |
+| ACES menu 0 | Disconnect conversations | Bulk Disconnect | displaced | done |
+| GC Helper — QM (4 modules) | Evaluation/Survey details & results | TBD exports + async jobs | planned (Phase 2) | — |
+| ACES menu 17 | FRS workbook apply/rollback | TBD | cannot-displace (full) | — |
+| ACES menu 7 | Clone to org / Archy | TBD per-type clone + hybrid Archy | hybrid / planned | — |
+| GC Helper + extension | Batch all exports | Documentation export ZIP | displaced | done |

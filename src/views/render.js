@@ -85,6 +85,18 @@ ${navSubmenuItem("genesys-groups", "Groups")}
 ${navSubmenuItem("genesys-group-members", "Group Users")}
 ${navSubmenuItem("genesys-prompts", "Prompts")}
 ${navSubmenuItem("genesys-datatable-export", "Data Table Export")}
+<li class="menu-item-container nav-submenu-heading" role="presentation"><span class="muted">Org and directory</span></li>
+${navSubmenuItem("genesys-export-divisions", "Divisions")}
+${navSubmenuItem("genesys-export-wrapup-codes", "Wrap-Up Codes")}
+${navSubmenuItem("genesys-export-locations", "Locations")}
+<li class="menu-item-container nav-submenu-heading" role="presentation"><span class="muted">People and routing</span></li>
+${navSubmenuItem("genesys-export-teams", "Teams")}
+<li class="menu-item-container nav-submenu-heading" role="presentation"><span class="muted">Telephony</span></li>
+${navSubmenuItem("genesys-export-sites", "Sites")}
+<li class="menu-item-container nav-submenu-heading" role="presentation"><span class="muted">Outbound</span></li>
+${navSubmenuItem("genesys-export-campaigns", "Campaigns")}
+<li class="menu-item-container nav-submenu-heading" role="presentation"><span class="muted">Batch</span></li>
+${navSubmenuItem("genesys-export-all", "Documentation export")}
 <li class="menu-item-container"><p id="exports-status" class="command-nav__status">Connect to an organization to enable exports.</p></li>`,
     }),
     navGroupDefinition({

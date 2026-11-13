@@ -6,6 +6,8 @@ Web-based replacement for the legacy Genesys Cloud Chrome extension PS Tool. Con
 
 For extension-to-web migration status, see [`docs/migration-matrix.md`](docs/migration-matrix.md).
 
+To replace **ACES** and **GC_API_Helper** with PS Tool (displacement roadmap, module matrix, and non-goals), see [`docs/displacement-aces-gc-helper.md`](docs/displacement-aces-gc-helper.md).
+
 Corporate security alignment and remediation details: [`docs/security-audit-corporate-policy.md`](docs/security-audit-corporate-policy.md).
 
 ## Quick start
@@ -98,6 +100,8 @@ Copy `.env.example` to `.env` and configure:
 | **Prompts** | User prompt export with **Listen {resourceId}** links for recordings, optional recordings ZIP, and an **Export for import** package (see [Prompts export](#prompts-export)) |
 | Queue Members / Group Users | Selector-driven member exports |
 | **Data Table Export** | Multi-select Architect data tables; server builds one CSV per table (`{org}_{tableName}_{YYYYMMDD}.csv`) inside `{org}_datatables_{YYYYMMDD}.zip` (full row data via `showbrief=false`) |
+| **Catalog exports** | Divisions, wrap-up codes, locations, teams, sites, campaigns (registry-backed list APIs) |
+| **Documentation export** | Multi-select catalogs → single ZIP (`POST /api/genesys/exports/batch-package`); displaces extension `exportAll` / GC Helper documentation bundles (see [`docs/displacement-aces-gc-helper.md`](docs/displacement-aces-gc-helper.md)) |
 
 #### Prompts export
 
