@@ -1,4 +1,44 @@
 const NAV_COLLAPSED_KEY = "ps-tool-nav-collapsed";
+
+const setExportSectionCollapsed = (sectionEl, collapsed) => {
+  const toggle = sectionEl.querySelector("[data-export-section-toggle]");
+  if (!toggle) {
+    return;
+  }
+  sectionEl.classList.toggle("is-collapsed", collapsed);
+  toggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+};
+
+const collapseAllExportSections = (nav) => {
+  nav.querySelectorAll(".nav-export-section[data-export-section]").forEach((sectionEl) => {
+    setExportSectionCollapsed(sectionEl, true);
+  });
+};
+
+const wireExportSectionToggles = (nav) => {
+  if (nav.dataset.exportSectionsWired === "true") {
+    return;
+  }
+  nav.dataset.exportSectionsWired = "true";
+
+  nav.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-export-section-toggle]");
+    if (!toggle || !nav.contains(toggle)) {
+      return;
+    }
+
+    const sectionEl = toggle.closest(".nav-export-section");
+    if (!sectionEl) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const willCollapse = !sectionEl.classList.contains("is-collapsed");
+    setExportSectionCollapsed(sectionEl, willCollapse);
+  });
+};
 const NAV_WIDTH_EXPANDED = "280px";
 const NAV_WIDTH_COLLAPSED = "56px";
 
@@ -55,6 +95,10 @@ const openSubmenu = (nav, groupId) => {
   toggle.classList.add("selected");
   submenuPanel.hidden = false;
   submenuPanel.classList.add("is-active");
+
+  if (groupId === "exports") {
+    collapseAllExportSections(nav);
+  }
 };
 
 const initializeAppNav = () => {
@@ -102,6 +146,8 @@ const initializeAppNav = () => {
       closeSubmenu(nav);
     });
   });
+
+  wireExportSectionToggles(nav);
 };
 
 export { initializeAppNav };

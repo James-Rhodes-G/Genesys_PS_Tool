@@ -60,6 +60,9 @@ import {
   getUserSkillMappings,
   getAuthorizationSubject,
   getDivisions,
+  getWrapupCodes,
+  getLocations,
+  getTeams,
   getGenesysDomainForRegion,
   getPasswordPolicy,
   loadSchedules,
@@ -76,6 +79,11 @@ import { buildPromptExportZip } from "../lib/prompts-export-package.js";
 import { buildDataTablesZipFilename } from "../lib/datatables-export-csv.js";
 import { buildDataTablesExportZip } from "../lib/datatables-export-package.js";
 import { fetchGuestDeploymentToken } from "../lib/web-messaging-guest.js";
+import { listExportsForRegistryApi, listDefaultBatchExportIds } from "../lib/exports/export-registry.js";
+import { fetchCatalogRows } from "../lib/exports/catalog-export-service.js";
+import { buildCatalogExportZip } from "../lib/exports/build-export-zip.js";
+import { getJobManager } from "../lib/jobs/job-manager.js";
+import { JOB_STATUS } from "../lib/jobs/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -289,6 +297,150 @@ const createGenesysRouter = () => {
     label: "divisions",
     field: "divisions",
     handler: getDivisions,
+  });
+
+  registerExportRoute({
+    routePath: "/api/genesys/wrapupcodes",
+    label: "wrapup codes",
+    field: "wrapupCodes",
+    handler: getWrapupCodes,
+  });
+
+  registerExportRoute({
+    routePath: "/api/genesys/locations",
+    label: "locations",
+    field: "locations",
+    handler: getLocations,
+  });
+
+  registerExportRoute({
+    routePath: "/api/genesys/teams",
+    label: "teams",
+    field: "teams",
+    handler: getTeams,
+  });
+
+  router.get("/api/genesys/exports/registry", (req, res) => {
+    res.status(200).json({
+      exports: listExportsForRegistryApi(),
+      defaultBatchExportIds: listDefaultBatchExportIds(),
+    });
+  });
+
+  router.post("/api/genesys/exports/batch-package", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const exportIds = Array.isArray(req.body?.exportIds)
+      ? req.body.exportIds.map((id) => String(id || "").trim()).filter(Boolean)
+      : listDefaultBatchExportIds();
+
+    if (!exportIds.length) {
+      res.status(400).json({ error: "exportIds is required." });
+      return;
+    }
+
+    if (exportIds.length > 25) {
+      res.status(400).json({ error: "At most 25 exports per batch package." });
+      return;
+    }
+
+    try {
+      const organization = await getOrganizationMe(credentials);
+      const artifacts = [];
+      const errors = [];
+
+      for (const exportId of exportIds) {
+        try {
+          const result = await fetchCatalogRows(exportId, credentials);
+          artifacts.push(result);
+        } catch (error) {
+          errors.push({ exportId, error: error.message || "Export failed." });
+        }
+      }
+
+      const { buffer, filename, included } = await buildCatalogExportZip({
+        orgName: organization?.name,
+        artifacts: artifacts.map((entry) => ({
+          exportId: entry.exportId,
+          rows: entry.rows,
+          preferredColumns: entry.preferredColumns,
+        })),
+        zipLabel: "documentation",
+      });
+
+      if (!buffer) {
+        res.status(502).json({
+          error: "No export rows were returned for the selected catalogs.",
+          errors,
+        });
+        return;
+      }
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.status(200).send(buffer);
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message || "Batch export package failed.",
+        details: error.details || null,
+      });
+    }
+  });
+
+  router.post("/api/jobs/:jobId/export-batch-zip", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+
+    const jobManager = getJobManager();
+    const job = jobManager.jobStore.get(req.params.jobId);
+    if (!job) {
+      res.status(404).json({ error: "Job not found." });
+      return;
+    }
+
+    if (job.type !== "export-batch" && job.type !== "catalog-export") {
+      res.status(400).json({ error: "Job type does not support ZIP download." });
+      return;
+    }
+
+    const terminal = new Set([
+      JOB_STATUS.COMPLETED,
+      JOB_STATUS.COMPLETED_WITH_ERRORS,
+      JOB_STATUS.FAILED,
+      JOB_STATUS.CANCELLED,
+    ]);
+    if (!terminal.has(job.status)) {
+      res.status(409).json({ error: "Job is not finished yet." });
+      return;
+    }
+
+    try {
+      const organization = await getOrganizationMe(credentials);
+      const artifacts = (job.results || []).filter((row) => row.status === "success" && row.rows?.length);
+      const { buffer, filename } = await buildCatalogExportZip({
+        orgName: organization?.name,
+        artifacts,
+        zipLabel: "documentation",
+      });
+
+      if (!buffer) {
+        res.status(502).json({ error: "No successful export rows in job results." });
+        return;
+      }
+
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.status(200).send(buffer);
+    } catch (error) {
+      res.status(error.status || 502).json({
+        error: error.message || "Export batch ZIP failed.",
+      });
+    }
   });
 
   router.get("/api/genesys/authorization/subjects/:subjectId", async (req, res) => {

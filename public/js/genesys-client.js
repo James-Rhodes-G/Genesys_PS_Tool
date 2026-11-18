@@ -448,6 +448,86 @@ const getDivisions = async ({ region, token }) => {
   return payload.divisions || [];
 };
 
+const getWrapupCodes = async ({ region, token }) => {
+  const payload = await requestGenesysJson(
+    "/api/genesys/wrapupcodes",
+    {
+      method: "GET",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys wrap-up codes request failed"
+  );
+
+  return payload.wrapupCodes || [];
+};
+
+const getLocations = async ({ region, token }) => {
+  const payload = await requestGenesysJson(
+    "/api/genesys/locations",
+    {
+      method: "GET",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys locations request failed"
+  );
+
+  return payload.locations || [];
+};
+
+const getTeams = async ({ region, token }) => {
+  const payload = await requestGenesysJson(
+    "/api/genesys/teams",
+    {
+      method: "GET",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Genesys teams request failed"
+  );
+
+  return payload.teams || [];
+};
+
+const fetchExportRegistry = async () =>
+  requestGenesysJson("/api/genesys/exports/registry", { method: "GET" }, "Export registry request failed");
+
+const downloadExportBatchPackage = async ({ region, token, exportIds }) => {
+  const response = await fetch(
+    "/api/genesys/exports/batch-package",
+    withGenesysFetchOptions({
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+      body: JSON.stringify({ exportIds }),
+    })
+  );
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const error = new Error(payload.error || "Batch export package failed.");
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="([^"]+)"/i);
+  const filename = match?.[1] || "documentation_export.zip";
+  const blob = await response.blob();
+  return { blob, filename };
+};
+
 const assignUsersToRoleDivision = async ({ region, token, userIds, roleId, divisionId }) => {
   const payload = await requestGenesysJson(
     "/api/genesys/users/bulk-role-assign",
@@ -1600,6 +1680,11 @@ export {
   getGroupMembers,
   getGroups,
   getDivisions,
+  getWrapupCodes,
+  getLocations,
+  getTeams,
+  fetchExportRegistry,
+  downloadExportBatchPackage,
   getIntentHealth,
   getPasswordPolicy,
   getPhones,

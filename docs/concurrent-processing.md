@@ -46,7 +46,9 @@ Submit a job and receive `{ jobId, status: "queued" }` immediately.
 
 Supported types are registered in `src/lib/jobs/handlers/index.js`.
 
-Registered job types: `bulk-skill-assign`, `bulk-role-assign`, `bulk-auto-answer`, `bulk-password-reset`, `bulk-logoff`, `bulk-disconnect`, `bulk-priority-update`, `bulk-phone-build`, `bulk-phone-delete`, `bulk-phone-move`, `bulk-load-schedules`, `user-role-export`, `user-skill-export`
+Registered job types: `bulk-skill-assign`, `bulk-role-assign`, `bulk-auto-answer`, `bulk-password-reset`, `bulk-logoff`, `bulk-disconnect`, `bulk-priority-update`, `bulk-phone-build`, `bulk-phone-delete`, `bulk-phone-move`, `bulk-load-schedules`, `user-role-export`, `user-skill-export`, `catalog-export`, `export-batch`
+
+`catalog-export` and `export-batch` run registry-backed catalog extracts (see `src/lib/exports/export-registry.js`). Completed batch jobs can download a ZIP via `POST /api/jobs/:jobId/export-batch-zip`. Job `payload` may include `checkpoint` (JSON) for future resume support.
 
 Export jobs support partial result paging while running (`GET /api/jobs/:jobId/results?offset=&limit=`) and single-item lookup (`?userId=`). Large exports can stream pages into session storage via `POST /api/session/exports/init` and `POST /api/session/exports/:exportId/rows`.
 
