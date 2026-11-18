@@ -28,8 +28,8 @@ Quick Navigation buttons (Roles, People, Queues, etc.) are configured per-button
 
 1. Log into Genesys Cloud in a normal browser tab (`apps.*` subdomain).
 2. Click the extension toolbar icon to open the side panel.
-3. Confirm org name and username appear in the header. **Org Info** shows Org ID and Region only (copyable); bearer tokens are not displayed or stored in the extension.
-4. If the PS Tool server or this extension is older than the latest GitHub release, an **update banner** appears below the header (server pull/restart, extension reload from release, or both).
+3. Confirm org name and username appear in the header. **Org Info** shows Org ID and Region (copyable) and an **Open Dashboard** button; bearer tokens are not displayed or stored in the extension.
+4. Use **Org Info → Open Dashboard** to open the PS Tool web app on the **Organization Dashboard** (overview widgets). Export, Bulk, and Quick Actions still deep-link to individual features.
 5. Click any **Export**, **Bulk**, or **Quick Actions** button to launch the matching web feature.
 
 ### Export launches (0.2.0+)
@@ -48,6 +48,7 @@ Each feature launch calls **`POST /api/launch/start`** with the current Genesys 
 
 | Button type | Behavior |
 | --- | --- |
+| **Open Dashboard** (Org Info) | Opens PS Tool **Organization Dashboard** (`genesys-dashboard`) |
 | Quick Nav 1–6 | Opens Genesys admin URLs (same tab or new tab) |
 | Export / Bulk / Reports | Opens PS Tool via `/launch?code=...` after `POST /api/launch/start` |
 | Chat Tester (Digital Actions) | Opens **Chat Agent Tester** to exercise Web Messenger or agentic virtual agents |

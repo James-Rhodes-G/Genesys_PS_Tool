@@ -16,6 +16,7 @@ export const DEFAULT_QUICK_NAV = {
 };
 
 export const FEATURE_MAP = {
+  openDashboard: "genesys-dashboard",
   userList: "genesys-users",
   userRoles: "genesys-user-roles",
   exportRoles: "genesys-roles",
