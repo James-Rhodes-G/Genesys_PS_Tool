@@ -28,6 +28,17 @@ const navSubmenuItem = (id, label, { adminGated = false } = {}) =>
   <button type="button" class="nav-item nav-link sublink-title" id="${escapeHtml(id)}" disabled>${escapeHtml(label)}</button>
 </li>`;
 
+const navExportSection = (sectionId, label, itemsHtml) =>
+  `<li class="menu-item-container nav-export-section is-collapsed" data-export-section="${escapeHtml(sectionId)}">
+  <button type="button" class="nav-export-section__toggle nav-item" aria-expanded="false" data-export-section-toggle aria-controls="export-section-${escapeHtml(sectionId)}">
+    <span class="nav-export-section__label">${escapeHtml(label)}</span>
+    <span class="nav-export-section__chevron" aria-hidden="true">▾</span>
+  </button>
+  <ul class="nav-export-section__items" id="export-section-${escapeHtml(sectionId)}">
+    ${itemsHtml}
+  </ul>
+</li>`;
+
 const navMainItem = ({ id, label, icon }) => `<li class="menu-item-container" data-nav-group="${escapeHtml(id)}">
   <button type="button" class="nav-item command-nav__group-toggle" data-nav-group-toggle aria-expanded="false">
     <span class="title-items">
@@ -73,30 +84,49 @@ const renderAppSidebar = () => {
       id: "exports",
       label: "Exports",
       icon: "export",
-      bodyHtml: `${navSubmenuItem("genesys-users", "Users")}
+      bodyHtml: `${navExportSection(
+        "org-directory",
+        "Org and directory",
+        `${navSubmenuItem("genesys-export-divisions", "Divisions")}
+${navSubmenuItem("genesys-export-locations", "Locations")}
+${navSubmenuItem("genesys-roles", "Roles")}
+${navSubmenuItem("genesys-groups", "Groups")}
+${navSubmenuItem("genesys-group-members", "Group Users")}`
+      )}
+${navExportSection(
+        "people-routing",
+        "People and routing",
+        `${navSubmenuItem("genesys-users", "Users")}
 ${navSubmenuItem("genesys-user-roles", "User Roles")}
 ${navSubmenuItem("genesys-user-skills", "User Skills")}
-${navSubmenuItem("genesys-phones", "Phone")}
-${navSubmenuItem("genesys-roles", "Roles")}
 ${navSubmenuItem("genesys-queues", "Queues")}
 ${navSubmenuItem("genesys-queue-members", "Queue Members")}
 ${navSubmenuItem("genesys-skills", "Skills")}
-${navSubmenuItem("genesys-groups", "Groups")}
-${navSubmenuItem("genesys-group-members", "Group Users")}
-${navSubmenuItem("genesys-prompts", "Prompts")}
-${navSubmenuItem("genesys-datatable-export", "Data Table Export")}
-<li class="menu-item-container nav-submenu-heading" role="presentation"><span class="muted">Org and directory</span></li>
-${navSubmenuItem("genesys-export-divisions", "Divisions")}
-${navSubmenuItem("genesys-export-wrapup-codes", "Wrap-Up Codes")}
-${navSubmenuItem("genesys-export-locations", "Locations")}
-<li class="menu-item-container nav-submenu-heading" role="presentation"><span class="muted">People and routing</span></li>
 ${navSubmenuItem("genesys-export-teams", "Teams")}
-<li class="menu-item-container nav-submenu-heading" role="presentation"><span class="muted">Telephony</span></li>
-${navSubmenuItem("genesys-export-sites", "Sites")}
-<li class="menu-item-container nav-submenu-heading" role="presentation"><span class="muted">Outbound</span></li>
-${navSubmenuItem("genesys-export-campaigns", "Campaigns")}
-<li class="menu-item-container nav-submenu-heading" role="presentation"><span class="muted">Batch</span></li>
-${navSubmenuItem("genesys-export-all", "Documentation export")}
+${navSubmenuItem("genesys-export-wrapup-codes", "Wrap-Up Codes")}`
+      )}
+${navExportSection(
+        "telephony",
+        "Telephony",
+        `${navSubmenuItem("genesys-phones", "Phone")}
+${navSubmenuItem("genesys-export-sites", "Sites")}`
+      )}
+${navExportSection(
+        "architect",
+        "Architect",
+        `${navSubmenuItem("genesys-prompts", "Prompts")}
+${navSubmenuItem("genesys-datatable-export", "Data Table Export")}`
+      )}
+${navExportSection(
+        "outbound",
+        "Outbound",
+        `${navSubmenuItem("genesys-export-campaigns", "Campaigns")}`
+      )}
+${navExportSection(
+        "documentation",
+        "Documentation",
+        `${navSubmenuItem("genesys-export-all", "Documentation export")}`
+      )}
 <li class="menu-item-container"><p id="exports-status" class="command-nav__status">Connect to an organization to enable exports.</p></li>`,
     }),
     navGroupDefinition({

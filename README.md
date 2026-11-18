@@ -114,6 +114,8 @@ Copy `.env.example` to `.env` and configure:
 | **Catalog exports** | Divisions, wrap-up codes, locations, teams, sites, campaigns (registry-backed list APIs) |
 | **Documentation export** | Multi-select catalogs → single ZIP (`POST /api/genesys/exports/batch-package`); displaces extension `exportAll` / GC Helper documentation bundles (see [`docs/displacement-aces-gc-helper.md`](docs/displacement-aces-gc-helper.md)) |
 
+The **Exports** nav groups items into collapsible sections — **Org and directory**, **People and routing**, **Telephony**, **Architect**, **Outbound**, and **Documentation** — aligned with `EXPORT_CATEGORIES` in [`src/lib/exports/export-registry.js`](src/lib/exports/export-registry.js). Opening the Exports menu resets those sections to collapsed; expand a section to choose an export. **Documentation export** uses the same category labels when you pick catalogs for the batch ZIP.
+
 #### Prompts export
 
 Always covers every loaded user prompt (including rows offloaded to the session DB); there is no row selection. System prompts are not included.
@@ -166,7 +168,7 @@ Recordings are downloaded server-side via `POST /api/genesys/prompts/export-pack
 | Interaction Details | Takes you to the Genesys UI interaction details page |
 | Intent Health | selector driven intent health for selected flow |
 | Utterances | selector driven utterances for selected flow |
-| **Chat Agent Tester** | List Web Messenger deployments or agentic virtual agents, run live digital chat in-page, and inspect a message trace (WebSocket/API frames). Guest JWT is fetched via `POST /api/genesys/webmessaging/deployment-token` (avoids browser CORS); the deployment must still allow your PS Tool origin (e.g. `http://localhost:3000`) for the WebSocket |
+| **Chat Agent Tester** | List Web Messenger deployments or agentic virtual agents, run live digital chat in-page, and inspect a message trace (WebSocket/API frames). Guest JWT is fetched via `POST /api/genesys/webmessaging/deployment-token` (avoids browser CORS); the deployment must still allow your PS Tool origin (e.g. `http://localhost:3000`) for the WebSocket. **Conversation automation** runs a multi-line script (one customer utterance per line; optional `utterance | expected` for substring or regex checks) and reports per-step pass/fail |
 
 ### Audit Log
 
@@ -303,6 +305,7 @@ src/
     logs.js              App shell + legacy log pages
   lib/
     genesys.js           Genesys API helpers and pagination
+    exports/             Catalog export registry, flattening, batch ZIP (`export-registry.js`, `catalog-export-service.js`, …)
     prompts-export-package.js Prompt recordings/import-package ZIP builder (URL allowlist, concurrency cap)
     mock-api.js          Mock endpoint business logic and invocation
     mock-api-config.js   Mock API limits and lifecycle defaults
@@ -332,6 +335,14 @@ public/js/
   bulk-*.js              Bulk workflow modules
   dashboard/             Organization Dashboard widgets and inventory helpers
   datatable-export.js    Data table multi-select export
+  export-catalog-feature.js Registry-backed catalog export tables
+  export-all-feature.js    Documentation export multi-select UI
+  app-nav.js               Command nav groups + export section toggles
+  chat-agent-tester-feature.js Chat Agent Tester UI (Web Messenger / AVA)
+  chat-agent-automation-runner.js Multi-turn automation runner
+  chat-agent-transcript.js Utterance script parsing and bot-turn helpers
+  chat-agent-response-eval.js Expected-response matching (contains / regex)
+  chat-agent-*.js          Message trace store, parser, registration, Web Messenger clients
   notification-*.js      Notification subscription and parsing
 ```
 
@@ -427,6 +438,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 
 | Date | Change |
 | --- | --- |
+| 2026-11-18 | **Exports nav + automation** — Collapsible Exports nav sections mirroring registry categories; Documentation export checkboxes grouped the same way; catalog export nav buttons wired in the main app; Chat Agent Tester conversation automation split into `chat-agent-automation-runner.js`, `chat-agent-transcript.js`, and `chat-agent-response-eval.js` |
 | 2026-11-13 | **0.2.0 — Export enhancements** — Registry-backed catalog exports (divisions, wrap-up codes, locations, teams, sites, campaigns); **Documentation export** ZIP (`POST /api/genesys/exports/batch-package`); `catalog-export` / `export-batch` jobs; data-table export ZIP helpers; ACES/GC Helper displacement roadmap ([`docs/displacement-aces-gc-helper.md`](docs/displacement-aces-gc-helper.md)); extension launch targets for documentation and data-table export |
 | 2026-10-16 | **Corporate security remediations** — `POST /api/launch/start`, vault-only web default, session retention/backup scope, export audit, operator admin login; see [`docs/security-audit-corporate-policy.md`](docs/security-audit-corporate-policy.md) |
 | 2026-10-27 | **Prompts export** — Listen links for recordings, optional recordings ZIP on Export CSV, and **Export for import** package (Genesys bulk prompt import CSV + `prompt_user_*` WAV files) |
@@ -461,6 +473,8 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 | `scripts/test-mock-api.mjs` | Mock API slug normalization, redaction, lifecycle, validation |
 | `scripts/test-export-flatten.mjs` | Catalog row flattening and export registry defaults |
 | `scripts/test-export-batch.mjs` | Documentation ZIP builder and `export-batch` job item shaping |
+| `scripts/test-chat-agent-automation.mjs` | Automation script parsing, bot-turn selection, expected-response evaluation |
+| `scripts/test-web-messaging-domain.mjs` | Web Messaging URLs, deployment origin allowlist, chat frame parser |
 | `scripts/test-datatables-export.mjs` | Data table CSV/ZIP naming and row flattening |
 | `scripts/test-prompts-export.mjs` | Prompts import CSV/WAV naming, Listen cells, recording URL allowlist, ZIP builder (flat names, token scoping, failure reporting) |
 | `scripts/test-flow-execution-parser.mjs` | Execution parser timeline, variables, search, and error navigation |

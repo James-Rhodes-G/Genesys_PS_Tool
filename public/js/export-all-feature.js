@@ -72,7 +72,7 @@ const renderExportAllBody = (resultId, exportMeta) => {
 
   return `<div class="column-editor export-all-panel">
     <div class="column-editor__header">Documentation export (exportAll)</div>
-    <p class="muted">Select catalog exports to include in one ZIP (one CSV per module). Replaces a GC_API_Helper documentation run for the selected modules.</p>
+    <p class="muted">Select catalog exports to include in one ZIP (one CSV per module). Grouping matches the Exports nav sections (org, people, telephony, architect, outbound).</p>
     ${sections || "<p class=\"muted\">No exports in registry.</p>"}
     <div class="export-all-actions">
       <gux-button class="export-all-run" type="button" accent="primary" data-result-id="${escapeHtml(

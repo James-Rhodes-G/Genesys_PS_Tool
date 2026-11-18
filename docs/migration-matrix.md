@@ -41,7 +41,7 @@ This matrix maps the extension actions in the legacy Genesys Cloud Chrome extens
 | Phone site migrator | TamperMonkey `phoneSiteMigrator.js` | mutation/workflow | Phone Site Migrator (WebRTC phones only) | done |
 | `intentHealth` | `background.js` | read/report | diagnostics page/panel | done |
 | `utterances` | `background.js` | read/report | diagnostics page/panel | done |
-| `chatAgentTester` | — | live test | Web Messenger + AVA chat panel | done |
+| `chatAgentTester` | — | live test | Interaction Data → Chat Agent Tester (Web Messenger + AVA chat, message trace, conversation automation scripts) | done |
 | `passwordReset` | `background.js` | mutation/workflow | bulk password reset workflow + confirmation modal | done |
 | `logoff` / `userLogoff` | `background.js` | mutation/workflow | bulk user logoff workflow with preview | done |
 | `bulkAssignRoles` | `background.js` | mutation/workflow | bulk role assignment workflow | done |

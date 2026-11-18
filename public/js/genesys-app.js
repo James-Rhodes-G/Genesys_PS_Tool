@@ -1360,6 +1360,12 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const promptsBtn = document.getElementById("genesys-prompts");
     const datatableExportBtn = document.getElementById("genesys-datatable-export");
     const exportAllBtn = document.getElementById("genesys-export-all");
+    const exportDivisionsBtn = document.getElementById("genesys-export-divisions");
+    const exportWrapupCodesBtn = document.getElementById("genesys-export-wrapup-codes");
+    const exportSitesBtn = document.getElementById("genesys-export-sites");
+    const exportLocationsBtn = document.getElementById("genesys-export-locations");
+    const exportTeamsBtn = document.getElementById("genesys-export-teams");
+    const exportCampaignsBtn = document.getElementById("genesys-export-campaigns");
 
     // Bulk Actions Buttons
     const bulkSkillsBtn = document.getElementById("genesys-bulk-skill-assignment");
@@ -1452,6 +1458,13 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           groupMembersBtn,
           promptsBtn,
           datatableExportBtn,
+          exportAllBtn,
+          exportDivisionsBtn,
+          exportWrapupCodesBtn,
+          exportSitesBtn,
+          exportLocationsBtn,
+          exportTeamsBtn,
+          exportCampaignsBtn,
           bulkSkillsBtn,
           bulkRoleAssignBtn,
           bulkAutoAnswerBtn,
