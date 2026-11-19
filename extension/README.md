@@ -2,7 +2,7 @@
 
 Thin Chrome side panel that launches PS Tool web features from Genesys Cloud. The extension does not run export or bulk logic locally — it calls the web app launch API and opens deep links.
 
-**Current release:** manifest version **0.2.0** (keep in sync with server [`package.json`](../package.json) `version`). If the update banner shows the server or extension behind the latest GitHub release, upgrade **both** — an old extension against a new server (or the reverse) can miss launch features such as **Documentation export** and **Data Table Export**.
+**Current release:** manifest version **0.2.1** (keep in sync with server [`package.json`](../package.json) `version`). If the update banner shows the server or extension behind the latest GitHub release, upgrade **both** — an old extension against a new server (or the reverse) can miss launch features such as **Documentation export** and **Data Table Export**.
 
 ## Load Unpacked
 
