@@ -438,6 +438,7 @@ Priority Updater decrements priority by 1 for each selected interaction starting
 
 | Date | Change |
 | --- | --- |
+| 2026-11-19 | **0.2.1 — Extension Org dashboard launch** — Side panel **Open Dashboard** in Org Info (`genesys-dashboard`); bump server and extension versions together when deploying |
 | 2026-11-18 | **Exports nav + automation** — Collapsible Exports nav sections mirroring registry categories; Documentation export checkboxes grouped the same way; catalog export nav buttons wired in the main app; Chat Agent Tester conversation automation split into `chat-agent-automation-runner.js`, `chat-agent-transcript.js`, and `chat-agent-response-eval.js` |
 | 2026-11-13 | **0.2.0 — Export enhancements** — Registry-backed catalog exports (divisions, wrap-up codes, locations, teams, sites, campaigns); **Documentation export** ZIP (`POST /api/genesys/exports/batch-package`); `catalog-export` / `export-batch` jobs; data-table export ZIP helpers; ACES/GC Helper displacement roadmap ([`docs/displacement-aces-gc-helper.md`](docs/displacement-aces-gc-helper.md)); extension launch targets for documentation and data-table export |
 | 2026-10-16 | **Corporate security remediations** — `POST /api/launch/start`, vault-only web default, session retention/backup scope, export audit, operator admin login; see [`docs/security-audit-corporate-policy.md`](docs/security-audit-corporate-policy.md) |

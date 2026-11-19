@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Genesys PS Tool Launcher",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Launch Genesys PS Tool features from Genesys Cloud",
   "permissions": ["activeTab", "tabs", "storage", "scripting", "sidePanel"],
   "host_permissions": [
