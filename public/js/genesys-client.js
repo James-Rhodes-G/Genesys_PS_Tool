@@ -499,6 +499,19 @@ const getTeams = async ({ region, token }) => {
 const fetchExportRegistry = async () =>
   requestGenesysJson("/api/genesys/exports/registry", { method: "GET" }, "Export registry request failed");
 
+const fetchExportColumnDefaultsMap = ({ region, token }) =>
+  requestGenesysJson(
+    "/api/genesys/exports/column-defaults",
+    {
+      method: "GET",
+      headers: {
+        "x-genesys-region": region,
+        "x-genesys-token": token,
+      },
+    },
+    "Export column defaults request failed"
+  );
+
 const downloadExportBatchPackage = async ({ region, token, exportIds }) => {
   const response = await fetch(
     "/api/genesys/exports/batch-package",
@@ -1684,6 +1697,7 @@ export {
   getLocations,
   getTeams,
   fetchExportRegistry,
+  fetchExportColumnDefaultsMap,
   downloadExportBatchPackage,
   getIntentHealth,
   getPasswordPolicy,

@@ -1,3 +1,5 @@
+/** `preferredColumns` are documentation hints for the registry API only; batch/ZIP exports use wide flatten. */
+
 const EXPORT_CATEGORIES = {
   directory: "Org and directory",
   people: "People and routing",

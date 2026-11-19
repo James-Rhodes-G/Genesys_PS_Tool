@@ -35,6 +35,7 @@ await deleteOperatorSession(adminDb, tokenHash);
 assert.equal(await getOperatorSession(adminDb, tokenHash), null);
 
 assert.equal(isGatedAdminFeatureId("genesys-admin-operations"), true);
+assert.equal(isGatedAdminFeatureId("genesys-admin-export-defaults"), true);
 assert.equal(isGatedAdminFeatureId("genesys-mock-api"), false);
 assert.equal(isGatedAdminFeatureId("genesys-audit-log-viewer"), false);
 

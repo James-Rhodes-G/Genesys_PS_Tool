@@ -84,6 +84,9 @@ import {
   getMaintenanceMode,
   setMaintenanceMode,
   purgeExpiredOperatorSessions,
+  listExportColumnDefaults,
+  upsertExportColumnDefault,
+  deleteExportColumnDefault,
 } from "./data/admin-db.js";
 import { ensureBootstrapOperator } from "./lib/admin-bootstrap.js";
 import { createLoadAdminSessionMiddleware } from "./middleware/admin-session.js";
@@ -319,6 +322,9 @@ const start = async () => {
       takePresenceSnapshot: adminJobs.takePresenceSnapshot,
       takeStorageSnapshot: adminJobs.takeStorageSnapshot,
       takePlatformSnapshot: adminJobs.takePlatformSnapshot,
+      listExportColumnDefaults,
+      upsertExportColumnDefault,
+      deleteExportColumnDefault,
     })
   );
 

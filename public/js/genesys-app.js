@@ -181,6 +181,11 @@ import { createChatAgentTesterFeature } from "./chat-agent-tester-feature.js";
 import { createAuditLogViewerFeature } from "./audit-log-viewer.js";
 import { createMockApiFeature } from "./mock-api-feature.js";
 import { createAdminFeatures } from "./admin/admin-features.js";
+import {
+  applyExportColumnDefaults,
+  clearExportColumnDefaultsCache,
+  loadExportColumnDefaults,
+} from "./export-column-defaults.js";
 import { setAdminLoginRequiredHandler } from "./admin/admin-client.js";
 import { bindAdminOperatorUi, openAdminLoginModal } from "./admin/admin-operator-ui.js";
 import { isAdminAuthenticated } from "./admin/admin-operator-session.js";
@@ -1408,6 +1413,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       "genesys-admin-sessions",
       "genesys-admin-usage",
       "genesys-admin-storage",
+      "genesys-admin-export-defaults",
     ];
     const adminButtons = adminButtonIds.map((id) => document.getElementById(id));
     const confirmModalEl = document.getElementById("genesys-confirm-modal");
@@ -1594,6 +1600,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       clearFlowExecutionModelCache();
       clearInventoryStore();
       clearSessionActivities();
+      clearExportColumnDefaultsCache();
       dashboardFeatureRef?.disposeDashboard();
       Object.values(state.activeExports).forEach((controller) => controller?.abort());
       state.activeExports = {};
@@ -1729,6 +1736,14 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
           } catch (error) {
             console.warn("Failed to bind org session store:", error);
           }
+          try {
+            await loadExportColumnDefaults({
+              region: effectiveRegion,
+              token: isVaultMode() ? effectiveToken : getToken() || effectiveToken,
+            });
+          } catch (error) {
+            console.warn("Failed to load export column defaults:", error);
+          }
         }
 
         prependExportResult(
@@ -1863,6 +1878,7 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
       if (exportMeta) {
         exportMeta.status = status;
         exportMeta.statusBase = status;
+        applyExportColumnDefaults(exportMeta);
         ensureExportTableSort(exportMeta);
         state.exportData[resultId] = exportMeta;
       } else {

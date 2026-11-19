@@ -327,6 +327,21 @@ const createGenesysRouter = () => {
     });
   });
 
+  router.get("/api/genesys/exports/column-defaults", async (req, res) => {
+    const credentials = requireCredentials(req, res);
+    if (!credentials) {
+      return;
+    }
+    try {
+      const { initAdminDb, buildExportColumnDefaultsMap } = await import("../data/admin-db.js");
+      const adminDb = await initAdminDb();
+      const defaults = await buildExportColumnDefaultsMap(adminDb);
+      res.json({ defaults });
+    } catch (error) {
+      res.status(500).json({ error: error.message || "Failed to load export column defaults." });
+    }
+  });
+
   router.post("/api/genesys/exports/batch-package", async (req, res) => {
     const credentials = requireCredentials(req, res);
     if (!credentials) {

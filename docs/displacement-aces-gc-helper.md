@@ -97,7 +97,7 @@ flowchart TB
 | --- | --- |
 | Exports nav — “wide” catalog CSVs | Thin routes in `src/routes/genesys.js`, logic in `src/lib/*-export.js`, GUX export table or job + blob download |
 | Long extracts | Reuse concurrent job queue (README); stream CSV to disk/session storage |
-| Batch documentation | Ties to queued `exportAll` (migration matrix `next`) |
+| Batch documentation | Documentation export ZIP + `export-batch` job (**shipped**); extend registry per backlog |
 
 ### Phase 2 — GC_API_Helper QM and analytics
 
@@ -205,11 +205,13 @@ Source: `GC_API_Helper.py` `list_of_modules` (October 2026 build).
 
 ### Phase 1 summary counts (GC Helper)
 
-| Status | Count (of 62) |
-| --- | ---: |
-| `displaced` | 5 |
-| `partial` | 9 |
-| `planned` | 48 |
+Approximate counts after **0.2.0** (registry + Documentation ZIP). Update this table when shipping backlog items from [`displacement-backlog.md`](displacement-backlog.md).
+
+| Status | Count (of 62) | Notes |
+| --- | ---: | --- |
+| `displaced` | 12+ | Core catalogs in registry/UI/batch: Divisions, Locations, Teams, Sites, Campaigns, Wrap-Up, Queues, Skills, Groups, Roles, Data Tables, Org Limits (dashboard) |
+| `partial` | 9 | Unchanged — see module matrix rows |
+| `planned` | ~41 | Phase 1 remainder + Phase 2 QM (4 modules) |
 
 Phase 2 owns 4 modules (Evaluation/Survey Details/Results). As Phase 1 ships, update counts and migration-matrix displacement rows.
 
@@ -308,7 +310,7 @@ Track quarterly:
 1. **GC Helper:** count of modules at `displaced` or acceptable `partial` (target: majority of Phase 1 modules within program roadmap).
 2. **ACES:** operators no longer require menus **0**, **9**, and extension-equivalent bulk menus for routine work (already largely true).
 3. **Engagement exit criteria:** “GC Helper not installed” and “ACES only for FRS/clone” as explicit engagement norms.
-4. **PS Tool:** ship `exportAll` (`migration-matrix.md` `next`) to accelerate Phase 1 documentation runs.
+4. **PS Tool:** Documentation export ZIP (`exportAll`) is **shipped** — prioritize **partial closures** and Tier 2–3 registry modules per [`displacement-backlog.md`](displacement-backlog.md).
 
 ---
 
@@ -316,6 +318,7 @@ Track quarterly:
 
 | Document | Purpose |
 | --- | --- |
+| [`displacement-backlog.md`](displacement-backlog.md) | **Single prioritized backlog** (Slices A–E) |
 | [`migration-matrix.md`](migration-matrix.md) | Extension → web app status + **Legacy ACES / GC Helper displacement** index |
 | [`README.md`](../README.md) | Current shipped features |
 | [`security-audit-corporate-policy.md`](security-audit-corporate-policy.md) | Hosting and credential posture vs desktop tools |

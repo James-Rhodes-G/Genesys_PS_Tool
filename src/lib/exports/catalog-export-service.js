@@ -12,6 +12,8 @@ import {
   getWrapupCodes,
 } from "../genesys.js";
 import { flattenEntities } from "./flatten-row.js";
+import { BULK_CATALOG_FLATTEN_OPTIONS } from "./bulk-flatten-options.js";
+import { collectColumnKeys } from "./rows-to-csv.js";
 import { getExportById } from "./export-registry.js";
 import { paginateAllWithApiClient } from "./paginate-all.js";
 
@@ -45,8 +47,7 @@ const fetchCatalogEntitiesWithApiClient = async (exportId, apiClient, itemContex
   return paginateAllWithApiClient(apiClient, def.listPath, { itemContext });
 };
 
-const entitiesToRows = (entities, exportDef) =>
-  flattenEntities(entities, { preferredColumns: exportDef?.preferredColumns || [] });
+const entitiesToRows = (entities) => flattenEntities(entities, BULK_CATALOG_FLATTEN_OPTIONS);
 
 const fetchCatalogRows = async (exportId, credentials) => {
   const def = getExportById(exportId);
@@ -54,8 +55,9 @@ const fetchCatalogRows = async (exportId, credentials) => {
     throw new Error(`Unknown export: ${exportId}`);
   }
   const entities = await fetchCatalogEntitiesWithCredentials(exportId, credentials);
-  const rows = entitiesToRows(entities, def);
-  return { exportId, label: def.label, rows, rowCount: rows.length, preferredColumns: def.preferredColumns };
+  const rows = entitiesToRows(entities);
+  const preferredColumns = collectColumnKeys(rows, []);
+  return { exportId, label: def.label, rows, rowCount: rows.length, preferredColumns };
 };
 
 export {

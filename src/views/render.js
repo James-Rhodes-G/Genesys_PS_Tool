@@ -201,6 +201,7 @@ ${navSubmenuItem("genesys-admin-launch-monitor", "Launch Monitor", { adminGated:
 ${navSubmenuItem("genesys-admin-sessions", "Sessions & Vault", { adminGated: true })}
 ${navSubmenuItem("genesys-admin-usage", "Usage Analytics", { adminGated: true })}
 ${navSubmenuItem("genesys-admin-storage", "Storage Detail", { adminGated: true })}
+${navSubmenuItem("genesys-admin-export-defaults", "Export Column Defaults", { adminGated: true })}
 <li class="menu-item-container"><p id="admin-status" class="command-nav__status">Server administration tools.</p></li>`,
     }),
     navGroupDefinition({

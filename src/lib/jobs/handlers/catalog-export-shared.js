@@ -3,6 +3,7 @@ import {
   entitiesToRows,
   fetchCatalogEntitiesWithApiClient,
 } from "../../exports/catalog-export-service.js";
+import { collectColumnKeys } from "../../exports/rows-to-csv.js";
 
 const runCatalogExportItem = async (exportId, ctx) => {
   const def = getExportById(exportId);
@@ -16,13 +17,14 @@ const runCatalogExportItem = async (exportId, ctx) => {
       itemId: exportId,
       workerId: ctx.workerId,
     });
-    const rows = entitiesToRows(entities, def);
+    const rows = entitiesToRows(entities);
+    const preferredColumns = collectColumnKeys(rows, []);
     return {
       exportId,
       label: def.label,
       rows,
       rowCount: rows.length,
-      preferredColumns: def.preferredColumns,
+      preferredColumns,
       status: "success",
       error: "",
     };
@@ -32,7 +34,7 @@ const runCatalogExportItem = async (exportId, ctx) => {
       label: def.label,
       rows: [],
       rowCount: 0,
-      preferredColumns: def.preferredColumns,
+      preferredColumns: [],
       status: "failed",
       error: error.message || "Catalog export failed.",
     };

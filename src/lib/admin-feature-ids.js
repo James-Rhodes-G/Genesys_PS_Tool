@@ -10,6 +10,7 @@ const GATED_ADMIN_FEATURE_IDS = [
   "genesys-admin-sessions",
   "genesys-admin-usage",
   "genesys-admin-storage",
+  "genesys-admin-export-defaults",
 ];
 
 const isGatedAdminFeatureId = (featureId) =>

@@ -25,6 +25,9 @@ import {
   runBackup,
   runSnapshots,
   fetchActivity,
+  fetchExportColumnDefaultsAdmin,
+  saveExportColumnDefaults,
+  deleteExportColumnDefaults,
 } from "./admin-client.js";
 import { renderGuxTable } from "../gux-ui.js";
 
@@ -225,6 +228,36 @@ const createAdminFeatures = ({
     if (action === "run-snapshots") {
       await runSnapshots();
       await panels["genesys-admin-storage"]();
+      return;
+    }
+
+    if (action === "export-defaults-save") {
+      const form = actionEl.closest(".admin-export-defaults-form");
+      const exportKey = form?.querySelector('[name="exportKey"]')?.value?.trim();
+      const raw = form?.querySelector('[name="selectedColumns"]')?.value || "";
+      const selectedColumns = raw
+        .split(/[\n,]+/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      if (!exportKey) {
+        window.alert("Choose an export type.");
+        return;
+      }
+      await saveExportColumnDefaults(exportKey, selectedColumns);
+      await panels["genesys-admin-export-defaults"]();
+      return;
+    }
+
+    if (action === "export-defaults-delete") {
+      const exportKey = actionEl.getAttribute("data-export-key");
+      if (!exportKey) {
+        return;
+      }
+      if (!window.confirm(`Remove saved default columns for ${exportKey}?`)) {
+        return;
+      }
+      await deleteExportColumnDefaults(exportKey);
+      await panels["genesys-admin-export-defaults"]();
     }
   };
 
@@ -621,6 +654,46 @@ const createAdminFeatures = ({
     </div>`;
   };
 
+  const renderExportColumnDefaults = async () => {
+    const { manifest, saved } = await fetchExportColumnDefaultsAdmin();
+    const savedRows = saved || [];
+    const options = (manifest || [])
+      .map(
+        (entry) =>
+          `<option value="${escapeHtml(entry.exportKey)}">${escapeHtml(entry.label)} (${escapeHtml(entry.exportKey)})</option>`
+      )
+      .join("");
+
+    const tableRows = savedRows.map((row) => ({
+      exportKey: row.exportKey,
+      columns: (row.selectedColumns || []).join(", "),
+      updated: formatTimestamp(row.updatedAt),
+      actions: renderActionButton("Remove", "export-defaults-delete", `data-export-key="${escapeHtml(row.exportKey)}"`, true),
+    }));
+
+    return `<div class="admin-panel">
+      <h2>Export column defaults</h2>
+      <p class="muted">Sets which columns are selected by default when an interactive export loads. Operators can still add or remove columns in the table. Documentation ZIP exports always include all flattened API fields (wide batch).</p>
+      <form class="admin-export-defaults-form">
+        <label for="admin-export-key">Export type</label>
+        <select id="admin-export-key" name="exportKey" class="admin-range-select">${options}</select>
+        <label for="admin-export-columns">Default columns (one per line or comma-separated)</label>
+        <textarea id="admin-export-columns" name="selectedColumns" class="admin-export-defaults-textarea" rows="6" placeholder="name&#10;id&#10;division.name"></textarea>
+        ${renderActionButton("Save defaults", "export-defaults-save")}
+      </form>
+      <h3>Saved defaults</h3>
+      ${renderSimpleTable(
+        [
+          { key: "exportKey", label: "Export" },
+          { key: "columns", label: "Columns" },
+          { key: "updated", label: "Updated" },
+          { key: "actions", label: "", allowHtml: true },
+        ],
+        tableRows
+      )}
+    </div>`;
+  };
+
   const renderActivityTimeline = async () => {
     const { activities } = await fetchActivity();
     return `<div class="admin-panel"><h2>Activity Timeline</h2>
@@ -652,6 +725,8 @@ const createAdminFeatures = ({
     "genesys-admin-sessions": () => showPanel("Sessions & Vault", renderSessionsVault, "genesys-admin-sessions"),
     "genesys-admin-usage": () => showPanel("Usage Analytics", renderUsageAnalytics, "genesys-admin-usage"),
     "genesys-admin-storage": () => showPanel("Storage Detail", renderStorageDetail, "genesys-admin-storage"),
+    "genesys-admin-export-defaults": () =>
+      showPanel("Export Column Defaults", renderExportColumnDefaults, "genesys-admin-export-defaults"),
   };
 
   const initButtons = () => {

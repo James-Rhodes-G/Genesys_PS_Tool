@@ -123,6 +123,7 @@ PS Tool is intended to **replace ACES** (operator + FRS/clone toolkits) and **GC
 
 Use that document for:
 
+- **[`displacement-backlog.md`](displacement-backlog.md)** — single prioritized queue (start here for implementation).
 - The full **GC_API_Helper module matrix** (62 rows) and phased roadmap (Phases 1–4).
 - **ACES hub** and **FRS tab** displacement summary.
 - **Cannot-displace** register and mitigations.

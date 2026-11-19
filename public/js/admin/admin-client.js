@@ -59,6 +59,14 @@ const postActivity = (payload) => adminFetch("/api/admin/activity", { method: "P
 const fetchActivity = () => adminFetch("/api/admin/activity");
 const runBackup = () => adminFetch("/api/admin/backups/run", { method: "POST" });
 const runSnapshots = () => adminFetch("/api/admin/snapshots/run", { method: "POST", body: JSON.stringify({ type: "all" }) });
+const fetchExportColumnDefaultsAdmin = () => adminFetch("/api/admin/export-column-defaults");
+const saveExportColumnDefaults = (exportKey, selectedColumns) =>
+  adminFetch("/api/admin/export-column-defaults", {
+    method: "PUT",
+    body: JSON.stringify({ exportKey, selectedColumns }),
+  });
+const deleteExportColumnDefaults = (exportKey) =>
+  adminFetch(`/api/admin/export-column-defaults/${encodeURIComponent(exportKey)}`, { method: "DELETE" });
 
 export {
   adminFetch,
@@ -89,5 +97,8 @@ export {
   fetchActivity,
   runBackup,
   runSnapshots,
+  fetchExportColumnDefaultsAdmin,
+  saveExportColumnDefaults,
+  deleteExportColumnDefaults,
   setAdminLoginRequiredHandler,
 };

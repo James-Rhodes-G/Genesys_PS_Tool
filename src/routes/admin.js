@@ -64,6 +64,9 @@ const createAdminRouter = ({
   takePresenceSnapshot,
   takeStorageSnapshot,
   takePlatformSnapshot,
+  listExportColumnDefaults,
+  upsertExportColumnDefault,
+  deleteExportColumnDefault,
 }) => {
   const router = Router();
   const op = [requireAdminSession];
@@ -482,6 +485,41 @@ const createAdminRouter = ({
     await setMaintenanceMode(adminDb, { mode, updatedBy: req.genesysCredentials?.userId || "operator" });
     await auditService.recordEvent(req, { action: "admin_maintenance_mode", feature: "admin", metaJson: { mode } });
     res.json({ mode });
+  });
+
+  router.get("/api/admin/export-column-defaults", ...op, async (_req, res) => {
+    const { INTERACTIVE_EXPORT_MANIFEST } = await import("../lib/export-column-defaults.js");
+    const saved = await listExportColumnDefaults(adminDb);
+    res.json({ manifest: INTERACTIVE_EXPORT_MANIFEST, saved });
+  });
+
+  router.put("/api/admin/export-column-defaults", ...op, async (req, res) => {
+    const { isKnownInteractiveExportKey, normalizeColumnKeys } = await import("../lib/export-column-defaults.js");
+    const exportKey = String(req.body?.exportKey || "").trim();
+    if (!isKnownInteractiveExportKey(exportKey)) {
+      res.status(400).json({ error: "Unknown exportKey." });
+      return;
+    }
+    const selectedColumns = normalizeColumnKeys(req.body?.selectedColumns);
+    const updatedBy = req.adminOperator?.username || "operator";
+    const saved = await upsertExportColumnDefault(adminDb, { exportKey, selectedColumns, updatedBy });
+    await auditService.recordEvent(req, {
+      action: "admin_export_column_defaults",
+      feature: "admin",
+      metaJson: { exportKey, columnCount: selectedColumns.length },
+    });
+    res.json({ saved });
+  });
+
+  router.delete("/api/admin/export-column-defaults/:exportKey", ...op, async (req, res) => {
+    const { isKnownInteractiveExportKey } = await import("../lib/export-column-defaults.js");
+    const exportKey = String(req.params.exportKey || "").trim();
+    if (!isKnownInteractiveExportKey(exportKey)) {
+      res.status(400).json({ error: "Unknown exportKey." });
+      return;
+    }
+    await deleteExportColumnDefault(adminDb, exportKey);
+    res.json({ deleted: true, exportKey });
   });
 
   router.post("/api/admin/snapshots/run", ...op, async (req, res) => {

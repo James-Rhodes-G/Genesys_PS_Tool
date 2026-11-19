@@ -6,7 +6,7 @@ Web-based replacement for the legacy Genesys Cloud Chrome extension PS Tool. Con
 
 For extension-to-web migration status, see [`docs/migration-matrix.md`](docs/migration-matrix.md).
 
-To replace **ACES** and **GC_API_Helper** with PS Tool (displacement roadmap, module matrix, and non-goals), see [`docs/displacement-aces-gc-helper.md`](docs/displacement-aces-gc-helper.md).
+To replace **ACES** and **GC_API_Helper** with PS Tool (displacement roadmap, module matrix, and non-goals), see [`docs/displacement-aces-gc-helper.md`](docs/displacement-aces-gc-helper.md). **Prioritized implementation queue:** [`docs/displacement-backlog.md`](docs/displacement-backlog.md).
 
 Corporate security alignment and remediation details: [`docs/security-audit-corporate-policy.md`](docs/security-audit-corporate-policy.md).
 
@@ -402,6 +402,8 @@ Session-scoped in-memory cache in `public/js/resource-cache.js`. First request h
 ## Export tables
 
 Exports render as collapsible result panels with GUX tables, column picker, click-to-sort column headers, and CSV download (sort order matches the table).
+
+**Documentation / batch ZIP** catalog CSVs use **wide flatten** (all fields returned by the list API, not registry `preferredColumns`). **Interactive** exports still expose every discovered JSON path in the column picker; operators can add custom columns freely. PS Tool admins can set **default selected columns** per export type under **PS Tool Admin → Export Column Defaults** (stored server-wide in `admin.db`).
 
 - Multi-value cells use pipe-separated format (` \| ` in CSV, line breaks in HTML)
 - Large exports (≥ 200 rows) offload row storage to the session DB

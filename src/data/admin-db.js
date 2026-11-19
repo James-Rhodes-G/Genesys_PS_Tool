@@ -168,6 +168,13 @@ const initAdminDb = async () => {
         );
         CREATE INDEX IF NOT EXISTS idx_admin_operator_sessions_expires
           ON admin_operator_sessions (expires_at);
+
+        CREATE TABLE IF NOT EXISTS export_column_defaults (
+          export_key TEXT PRIMARY KEY,
+          selected_columns_json TEXT NOT NULL DEFAULT '[]',
+          updated_at INTEGER NOT NULL,
+          updated_by TEXT
+        );
       `);
       return db;
     });
@@ -538,6 +545,81 @@ const getOperatorByUsername = async (db, username) => {
   return row || null;
 };
 
+const mapExportColumnDefaultRow = (row) => {
+  if (!row) {
+    return null;
+  }
+  let selectedColumns = [];
+  try {
+    selectedColumns = JSON.parse(row.selected_columns_json || "[]");
+  } catch {
+    selectedColumns = [];
+  }
+  if (!Array.isArray(selectedColumns)) {
+    selectedColumns = [];
+  }
+  return {
+    exportKey: row.export_key,
+    selectedColumns,
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by || null,
+  };
+};
+
+const listExportColumnDefaults = async (db) => {
+  const rows = await db.all(
+    `SELECT export_key, selected_columns_json, updated_at, updated_by
+     FROM export_column_defaults
+     ORDER BY export_key ASC`
+  );
+  return rows.map(mapExportColumnDefaultRow);
+};
+
+const getExportColumnDefault = async (db, exportKey) => {
+  const row = await db.get(
+    `SELECT export_key, selected_columns_json, updated_at, updated_by
+     FROM export_column_defaults
+     WHERE export_key = ?`,
+    String(exportKey || "").trim()
+  );
+  return mapExportColumnDefaultRow(row);
+};
+
+const upsertExportColumnDefault = async (db, { exportKey, selectedColumns, updatedBy }) => {
+  const key = String(exportKey || "").trim();
+  const now = Date.now();
+  await db.run(
+    `INSERT INTO export_column_defaults (export_key, selected_columns_json, updated_at, updated_by)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(export_key) DO UPDATE SET
+       selected_columns_json = excluded.selected_columns_json,
+       updated_at = excluded.updated_at,
+       updated_by = excluded.updated_by`,
+    key,
+    JSON.stringify(selectedColumns || []),
+    now,
+    updatedBy || null
+  );
+  return getExportColumnDefault(db, key);
+};
+
+const deleteExportColumnDefault = async (db, exportKey) => {
+  const key = String(exportKey || "").trim();
+  const result = await db.run(`DELETE FROM export_column_defaults WHERE export_key = ?`, key);
+  return result.changes > 0;
+};
+
+const buildExportColumnDefaultsMap = async (db) => {
+  const entries = await listExportColumnDefaults(db);
+  const defaults = {};
+  for (const entry of entries) {
+    if (entry?.exportKey && entry.selectedColumns?.length) {
+      defaults[entry.exportKey] = entry.selectedColumns;
+    }
+  }
+  return defaults;
+};
+
 const upsertOperator = async (db, { id, username, passwordHash }) => {
   const now = Date.now();
   const operatorId = id || `${now}-${Math.random().toString(36).slice(2, 10)}`;
@@ -631,4 +713,9 @@ export {
   purgeExpiredOperatorSessions,
   touchOperatorSession,
   upsertOperator,
+  listExportColumnDefaults,
+  getExportColumnDefault,
+  upsertExportColumnDefault,
+  deleteExportColumnDefault,
+  buildExportColumnDefaultsMap,
 };

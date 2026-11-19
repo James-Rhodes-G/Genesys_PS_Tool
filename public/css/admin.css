@@ -26,6 +26,20 @@
   gap: 1.5rem;
 }
 
+.admin-export-defaults-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 36rem;
+}
+
+.admin-export-defaults-textarea {
+  width: 100%;
+  min-height: 8rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
 .admin-panel__header {
   display: flex;
   flex-wrap: wrap;
