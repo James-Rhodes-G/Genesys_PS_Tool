@@ -389,6 +389,11 @@ const layout = ({ title, body, updatedAt, regions = [], vaultLaunch = false }) =
       </div>
     </div>
   </gux-modal>
+  <gux-modal id="genesys-doc-export-modal" size="small">
+    <span slot="title" id="genesys-doc-export-modal-title">Documentation export</span>
+    <div slot="content" id="genesys-doc-export-modal-body" class="doc-export-modal__body" aria-live="polite"></div>
+    <gux-button slot="end-align-buttons" id="genesys-doc-export-modal-close" type="button" accent="secondary" hidden>Close</gux-button>
+  </gux-modal>
   <gux-modal id="genesys-confirm-modal" size="medium">
     <span slot="title" id="genesys-confirm-modal-title">Confirm Action</span>
     <div slot="content" id="genesys-confirm-modal-body">

@@ -541,6 +541,30 @@ const downloadExportBatchPackage = async ({ region, token, exportIds }) => {
   return { blob, filename };
 };
 
+const downloadExportBatchPackageFromJob = async ({ region, token, jobId }) => {
+  const response = await fetch(
+    `/api/jobs/${encodeURIComponent(jobId)}/export-batch-zip`,
+    withGenesysFetchOptions({
+      method: "POST",
+      headers: buildGenesysAuthHeaders(region, token, { "Content-Type": "application/json" }),
+    })
+  );
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const error = new Error(payload.error || "Documentation export ZIP download failed.");
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+
+  const disposition = response.headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="([^"]+)"/i);
+  const filename = match?.[1] || "documentation_export.zip";
+  const blob = await response.blob();
+  return { blob, filename };
+};
+
 const assignUsersToRoleDivision = async ({ region, token, userIds, roleId, divisionId }) => {
   const payload = await requestGenesysJson(
     "/api/genesys/users/bulk-role-assign",
@@ -1699,6 +1723,7 @@ export {
   fetchExportRegistry,
   fetchExportColumnDefaultsMap,
   downloadExportBatchPackage,
+  downloadExportBatchPackageFromJob,
   getIntentHealth,
   getPasswordPolicy,
   getPhones,

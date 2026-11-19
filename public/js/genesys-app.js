@@ -90,6 +90,7 @@ import {
   getTeams,
   fetchExportRegistry,
   downloadExportBatchPackage,
+  downloadExportBatchPackageFromJob,
   getIntentHealth,
   getOrganizationLimits,
   getPasswordPolicy,
@@ -131,6 +132,7 @@ import { createBulkPriorityUpdateFeature } from "./bulk-priority-update.js";
 import { createDataTableExportFeature } from "./datatable-export.js";
 import { wireCatalogExportButtons } from "./export-catalog-feature.js";
 import { createExportAllFeature } from "./export-all-feature.js";
+import { createDocExportProgressModal } from "./export-doc-progress-modal.js";
 import {
   clearResourceCaches,
   getCachedDataTables,
@@ -2357,6 +2359,14 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     });
     confirmModal.bind();
 
+    const docExportProgressModal = createDocExportProgressModal({
+      modalEl: document.getElementById("genesys-doc-export-modal"),
+      titleEl: document.getElementById("genesys-doc-export-modal-title"),
+      bodyEl: document.getElementById("genesys-doc-export-modal-body"),
+      closeBtn: document.getElementById("genesys-doc-export-modal-close"),
+    });
+    docExportProgressModal.bind();
+
     const adminOperatorUi = bindAdminOperatorUi({
       onAuthChange: () => {
         dashboardFeatureRef?.refreshSessionActivity?.();
@@ -2816,6 +2826,11 @@ const renderExportSectionWithActions = (title, status, contentHtml) =>
     const exportAllFeature = createExportAllFeature({
       fetchExportRegistry,
       downloadExportBatchPackage,
+      downloadExportBatchPackageFromJob,
+      submitJob,
+      getJob,
+      getJobResults,
+      docExportProgressModal,
       startExportResult,
       finishExportResult,
       renderLoadingState,

@@ -1,5 +1,6 @@
 import { renderGuxFieldCheckbox } from "./gux-ui.js";
 import { triggerBlobDownload } from "./prompts-export.js";
+import { runExportJobViaJob } from "./export-job.js";
 
 const escapeHtml = (value) =>
   String(value == null ? "" : value)
@@ -82,9 +83,46 @@ const renderExportAllBody = (resultId, exportMeta) => {
   </div>`;
 };
 
+const buildDocExportProgressMessage = (job, exportIdLabels) => {
+  const total = Math.max(0, Number(job?.total) || 0);
+  const done = Math.max(0, Number(job?.completed) || 0) + Math.max(0, Number(job?.failed) || 0);
+  const processing = Math.max(0, Number(job?.processing) || 0);
+  const current = Math.min(total || done + processing, done + processing);
+
+  let moduleHint = "";
+  if (processing > 0 && Array.isArray(job?.results)) {
+    const active = job.results.find((row) => row.poolStatus === "processing" || row.status === "processing");
+    const exportId = active?.exportId || active?.itemId || active?.result?.exportId;
+    if (exportId && exportIdLabels?.[exportId]) {
+      moduleHint = ` — ${exportIdLabels[exportId]}`;
+    } else if (exportId) {
+      moduleHint = ` — ${exportId}`;
+    }
+  }
+
+  const statusLabel =
+    job?.status === "queued"
+      ? "Queued"
+      : job?.status === "running"
+        ? `Exporting catalogs${moduleHint}`
+        : "Finishing";
+
+  const detail =
+    total > 0
+      ? `${Math.min(done + processing, total)} of ${total} module(s) (${done} succeeded${Number(job?.failed) ? `, ${job.failed} failed` : ""})`
+      : "Preparing catalog exports...";
+
+  return { statusLabel, detail, current: total > 0 ? current : undefined, total: total > 0 ? total : undefined };
+};
+
 const createExportAllFeature = ({
   fetchExportRegistry,
   downloadExportBatchPackage,
+  downloadExportBatchPackageFromJob,
+  submitJob,
+  getJob,
+  getJobResults,
+  docExportProgressModal,
   startExportResult,
   finishExportResult,
   renderLoadingState,
@@ -157,18 +195,79 @@ const createExportAllFeature = ({
       return;
     }
 
+    if (docExportProgressModal?.isOpen) {
+      return;
+    }
+
+    const exportIdLabels = Object.fromEntries(
+      (exportMeta.registry?.exports || [])
+        .filter((entry) => exportIds.includes(entry.id))
+        .map((entry) => [entry.id, entry.label || entry.id])
+    );
+
+    const totalModules = exportIds.length;
+    docExportProgressModal?.open({
+      primaryMessage: "Starting documentation export...",
+      additionalGuidance: `0 of ${totalModules} catalog module(s)`,
+      current: 0,
+      total: totalModules,
+    });
+
     exportMeta.status = "Building documentation ZIP...";
     state.rerenderExportResult?.(resultId);
 
-    try {
-      const { blob, filename } = await downloadExportBatchPackage({
-        ...credentials,
-        exportIds,
+    const updateModalFromJob = (job) => {
+      const { statusLabel, detail, current, total } = buildDocExportProgressMessage(job, exportIdLabels);
+      docExportProgressModal?.update({
+        primaryMessage: statusLabel,
+        additionalGuidance: detail,
+        current,
+        total,
       });
+    };
+
+    try {
+      if (!submitJob || !getJob || !getJobResults || !downloadExportBatchPackageFromJob) {
+        throw new Error("Documentation export job API is not available.");
+      }
+
+      const { job } = await runExportJobViaJob({
+        ...credentials,
+        type: "export-batch",
+        payload: { exportIds },
+        onProgress: updateModalFromJob,
+        submitJob,
+        getJob,
+        getJobResults,
+      });
+
+      if (job.status === "failed" || job.status === "cancelled") {
+        throw new Error(job.error || "Documentation export job failed.");
+      }
+
+      if (job.status === "completed_with_errors" && Number(job.completed) === 0) {
+        throw new Error("No catalog modules exported successfully.");
+      }
+
+      docExportProgressModal?.update({
+        primaryMessage: "Building ZIP package...",
+        additionalGuidance: "Compressing CSV files for download.",
+        current: undefined,
+        total: undefined,
+      });
+
+      const jobId = job.jobId || job.id;
+      const { blob, filename } = await downloadExportBatchPackageFromJob({
+        ...credentials,
+        jobId,
+      });
+
       triggerBlobDownload(blob, filename);
+      docExportProgressModal?.close();
       exportMeta.status = `Downloaded ${filename} (${exportIds.length} module(s)).`;
       state.rerenderExportResult?.(resultId);
     } catch (error) {
+      docExportProgressModal?.showError(error.message || "Documentation export failed.");
       exportMeta.status = error.message || "Documentation export failed.";
       state.rerenderExportResult?.(resultId);
     }
